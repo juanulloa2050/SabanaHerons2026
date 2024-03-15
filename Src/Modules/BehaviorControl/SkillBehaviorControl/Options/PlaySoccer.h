@@ -1,7 +1,7 @@
 /**
  * @file PlaySoccer.h
  *
- * This file defines the root option of the soccer behavior.8889
+ * This file defines the root option of the soccer behavior.88899
  *
  * @author Thomas Röfer
  */
