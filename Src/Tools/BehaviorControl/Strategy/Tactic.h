@@ -22,6 +22,7 @@ STREAMABLE(Tactic,
     t123,
     t222,
     t22,
+    t112,
   });
 
   STREAMABLE(Position,
