@@ -1,9 +1,15 @@
-# B-Human Code Release
+# Sabana-Herons Code Release
 
-This is the official 2023 B-Human code release. Documentation can be found in our [public wiki](https://wiki.b-human.de/coderelease2023/).
+This is the 2024 Sabana-herons code release. this code is heavily based in B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/) as we are a small team mainly composed by undergrad students.
 
-B-Human is a research project. We provide the software as is. We release it as a snapshot of our internal repository on a yearly basis. You can build on this software, but you have to make do with the documentation we released. You may report bugs or problems with newer releases of operating systems or the tools used by opening a GitHub issue. We might give hints on how to solve these problems if we also ran into them since the code release. Do not write emails to the team or any of its members directly. They will not be answered.
+Nonetheless, we have added our own improvements to the code, and behaviors that adapt the best to our strategy, therefore, the following list is meant to describe those improvements and adaptations we've done:
 
-Before cloning this repository, you must read our [license terms](License.md) and the [instructions in our wiki](https://wiki.b-human.de/coderelease2023/getting-started/initial-setup/).
+## Improvements:
 
-Previous code releases are tagged with "coderelease&lt;year&gt;", where &lt;year&gt; is the year in which the code was released (starting with 2013).
+1. _5vs5 tactics and strategies_: Due to our number of available NaoV6 robots and team size, we're currently participating exclusively in SPL Shield Challenge, we've adapted and created B-Human code to work in 5vs5 matches.
+2. _Fail analysis with back head button_: Due to the difficulty to rapidly and consistently detect fails in our current field setup (a kind of true official game field but - which due to installation can generate some problems in robots motion schema), we've developed a functionality that when can output the most _"Critical recent fails"_ so we don't have to access each robot's log.
+3. _Improved DribbleToGoal Skill_: We noted DribbleToGoal skill may encounter some edge cases for Striker, especially when arriving to the delimitation lines of field, which caused the striker to lose the ball and generate a Goal Kick In for adversaries or to shot at the post of the goal, we tried to improve that by almost never letting the striker shot the ball outside field boundary generating a KickIn or striking the Goal Post.
+
+## Run this code
+
+As we said, this code is heavily based in B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/), therefore and so far, you can just follow their documentation to build and run the code.
