@@ -75,17 +75,10 @@ void SkillBehaviorControl::update(ActivationGraph&)
     std::string wavName = Global::getSettings().headName.c_str();
     wavName.append(".wav");
     SystemCall::playSound(wavName.c_str());
-    SystemCall::say(("is wearing a " +
+    SystemCall::say(("  my name is  " + theRobotHealth.robotName+ " im wearing  " +
                      std::string(TypeRegistry::getEnumName(theGameState.color())) +
-                     " jersey with the number " +
-                     std::to_string(theGameState.playerNumber) +
-                     ". It is deployed in " +
-                     std::string(TypeRegistry::getEnumName(theRobotHealth.configuration)) +
-                     " for the " +
-                     theRobotHealth.scenario +
-                     " scenario at the " +
-                     theRobotHealth.location +
-                     " location.").c_str(), true, 0.9f);
+                     " with the number " +
+                     std::to_string(theGameState.playerNumber)).c_str(), true, 0.7f);
   }
 
   theSkillRegistry.modifyAllParameters();
