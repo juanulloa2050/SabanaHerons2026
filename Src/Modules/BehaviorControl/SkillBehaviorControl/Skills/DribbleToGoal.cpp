@@ -186,7 +186,7 @@ class DribbleToGoalImpl : public DribbleToGoalImplBase
     lastDribbleAngle = dribbleAngle;
     // TODO set kickLength to something higher?
     theGoToBallAndDribbleSkill({.targetDirection = dribbleAngle,
-                                .kickLength = dribbleRange,
+                                .kickLength = dribbleRange+lookActiveMinBallDistance,
                                 .lookActiveWithBall = theFieldBall.interceptedEndPositionRelative.squaredNorm() > sqr(lookActiveMinBallDistance)});
     return;
   }
@@ -202,9 +202,9 @@ class DribbleToGoalImpl : public DribbleToGoalImplBase
     Vector2f ballToIntersection1 = i1 - startPosition;
     Vector2f ballToIntersection2 = i2 - startPosition;
     // the 5_degs is just a arbitrary number, because the angle to the intersection point is only for a small fraction different to the original kickAngle, resulting from rounding errors.
-    if(std::abs(ballToIntersection1.angle() - direction) < 5_deg)
+    if(std::abs(ballToIntersection1.angle() - direction) < 7_deg)
       distanceToFieldBorderSquared = ballToIntersection1.squaredNorm();
-    else if(std::abs(ballToIntersection2.angle() - direction) < 5_deg)
+    else if(std::abs(ballToIntersection2.angle() - direction) < 7_deg)
       distanceToFieldBorderSquared = ballToIntersection2.squaredNorm();
     return distanceToFieldBorderSquared;
   }
@@ -238,8 +238,9 @@ class DribbleToGoalImpl : public DribbleToGoalImplBase
     wheel.begin(theFieldBall.positionOnField);
 
     const float minBallGoalPostOffsetSquared = theFieldDimensions.goalPostRadius + theBallSpecification.radius;
-    const Angle leftAngleOffset = std::asin(std::min(1.f, minBallGoalPostOffsetSquared / (leftGoalPost - theFieldBall.positionOnField).norm()));
-    const Angle rightAngleOffset = std::asin(std::min(1.f, minBallGoalPostOffsetSquared / (rightGoalPost - theFieldBall.positionOnField).norm()));
+    const Angle bufferAngle = 5_deg;
+    const Angle leftAngleOffset = std::asin(std::min(1.f, minBallGoalPostOffsetSquared / (leftGoalPost - theFieldBall.positionOnField).norm())) + bufferAngle;
+    const Angle rightAngleOffset = std::asin(std::min(1.f, minBallGoalPostOffsetSquared / (rightGoalPost - theFieldBall.positionOnField).norm())) + bufferAngle;
     const Angle angleToLeftPost = Angle::normalize((leftGoalPost - theFieldBall.positionOnField).angle() - leftAngleOffset);
     const Angle angleToRightPost = Angle::normalize((rightGoalPost - theFieldBall.positionOnField).angle() + rightAngleOffset);
 
