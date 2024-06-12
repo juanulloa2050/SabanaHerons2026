@@ -101,17 +101,14 @@ void UKFPose2D::landmarkSensorUpdate(const Vector2f& landmarkPosition, const Vec
 
   // computeLandmarkReadings
   Vector2f landmarkReadings[7];
+  Vector2f landmarkReadingMean = Vector2f::Zero();
   for(int i = 0; i < 7; ++i)
   {
     Pose2f pose(sigmaPoints[i].z(), sigmaPoints[i].head<2>());
-    Vector2f landmarkPosRel = pose.invert() * landmarkPosition; // TODO: optimize this
-    landmarkReadings[i] = Vector2f(landmarkPosRel.x(), landmarkPosRel.y());
+    Vector2f landmarkPosRel = pose.invert() * landmarkPosition;
+    landmarkReadings[i] = landmarkPosRel;
+    landmarkReadingMean += landmarkPosRel;
   }
-
-  // computeMeanOfLandmarkReadings
-  Vector2f landmarkReadingMean = landmarkReadings[0];
-  for(int i = 1; i < 7; ++i)
-    landmarkReadingMean += landmarkReadings[i];
   landmarkReadingMean *= 1.f / 7.f;
 
   // computeCovOfLandmarkReadingsAndSigmaPoints
@@ -119,17 +116,15 @@ void UKFPose2D::landmarkSensorUpdate(const Vector2f& landmarkPosition, const Vec
   for(int i = 0; i < 3; ++i)
   {
     const Vector2f d1 = landmarkReadings[i * 2 + 1] - landmarkReadingMean;
-    landmarkReadingAndMeanCov += (Matrix2x3f() << d1 * l(0, i), d1 * l(1, i), d1 * l(2, i)).finished();
     const Vector2f d2 = landmarkReadings[i * 2 + 2] - landmarkReadingMean;
-    landmarkReadingAndMeanCov += (Matrix2x3f() << d2 * -l(0, i), d2 * -l(1, i), d2 * -l(2, i)).finished();
+    landmarkReadingAndMeanCov += (Matrix2x3f() << d1 * l(0, i), d1 * l(1, i), d1 * l(2, i)).finished() +
+                                 (Matrix2x3f() << d2 * -l(0, i), d2 * -l(1, i), d2 * -l(2, i)).finished();
   }
   landmarkReadingAndMeanCov *= 0.5f;
 
   // computeCovOfLandmarkReadingsReadings
-  const Vector2f d = landmarkReadings[0] - landmarkReadingMean;
   Matrix2f landmarkReadingCov = Matrix2f::Zero();
-  landmarkReadingCov << d * d.x(), d * d.y();
-  for(int i = 1; i < 7; ++i)
+  for(int i = 0; i < 7; ++i)
   {
     const Vector2f d = landmarkReadings[i] - landmarkReadingMean;
     landmarkReadingCov += (Matrix2f() << d * d.x(), d * d.y()).finished();
