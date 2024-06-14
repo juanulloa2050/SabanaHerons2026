@@ -22,75 +22,61 @@ namespace ImageTransform
   }
 
   template<typename T>
-  ALWAYSINLINE static __m128 getPixel(const Image<T>& src, __m128 x_x_x_x_Dash, __m128 y_y_y_y_Dash, float defaultValue = 0.f)
-  {
-    int32_t xCoordinates[4];
-    int32_t yCoordinates[4];
+ALWAYSINLINE static __m128 getPixel(const Image<T>& src, __m128 x_x_x_x_Dash, __m128 y_y_y_y_Dash, float defaultValue = 0.f)
+{
+  // Convert floating point coordinates to integer
+  const __m128i xCoordsInt = _mm_cvtps_epi32(x_x_x_x_Dash);
+  const __m128i yCoordsInt = _mm_cvtps_epi32(y_y_y_y_Dash);
 
-    const __m128i new_x_x_x_x_icoord = _mm_cvtps_epi32(x_x_x_x_Dash);
-    const __m128i new_y_y_y_y_icoord = _mm_cvtps_epi32(y_y_y_y_Dash);
+  // Calculate weights for bilinear interpolation
+  const __m128 xWeightsRight = _mm_sub_ps(x_x_x_x_Dash, _mm_cvtepi32_ps(xCoordsInt));
+  const __m128 yWeightsLower = _mm_sub_ps(y_y_y_y_Dash, _mm_cvtepi32_ps(yCoordsInt));
+  const __m128 xWeightsLeft = _mm_sub_ps(_mm_set1_ps(1.f), xWeightsRight);
+  const __m128 yWeightsUpper = _mm_sub_ps(_mm_set1_ps(1.f), yWeightsLower);
 
-    // weight calculation
-    const __m128 new_x_x_x_x_floor = _mm_cvtepi32_ps(new_x_x_x_x_icoord);
-    const __m128 new_y_y_y_y_floor = _mm_cvtepi32_ps(new_y_y_y_y_icoord);
+  // Check if coordinates are within image bounds
+  const __m128i maskXInRange = _mm_and_si128(_mm_cmpgt_epi32(xCoordsInt, _mm_set1_epi32(-1)),
+                                             _mm_cmpgt_epi32(_mm_set1_epi32(src.width - 1), xCoordsInt));
+  const __m128i maskYInRange = _mm_and_si128(_mm_cmpgt_epi32(yCoordsInt, _mm_set1_epi32(-1)),
+                                             _mm_cmpgt_epi32(_mm_set1_epi32(src.height - 1), yCoordsInt));
+  const __m128i maskInRange = _mm_and_si128(maskXInRange, maskYInRange);
 
-    const __m128 new_x_x_x_x_mod = _mm_sub_ps(x_x_x_x_Dash, new_x_x_x_x_floor); // = weight right pixel
-    const __m128 new_y_y_y_y_mod = _mm_sub_ps(y_y_y_y_Dash, new_y_y_y_y_floor); // = weight lower pixel
+  // Initialize arrays to store valid coordinates
+  int32_t xCoordinates[4], yCoordinates[4];
+  _mm_store_si128(reinterpret_cast<__m128i*>(xCoordinates), _mm_and_si128(maskInRange, xCoordsInt));
+  _mm_store_si128(reinterpret_cast<__m128i*>(yCoordinates), _mm_and_si128(maskInRange, yCoordsInt));
 
-    const __m128 subFrom1_new_x_x_x_x_mod = _mm_sub_ps(_mm_set1_ps(1.f), new_x_x_x_x_mod); // = weight left pixel
-    const __m128 subFrom1_new_y_y_y_y_mod = _mm_sub_ps(_mm_set1_ps(1.f), new_y_y_y_y_mod); // = weight upper pixel
+  // Prepare for bilinear interpolation
+  __m128 result = _mm_setzero_ps();
+  for (int i = 0; i < 4; i += 2) {
+    // Fetch pixel values for interpolation
+    __m128 upperValues = setR2float(
+      src[yCoordinates[i]][xCoordinates[i]], src[yCoordinates[i]][xCoordinates[i] + 1],
+      src[yCoordinates[i + 1]][xCoordinates[i + 1]], src[yCoordinates[i + 1]][xCoordinates[i + 1] + 1]);
+    __m128 lowerValues = setR2float(
+      src[yCoordinates[i] + 1][xCoordinates[i]], src[yCoordinates[i] + 1][xCoordinates[i] + 1],
+      src[yCoordinates[i + 1] + 1][xCoordinates[i + 1]], src[yCoordinates[i + 1] + 1][xCoordinates[i + 1] + 1]);
 
-    //in image check
-    const __m128i xInRange = _mm_and_si128(_mm_cmpgt_epi32(new_x_x_x_x_icoord, _mm_set1_epi32(-1)),
-                                           _mm_cmpgt_epi32(_mm_set1_epi32(src.width - 1), new_x_x_x_x_icoord));
+    // Calculate weights for current pair
+    __m128 xWeights = i == 0 ? _mm_unpacklo_ps(xWeightsLeft, xWeightsRight) : _mm_unpackhi_ps(xWeightsLeft, xWeightsRight);
+    __m128 yWeightsUpper = i == 0 ? _mm_unpacklo_ps(yWeightsUpper, yWeightsUpper) : _mm_unpackhi_ps(yWeightsUpper, yWeightsUpper);
+    __m128 yWeightsLower = i == 0 ? _mm_unpacklo_ps(yWeightsLower, yWeightsLower) : _mm_unpackhi_ps(yWeightsLower, yWeightsLower);
 
-    const __m128i yInRange = _mm_and_si128(_mm_cmpgt_epi32(new_y_y_y_y_icoord, _mm_set1_epi32(-1)),
-                                           _mm_cmpgt_epi32(_mm_set1_epi32(src.height - 1), new_y_y_y_y_icoord));
-
-    const __m128i coordInRange = _mm_and_si128(xInRange, yInRange);
-
-    const __m128 defaultValues = _mm_set1_ps(defaultValue);
-
-    _mm_store_si128(reinterpret_cast<__m128i*>(xCoordinates), _mm_and_si128(coordInRange, new_x_x_x_x_icoord));
-    _mm_store_si128(reinterpret_cast<__m128i*>(yCoordinates), _mm_and_si128(coordInRange, new_y_y_y_y_icoord));
-
-    __m128 halfWay[2];
-    for(int i = 0; i < 4; i += 2)
-    {
-      //TODO make this not so crappy
-      const __m128 upperValues = setR2float(
-                                   src[yCoordinates[i]][xCoordinates[i]], src[yCoordinates[i]][xCoordinates[i] + 1],
-                                   src[yCoordinates[i + 1]][xCoordinates[i + 1]], src[yCoordinates[i + 1]][xCoordinates[i + 1] + 1]);
-
-      const __m128 lowerValues = setR2float(
-                                   src[yCoordinates[i] + 1][xCoordinates[i]], src[yCoordinates[i] + 1][xCoordinates[i] + 1],
-                                   src[yCoordinates[i + 1] + 1][xCoordinates[i + 1]], src[yCoordinates[i + 1] + 1][xCoordinates[i + 1] + 1]);
-
-      __m128 xWeights, yWeightUpper, yWeightLower;
-
-      if(!i)
-      {
-        xWeights = _mm_unpacklo_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
-        yWeightUpper = _mm_unpacklo_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
-        yWeightLower = _mm_unpacklo_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
-      }
-      else
-      {
-        xWeights = _mm_unpackhi_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
-        yWeightUpper = _mm_unpackhi_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
-        yWeightLower = _mm_unpackhi_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
-      }
-
-      halfWay[i / 2] = _mm_mul_ps(xWeights, _mm_add_ps(_mm_mul_ps(yWeightUpper, upperValues), _mm_mul_ps(yWeightLower, lowerValues)));
-    }
-
-    const __m128 result = _mm_min_ps(_mm_and_ps(_mm_castsi128_ps(coordInRange), _mm_hadd_ps(halfWay[0], halfWay[1])), _mm_set1_ps(255.f));
-
-    if(defaultValue == 0.f)
-      return result;
-    else
-      return _mm_or_ps(_mm_andnot_ps(_mm_castsi128_ps(coordInRange), defaultValues), result);
+    // Perform bilinear interpolation
+    result = _mm_add_ps(result, _mm_mul_ps(xWeights, _mm_add_ps(_mm_mul_ps(yWeightsUpper, upperValues), _mm_mul_ps(yWeightsLower, lowerValues))));
   }
+
+  // Clamp result to maximum value and apply mask for in-range coordinates
+  result = _mm_min_ps(_mm_and_ps(_mm_castsi128_ps(maskInRange), result), _mm_set1_ps(255.f));
+
+  // Apply default value for out-of-range coordinates
+  if (defaultValue != 0.f) {
+    const __m128 defaultValues = _mm_set1_ps(defaultValue);
+    result = _mm_or_ps(_mm_andnot_ps(_mm_castsi128_ps(maskInRange), defaultValues), result);
+  }
+
+  return result;
+}
 
   // writes the result of the affine transformation into dest, which has to be a buffer with a sufficient large size
   void transform(const Image<PixelTypes::GrayscaledPixel>& src, float* destP, unsigned int dest_width, unsigned int dest_height, const Matrix3f& inverseTransformation, const Vector2f& relativTransformationCenter = Vector2f(0.5f, 0.5f), const float defaultValue = 0.f)
