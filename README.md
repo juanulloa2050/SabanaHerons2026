@@ -10,6 +10,7 @@ Nonetheless, we have added our own improvements to the code, and behaviors that 
 2. **Fail analysis with back head button**: Due to the difficulty to rapidly and consistently detect fails in our current field setup (a kind of true official game field but - which due to installation can generate some problems in robots motion schema), we've developed a functionality that when can output the most **"Critical recent fails"** so we don't have to access each robot's log.
 3. **Improved DribbleToGoal Skill**: We noted DribbleToGoal skill may encounter some edge cases for Striker, especially when arriving to the delimitation lines of field, which caused the striker to lose the ball and generate a Goal Kick In for adversaries or to shot at the post of the goal, we tried to improve that by almost never letting the striker shot the ball outside field boundary generating a KickIn or striking the Goal Post.
 4. **Optimize the run time of 2D pose for Probabilistic Robot Self Locator**: We noticed the UKFPose2D may have some performance issues regarding Landmark Sensor Update, since it was generating unnecessary Landmark readings that would pollute the matrix calculations for pose provider, thus matrix calculations are more expensive we found a way to optimize it.
+5. **Improve Image CNN Tools**: As far as we saw, some Image CNN Tools like Image Transforms were overkill, difficult to understand and were making unnecessary calculations. We improved some of these issues by partially refactoring some of these tools.
 
 ## Run this code
 
