@@ -24,7 +24,7 @@ STREAMABLE(Strategy,
     none,
     s5v5,
     ataque,
-    defensiva
+    defensiva,
   });
 
   template<typename SetPlayType>
