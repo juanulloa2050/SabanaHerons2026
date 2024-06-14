@@ -212,39 +212,39 @@ namespace ImageTransform
   ////////
   // TODO opimize below
 
-  void polarTransform(const Image<float>& src, Image<float>& dest)
+void polarTransform(const Image<float>& src, Image<float>& dest)
+{
+  const float angleDiff = static_cast<float>(2.f * M_PI / dest.width);
+  const float rDiff = static_cast<float>(src.height / 2.f / dest.height);
+
+  std::vector<float> precalcXDiff(dest.width);
+  std::vector<float> precalcYDiff(dest.width);
+
+  for(unsigned i = 0; i < dest.width; ++i)
   {
-    // for normal images first
-    const float angelDiff = 2.f * pi / dest.width;
-    const float rDiff = src.height / 2.f / dest.height;
+    const float angle = static_cast<float>(i * angleDiff); // Explicit cast
+    precalcXDiff[i] = static_cast<float>(std::cos(angle) * rDiff); // Explicit cast
+    precalcYDiff[i] = static_cast<float>(std::sin(angle) * rDiff); // Explicit cast
+  }
 
-    std::vector<float> precalcXDiff;
-    std::vector<float> precalcYDiff;
-
-    for(unsigned i = 0; i < dest.width; ++i)
+  ASSERT(dest.width % 4 == 0);
+  for(unsigned x = 0; x < dest.width; x += 4)
+  {
+    for(unsigned y = 0; y < dest.height; ++y)
     {
-      const float angle = i * angelDiff;
-      precalcXDiff.emplace_back(std::cos(angle) * rDiff);
-      precalcYDiff.emplace_back(std::sin(angle) * rDiff);
-    }
+      __m128 x_base = _mm_set1_ps(src.width / 2.f);
+      __m128 y_base = _mm_set1_ps(src.height / 2.f + y * rDiff);
 
-    ASSERT(dest.width % 4 == 0);
-    for(unsigned x = 0; x < dest.width; x += 4)
-    {
-      __m128 x_x_x_x = _mm_set1_ps(src.width / 2.f);
-      __m128 y_y_y_y = _mm_set1_ps(src.height / 2.f);
+      __m128 xDiff = _mm_loadu_ps(&precalcXDiff[x]);
+      __m128 yDiff = _mm_loadu_ps(&precalcYDiff[x]);
 
-      const __m128 xDiff = _mm_loadu_ps(&precalcXDiff[x]);
-      const __m128 yDiff = _mm_loadu_ps(&precalcYDiff[x]);
+      __m128 x_pos = _mm_add_ps(x_base, xDiff);
+      __m128 y_pos = _mm_add_ps(y_base, yDiff);
 
-      for(unsigned y = 0; y < dest.height; ++y)
-      {
-        x_x_x_x = _mm_add_ps(x_x_x_x, xDiff);
-        y_y_y_y = _mm_add_ps(y_y_y_y, yDiff);
-        _mm_storeu_ps(&dest[y][x], getPixel(src, x_x_x_x, y_y_y_y));
-      }
+      _mm_storeu_ps(&dest[y][x], getPixel(src, x_pos, y_pos));
     }
   }
+}
 
   void logPolarTransform(const Image<float>& src, Image<float>& dest)
   {
