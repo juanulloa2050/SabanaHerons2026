@@ -65,7 +65,7 @@ void GyroOffsetProvider::update(GyroOffset& gyroOffset)
         if(theFrameInfo.getTimeSince(gyroNotCheckedTimestamp) > gyroNotCheckedWarningTime)
         {
           gyroNotCheckedTimestamp = theFrameInfo.time;
-          SystemCall::say("Please place me on the ground and do not move me. I need to calibrate my gyro values!", true);
+          SystemCall::say("Leave me alone, i need to calibrate", true);
         }
       }
       break;
@@ -115,7 +115,7 @@ void GyroOffsetProvider::update(GyroOffset& gyroOffset)
         gyroOffset.offsetCheckFinished = true;
         if(gyroNotCheckedTimestamp != 0) // Only say it, if robot needed to say the warning
         {
-          SystemCall::say("Thank you. I am ready to be used.", true);
+          SystemCall::say("Gracias. I am ready broo.", true);
         }
         state = off;
       }
@@ -128,7 +128,7 @@ void GyroOffsetProvider::update(GyroOffset& gyroOffset)
         if(theFrameInfo.getTimeSince(gyroNotCheckedTimestamp) > gyroNotCheckedWarningTime)
         {
           gyroNotCheckedTimestamp = theFrameInfo.time;
-          SystemCall::say("Please place me on the ground and do not move me. I need to calibrate my gyro values!", true);
+          SystemCall::say("Leave me alone, i need to calibrate", true);
         }
       }
       break;
