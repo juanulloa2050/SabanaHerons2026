@@ -42,7 +42,7 @@ bool KeyframePhaseBase::isInBreakUpRange()
     currentKeyframe = Keyframe();
     waitForFallenCheck = true;
     if(SystemCall::getMode() != SystemCall::logFileReplay && !(engine.theFilteredCurrent.legMotorMalfunction && engine.motorMalfunctionBreakUp))
-      SystemCall::say("Abort");
+      SystemCall::say("Cancelar");
     for(std::size_t i = 0; i < jointRequestOutput.angles.size(); i++)
       jointRequestOutput.stiffnessData.stiffnesses[i] = 10;
     return true;
@@ -139,7 +139,7 @@ void KeyframePhaseBase::doHelpMeStuff()
   }
   if(engine.theFrameInfo.getTimeSince(helpMeTimestamp) > 5000)
   {
-    SystemCall::say("Help me");
+    SystemCall::say("AYUDAAAA");
     SystemCall::playSound("mimimi.wav");
     helpMeTimestamp = engine.theFrameInfo.time;
   }
