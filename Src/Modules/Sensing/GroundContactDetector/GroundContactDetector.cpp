@@ -28,6 +28,6 @@ void GroundContactDetector::update(GroundContactState& groundContactState)
       lastTimeWithoutPressure = theFrameInfo.time;
     groundContactState.contact = theFrameInfo.getTimeSince(lastTimeWithoutPressure) > minTimeWithPressure;
     if(groundContactState.contact && SystemCall::getMode() == SystemCall::physicalRobot)
-      SystemCall::say("Ground");
+      SystemCall::say("Lets go", true,1.3);
   }
 }
