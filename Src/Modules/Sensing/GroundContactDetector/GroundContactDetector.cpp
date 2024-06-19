@@ -17,7 +17,7 @@ void GroundContactDetector::update(GroundContactState& groundContactState)
       lastTimeWithPressure = theFrameInfo.time;
     groundContactState.contact = theFrameInfo.getTimeSince(lastTimeWithPressure) < maxTimeWithoutPressure;
     if(!groundContactState.contact && SystemCall::getMode() == SystemCall::physicalRobot)
-      SystemCall::say("High");
+      SystemCall::say("Picked up");
   }
   else
   {
@@ -28,6 +28,6 @@ void GroundContactDetector::update(GroundContactState& groundContactState)
       lastTimeWithoutPressure = theFrameInfo.time;
     groundContactState.contact = theFrameInfo.getTimeSince(lastTimeWithoutPressure) > minTimeWithPressure;
     if(groundContactState.contact && SystemCall::getMode() == SystemCall::physicalRobot)
-      SystemCall::say("Ground");
+      SystemCall::say("Lets go", true,1.3);
   }
 }
