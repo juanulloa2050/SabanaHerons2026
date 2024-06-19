@@ -1,0 +1,40 @@
+#!/bin/bash
+
+cd "$(dirname "$(which "$0")")"
+
+CONFIGURATION="$1"
+
+killall DeployDialog 2>/dev/null
+
+( if [ "$(uname)" == "Darwin" ]; then
+  FULLSCREEN=`osascript <<-APPLESCRIPT
+    tell app "System events"
+      try
+        return true is in value of attribute "AXFullScreen" of windows of process "Xcode"
+      on error
+        return false
+      end try
+    end tell
+    APPLESCRIPT`
+  OPTION=
+  if $FULLSCREEN; then
+    OPTION=--fullscreen
+  fi
+  ../../Build/macOS/DeployDialog/$CONFIGURATION/DeployDialog.app/Contents/MacOS/DeployDialog $OPTION 2>/dev/null
+elif [ -e /proc/version ] && [ ! -z "$(grep Microsoft </proc/version)" ]; then
+  ../../Build/Windows/DeployDialog/$CONFIGURATION/DeployDialog.exe 2>/dev/null
+else
+  ../../Build/Linux/DeployDialog/$CONFIGURATION/DeployDialog 2>/dev/null
+fi ) | while read ARGS; do
+  ARGS="$(tr -d '\r' <<<"$ARGS")"
+  if [ ! -z "$ARGS" ]; then
+    if [ ! -z "$(grep '^logs ' <<<"$ARGS")" ]; then
+      ARGS="$(sed 's%^logs %%' <<<"$ARGS")"
+      ./downloadLogs $ARGS
+    else
+      ./deploy $CONFIGURATION $ARGS
+    fi
+  else
+    break
+  fi
+done
