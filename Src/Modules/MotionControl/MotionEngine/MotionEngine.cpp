@@ -76,7 +76,7 @@ void MotionEngine::update(JointRequest& jointRequest)
     {
       OUTPUT_ERROR("No data from Cognition to Motion for more than " << ((emergencySitDownDelay + 500) / 1000) << " seconds.");
       SystemCall::playSound("sirene.wav", true);
-      SystemCall::say("No cognition data!", true);
+      SystemCall::say("I blind help mee!", true);
     }
     else
       OUTPUT_ERROR("Gyro values have high offsets!");
