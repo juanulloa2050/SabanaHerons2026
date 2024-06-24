@@ -38,7 +38,7 @@
 bool beginOfRefereeSignal() const
 {
   return theGameState.competitionPhase == GameState::roundRobin
-         && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
+         && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 1000
          && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
               && ((theExtendedGameState.wasSet() && theGameState.isPlaying())
                   || (theExtendedGameState.wasPlaying() && theGameState.isReady())))
