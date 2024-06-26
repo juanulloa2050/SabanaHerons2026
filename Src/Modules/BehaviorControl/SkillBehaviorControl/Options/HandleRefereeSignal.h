@@ -36,7 +36,11 @@
  * @return Are we?
  */
 bool beginOfRefereeSignal() const
+
 {
+    if (theGameState.isKickOff() && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000)
+    return false;
+    
   return theGameState.competitionPhase == GameState::roundRobin
          && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
          && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
