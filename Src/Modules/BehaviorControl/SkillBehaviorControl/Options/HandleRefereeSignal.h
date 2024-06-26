@@ -40,7 +40,7 @@ bool beginOfRefereeSignal() const
 {
     if (theGameState.isKickOff() && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000)
     return false;
-    
+
   return theGameState.competitionPhase == GameState::roundRobin
          && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
          && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
@@ -213,13 +213,13 @@ option(HandleRefereeSignal)
 
   common_transition
   {
-    if(option_time > 10000
-       || theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall)
+    if( theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall)
        || (theStrategyStatus.role == ActiveRole::toRole(ActiveRole::closestToTeammatesBall)
            && theTeammatesBallModel.isValid
            && BallPhysics::getEndPosition(theTeammatesBallModel.position, theTeammatesBallModel.velocity, theBallSpecification.friction).x() < -2000.f)
-       || theStrategyStatus.position == Tactic::Position::goalkeeper)
+       || theStrategyStatus.position == Tactic::Position::goalkeeper){
       goto inactive;
+       }
   }
 
   initial_state(inactive)
