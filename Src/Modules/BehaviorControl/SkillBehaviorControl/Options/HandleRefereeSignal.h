@@ -43,9 +43,8 @@ bool beginOfRefereeSignal() const
 
   return theGameState.competitionPhase == GameState::roundRobin
          && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
-         && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
-              && ((theExtendedGameState.wasSet() && theGameState.isPlaying())
-                  || (theExtendedGameState.wasPlaying() && theGameState.isReady())))
+         && ((((theExtendedGameState.wasSet() && theGameState.isPlaying())
+                || (theExtendedGameState.wasPlaying() && theGameState.isReady())))
              || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf));
 }
 
