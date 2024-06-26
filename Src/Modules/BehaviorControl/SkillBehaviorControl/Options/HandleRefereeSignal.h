@@ -37,18 +37,13 @@
  */
 bool beginOfRefereeSignal() const
 {
-  // Check if the current state is the kickoff state and the state just started
-  if (theGameState.isKickOff() && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000)
-    return false;
-
   return theGameState.competitionPhase == GameState::roundRobin
          && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
-         && (((GameState::isKickOff(theExtendedGameState.stateLastFrame))
+         && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
               && ((theExtendedGameState.wasSet() && theGameState.isPlaying())
                   || (theExtendedGameState.wasPlaying() && theGameState.isReady())))
              || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf));
 }
-
 
 /**
  * Send the actual referee signal and maybe also speak it out load.
@@ -214,7 +209,7 @@ option(HandleRefereeSignal)
 
   common_transition
   {
-    if(option_time > 5000
+    if(option_time > 10000
        || theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall)
        || (theStrategyStatus.role == ActiveRole::toRole(ActiveRole::closestToTeammatesBall)
            && theTeammatesBallModel.isValid
@@ -265,7 +260,7 @@ option(HandleRefereeSignal)
   {
     transition
     {
-      if(option_time > 1000 && !blocked())
+      if(option_time > 3000 && !blocked())
       {
         if(theRefereePercept.gesture == RefereePercept::substitution)
           goto detectSecondGesture;
@@ -273,11 +268,11 @@ option(HandleRefereeSignal)
           goto goalBlue;
         else if(theRefereePercept.gesture == RefereePercept::goalRed)
           goto goalRed;
-        else if(option_time > 1000 + 500 * std::abs(std::abs(refereeOffsetOnField.angle()) - 90_deg)
+        else if(option_time > 3000 + 1000 * std::abs(std::abs(refereeOffsetOnField.angle()) - 90_deg)
                 && theRefereePercept.gesture != RefereePercept::none)
           goto sendSignal;
       }
-      if(option_time > 3000)
+      if(option_time > 6000)
         goto sideStep;
     }
     action
