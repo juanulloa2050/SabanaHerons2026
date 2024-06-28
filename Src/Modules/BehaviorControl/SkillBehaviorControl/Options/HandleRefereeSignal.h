@@ -42,8 +42,7 @@ bool beginOfRefereeSignal() const
          && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
               && (
               (theExtendedGameState.wasPlaying() && theGameState.isReady())))
-             || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf))
-         && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) > 5000; // Add condition to avoid looking just after kickoff
+             || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf)); // Add condition to avoid looking just after kickoff
 }
 
 
@@ -143,7 +142,7 @@ option(RefereeActivation)
   {
     transition
     {
-      if(beginOfRefereeSignal() && (theGameState.whistled || theGameState.state == GameState::afterHalf))
+      if(beginOfRefereeSignal() || theGameState.whistled || theGameState.state == GameState::afterHalf)
         goto delaying;
     }
   }
