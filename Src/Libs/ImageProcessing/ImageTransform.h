@@ -21,9 +21,9 @@ namespace ImageTransform
     return _mm_setr_ps(v0, v1, v2, v3);
   }
 
-  template<typename T>
-  ALWAYSINLINE static __m128 getPixel(const Image<T>& src, __m128 x_x_x_x_Dash, __m128 y_y_y_y_Dash, float defaultValue = 0.f)
-  {
+template<typename T>
+ALWAYSINLINE static __m128 getPixel(const Image<T>& src, __m128 x_x_x_x_Dash, __m128 y_y_y_y_Dash, float defaultValue = 0.f)
+{
     int32_t xCoordinates[4];
     int32_t yCoordinates[4];
 
@@ -40,7 +40,7 @@ namespace ImageTransform
     const __m128 subFrom1_new_x_x_x_x_mod = _mm_sub_ps(_mm_set1_ps(1.f), new_x_x_x_x_mod); // = weight left pixel
     const __m128 subFrom1_new_y_y_y_y_mod = _mm_sub_ps(_mm_set1_ps(1.f), new_y_y_y_y_mod); // = weight upper pixel
 
-    //in image check
+    // in image check
     const __m128i xInRange = _mm_and_si128(_mm_cmpgt_epi32(new_x_x_x_x_icoord, _mm_set1_epi32(-1)),
                                            _mm_cmpgt_epi32(_mm_set1_epi32(src.width - 1), new_x_x_x_x_icoord));
 
@@ -57,40 +57,40 @@ namespace ImageTransform
     __m128 halfWay[2];
     for(int i = 0; i < 4; i += 2)
     {
-      //TODO make this not so crappy
-      const __m128 upperValues = setR2float(
-          src[yCoordinates[i]][xCoordinates[i]], src[yCoordinates[i]][xCoordinates[i] + 1],
-          src[yCoordinates[i + 1]][xCoordinates[i + 1]], src[yCoordinates[i + 1]][xCoordinates[i + 1] + 1]);
+        const T* upperRow0 = src[yCoordinates[i]] + xCoordinates[i];
+        const T* upperRow1 = src[yCoordinates[i + 1]] + xCoordinates[i + 1];
+        const T* lowerRow0 = src[yCoordinates[i] + 1] + xCoordinates[i];
+        const T* lowerRow1 = src[yCoordinates[i + 1] + 1] + xCoordinates[i + 1];
 
-      const __m128 lowerValues = setR2float(
-          src[yCoordinates[i] + 1][xCoordinates[i]], src[yCoordinates[i] + 1][xCoordinates[i] + 1],
-          src[yCoordinates[i + 1] + 1][xCoordinates[i + 1]], src[yCoordinates[i + 1] + 1][xCoordinates[i + 1] + 1]);
+        const __m128 upperValues = setR2float(upperRow0[0], upperRow0[1], upperRow1[0], upperRow1[1]);
+        const __m128 lowerValues = setR2float(lowerRow0[0], lowerRow0[1], lowerRow1[0], lowerRow1[1]);
 
-      __m128 xWeights, yWeightUpper, yWeightLower;
+        __m128 xWeights, yWeightUpper, yWeightLower;
 
-      if(!i)
-      {
-        xWeights = _mm_unpacklo_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
-        yWeightUpper = _mm_unpacklo_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
-        yWeightLower = _mm_unpacklo_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
-      }
-      else
-      {
-        xWeights = _mm_unpackhi_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
-        yWeightUpper = _mm_unpackhi_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
-        yWeightLower = _mm_unpackhi_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
-      }
+        if(!i)
+        {
+            xWeights = _mm_unpacklo_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
+            yWeightUpper = _mm_unpacklo_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
+            yWeightLower = _mm_unpacklo_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
+        }
+        else
+        {
+            xWeights = _mm_unpackhi_ps(subFrom1_new_x_x_x_x_mod, new_x_x_x_x_mod);
+            yWeightUpper = _mm_unpackhi_ps(subFrom1_new_y_y_y_y_mod, subFrom1_new_y_y_y_y_mod);
+            yWeightLower = _mm_unpackhi_ps(new_y_y_y_y_mod, new_y_y_y_y_mod);
+        }
 
-      halfWay[i / 2] = _mm_mul_ps(xWeights, _mm_add_ps(_mm_mul_ps(yWeightUpper, upperValues), _mm_mul_ps(yWeightLower, lowerValues)));
+        halfWay[i / 2] = _mm_mul_ps(xWeights, _mm_add_ps(_mm_mul_ps(yWeightUpper, upperValues), _mm_mul_ps(yWeightLower, lowerValues)));
     }
 
     const __m128 result = _mm_min_ps(_mm_and_ps(_mm_castsi128_ps(coordInRange), _mm_hadd_ps(halfWay[0], halfWay[1])), _mm_set1_ps(255.f));
 
     if(defaultValue == 0.f)
-      return result;
+        return result;
     else
-      return _mm_or_ps(_mm_andnot_ps(_mm_castsi128_ps(coordInRange), defaultValues), result);
-  }
+        return _mm_or_ps(_mm_andnot_ps(_mm_castsi128_ps(coordInRange), defaultValues), result);
+}
+
 
   // writes the result of the affine transformation into dest, which has to be a buffer with a sufficient large size
   void transform(const Image<PixelTypes::GrayscaledPixel>& src, float* destP, unsigned int dest_width, unsigned int dest_height, const Matrix3f& inverseTransformation, const Vector2f& relativTransformationCenter = Vector2f(0.5f, 0.5f), const float defaultValue = 0.f)
