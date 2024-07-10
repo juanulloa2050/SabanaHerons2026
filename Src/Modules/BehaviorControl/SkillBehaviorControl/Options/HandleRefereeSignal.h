@@ -40,10 +40,11 @@ bool beginOfRefereeSignal() const
   return theGameState.competitionPhase == GameState::roundRobin
          && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
          && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
-              && ((theExtendedGameState.wasSet() && theGameState.isPlaying())
-                  || (theExtendedGameState.wasPlaying() && theGameState.isReady())))
-             || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf));
+              && (
+              (theExtendedGameState.wasPlaying() && theGameState.isReady())))
+             || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf)); // Add condition to avoid looking just after kickoff
 }
+
 
 /**
  * Send the actual referee signal and maybe also speak it out load.
@@ -141,7 +142,7 @@ option(RefereeActivation)
   {
     transition
     {
-      if(beginOfRefereeSignal() && (theGameState.whistled || theGameState.state == GameState::afterHalf))
+      if(beginOfRefereeSignal() || theGameState.whistled || theGameState.state == GameState::afterHalf)
         goto delaying;
     }
   }
@@ -163,6 +164,7 @@ option(RefereeActivation)
     }
   }
 }
+
 
 /**
  * The detection of the referee signal. In only becomes active if the robot is

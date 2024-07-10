@@ -1,40 +1,47 @@
 #!/bin/bash
 
+echo "Script started."
 cd "$(dirname "$(which "$0")")"
+echo "Changed directory to $(pwd)"
 
 CONFIGURATION="$1"
+if [ -z "$CONFIGURATION" ]; then
+    echo "Error: No configuration specified."
+    echo "Usage: $0 <Configuration>"
+    exit 1
+fi
+echo "Configuration set to: $CONFIGURATION"
 
-killall DeployDialog 2>/dev/null
+echo "Attempting to kill any running instances of DeployDialog..."
+taskkill //F //IM DeployDialog.exe 2>/dev/null || echo "DeployDialog not running."
+echo "Kill command executed."
 
-( if [ "$(uname)" == "Darwin" ]; then
-  FULLSCREEN=`osascript <<-APPLESCRIPT
-    tell app "System events"
-      try
-        return true is in value of attribute "AXFullScreen" of windows of process "Xcode"
-      on error
-        return false
-      end try
-    end tell
-    APPLESCRIPT`
-  OPTION=
-  if $FULLSCREEN; then
-    OPTION=--fullscreen
-  fi
-  ../../Build/macOS/DeployDialog/$CONFIGURATION/DeployDialog.app/Contents/MacOS/DeployDialog $OPTION 2>/dev/null
-elif [ -e /proc/version ] && [ ! -z "$(grep Microsoft </proc/version)" ]; then
-  ../../Build/Windows/DeployDialog/$CONFIGURATION/DeployDialog.exe 2>/dev/null
+echo "Executing Windows DeployDialog..."
+DEPLOY_DIALOG_OUTPUT=$(../../Build/Windows/DeployDialog/$CONFIGURATION/DeployDialog.exe 2>&1)
+EXECUTION_STATUS=$?
+if [ $EXECUTION_STATUS -ne 0 ]; then
+    echo "Failed to execute DeployDialog.exe. Please check the path and permissions."
 else
-  ../../Build/Linux/DeployDialog/$CONFIGURATION/DeployDialog 2>/dev/null
-fi ) | while read ARGS; do
-  ARGS="$(tr -d '\r' <<<"$ARGS")"
+    echo "DeployDialog executed successfully."
+fi
+
+echo "Processing commands..."
+echo "$DEPLOY_DIALOG_OUTPUT" | while read -r ARGS; do
+  ARGS="$(echo "$ARGS" | tr -d '\r')"
+  echo "Read ARGS: $ARGS"
   if [ ! -z "$ARGS" ]; then
-    if [ ! -z "$(grep '^logs ' <<<"$ARGS")" ]; then
-      ARGS="$(sed 's%^logs %%' <<<"$ARGS")"
+    if [[ "$ARGS" == logs* ]]; then
+      ARGS="${ARGS#logs }"
+      echo "Detected 'logs' command, ARGS after modification: $ARGS"
       ./downloadLogs $ARGS
     else
-      ./deploy $CONFIGURATION $ARGS
+      echo "Executing deploy with ARGS: $ARGS"
+      ./deploy $CONFIGURATION "$ARGS"
     fi
   else
+    echo "ARGS is empty, breaking loop."
     break
   fi
 done
+
+echo "Script execution completed."
