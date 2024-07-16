@@ -26,6 +26,7 @@ STREAMABLE(Tactic,
     t211,
     t31,
     t13,
+    t_Tortuga,
   });
 
   STREAMABLE(Position,
