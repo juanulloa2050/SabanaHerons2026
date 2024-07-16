@@ -37,12 +37,7 @@
  */
 bool beginOfRefereeSignal() const
 {
-  return theGameState.competitionPhase == GameState::roundRobin
-         && theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted) < 2000
-         && (((theGameState.isKickOff() || GameState::isKickOff(theExtendedGameState.stateLastFrame))
-              && (
-              (theExtendedGameState.wasPlaying() && theGameState.isReady())))
-             || (theExtendedGameState.stateLastFrame != GameState::afterHalf && theGameState.state == GameState::afterHalf)); // Add condition to avoid looking just after kickoff
+  return false;
 }
 
 
@@ -142,7 +137,7 @@ option(RefereeActivation)
   {
     transition
     {
-      if(beginOfRefereeSignal() || theGameState.whistled || theGameState.state == GameState::afterHalf)
+      if(false)
         goto delaying;
     }
   }
