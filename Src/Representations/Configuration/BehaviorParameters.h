@@ -12,7 +12,7 @@
 
 STREAMABLE(BehaviorParameters,
 {,
-  (bool)(true) keeperJumpingOn, /**< Use this configuration parameter to prevent keeper from jumping (and maybe hurting itself) - default == true */
+  (bool)(false) keeperJumpingOn, /**< Use this configuration parameter to prevent keeper from jumping (and maybe hurting itself) - default == true */
 
   (float)(0.7f) penaltyStrikerWalkSpeed, /**< defines speed in percent (0-100) for penalty striker to walk to the ball */
   (Angle)(10_deg) penaltyStrikerAngleToLeftPostOffset,  /**< (the greater the value, the closer to the center the robot will shoot) */
