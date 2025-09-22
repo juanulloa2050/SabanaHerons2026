@@ -370,7 +370,10 @@ if(BUILD_DESKTOP)
   if(ARM)
     target_include_directories(CompiledNN::ONNX SYSTEM INTERFACE "${BHUMAN_PREFIX}/Util/CompiledNN2ONNX/arm64/include")
 
-    add_library(asmjit INTERFACE)
+    add_library(asmjit INTERFACE
+        ../../Src/Representations/Infrastructure/ResourceStats.h
+        ../../Src/Modules/Infrastructure/ResourceMonitor/ResourceMonitor.cpp
+        ../../Src/Modules/Infrastructure/ResourceMonitor/ResourceMonitor.h)
     target_include_directories(asmjit SYSTEM INTERFACE "${BHUMAN_PREFIX}/Util/CompiledNN2ONNX/arm64/include")
   endif()
 endif()
