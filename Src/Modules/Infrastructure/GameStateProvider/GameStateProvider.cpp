@@ -265,24 +265,16 @@ void GameStateProvider::update(GameState& gameState)
   }
 
   // Transition from Initial to Ready
-
-  if(gameState.state == GameState::standby )
-
+  if(gameState.state == GameState::standby && theInitialToReady.isTransition())
   {
-
     const bool isKickingTeam = theGameControllerData.kickingTeam == Global::getSettings().teamNumber;
-
     gameState.state = isKickingTeam ? GameState::setupOwnKickOff : GameState::setupOpponentKickOff;
-
     gameState.timeWhenStateStarted = theFrameInfo.time;
-
     gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffSetupDuration;
-
     gameState.kickOffSetupFromSidelines = true;
-
     gameStateOverridden = true;
-
   }
+
 
   if(useGameControllerData)
   {
