@@ -264,6 +264,26 @@ void GameStateProvider::update(GameState& gameState)
     }
   }
 
+  // Transition from Initial to Ready
+
+  if(gameState.state == GameState::standby )
+
+  {
+
+    const bool isKickingTeam = theGameControllerData.kickingTeam == Global::getSettings().teamNumber;
+
+    gameState.state = isKickingTeam ? GameState::setupOwnKickOff : GameState::setupOpponentKickOff;
+
+    gameState.timeWhenStateStarted = theFrameInfo.time;
+
+    gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffSetupDuration;
+
+    gameState.kickOffSetupFromSidelines = true;
+
+    gameStateOverridden = true;
+
+  }
+
   if(useGameControllerData)
   {
     gameState.competitionPhase = static_cast<GameState::CompetitionPhase>(theGameControllerData.competitionPhase);
@@ -282,8 +302,8 @@ void GameStateProvider::update(GameState& gameState)
     auto gameControllerState = convertGameControllerDataToState(theGameControllerData);
     // When the guessed state and the state from the GameController match, we can trust the GameController again.
     gameStateOverridden &= gameState.state != gameControllerState;
-    // States other than SET or PLAYING are always true.
-    gameStateOverridden &= GameState::isSet(gameControllerState) || GameState::isPlaying(gameControllerState);
+    // States other than SET, PLAYING or STANDBY are always true.
+    gameStateOverridden &= GameState::isSet(gameControllerState) || GameState::isPlaying(gameControllerState) || gameControllerState == GameState::standby;
     // SET is true when switching there from READY.
     gameStateOverridden &= !GameState::isSet(gameControllerState) || !gameState.isReady();
     // Free Kicks are mostly true, but not if we guess READY (because it might be that the GameController still sends a free kick when a goal is scored).
@@ -761,6 +781,11 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     return GameState::beforeHalf;
   }
+  else if(gameControllerData.state == STATE_STANDBY)
+  {
+    ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
+    return GameState::standby;
+  }
   else if(gameControllerData.state == STATE_READY)
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
@@ -844,6 +869,8 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
       return GameState::penalizedIllegalPositionInSet;
     case PENALTY_SPL_PLAYER_STANCE:
       return GameState::penalizedPlayerStance;
+    case PENALTY_SPL_ILLEGAL_MOTION_IN_STANDBY:
+      return GameState::penalizedIllegalMotionInStandby;
     case PENALTY_SUBSTITUTE:
       return GameState::substitute;
     case PENALTY_NONE:
