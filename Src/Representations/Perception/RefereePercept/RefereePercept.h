@@ -29,6 +29,7 @@ STREAMABLE(RefereePercept,
     substitution,
     substitutionBlue = substitution,
     substitutionRed,
+    initialToReady,
   });
 
   static_assert(kickInBlue == GAMECONTROLLER_RETURN_STRUCT_VRC_GESTURE_KICK_IN_BLUE_TEAM);
