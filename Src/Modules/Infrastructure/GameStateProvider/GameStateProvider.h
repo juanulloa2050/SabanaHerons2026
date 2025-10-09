@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Representations/BehaviorControl/BehaviorStatus.h"
+#include "Representations/BehaviorControl/InitialToReady.h"
 #include "Representations/Communication/GameControllerData.h"
 #include "Representations/Communication/TeamData.h"
 #include "Representations/Configuration/BallSpecification.h"
@@ -38,7 +39,9 @@ MODULE(GameStateProvider,
   USES(RobotPose),
   REQUIRES(TeamData),
   REQUIRES(Whistle),
+  REQUIRES(InitialToReady),
   PROVIDES(GameState),
+
   LOADS_PARAMETERS(
   {,
     (unsigned) unstiffHeadButtonPressDuration, /**< How long the head buttons need to be pressed until the robot transitions to unstiff (in ms). */

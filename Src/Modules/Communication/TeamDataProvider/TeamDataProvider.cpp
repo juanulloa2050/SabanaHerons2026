@@ -49,4 +49,5 @@ void TeamDataProvider::handleMessage(Teammate& teammate, const ReceivedTeamMessa
   teammate.theBehaviorStatus = teamMessage.theBehaviorStatus;
   teammate.theWhistle = teamMessage.theWhistle;
   teammate.theStrategyStatus = teamMessage.theStrategyStatus;
+  teammate.theInitialToReady = teamMessage.theInitialToReady;
 }
