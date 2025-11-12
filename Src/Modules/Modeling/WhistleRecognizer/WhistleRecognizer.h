@@ -40,6 +40,11 @@ MODULE(WhistleRecognizer,
     (int) accumulationDuration, /**< The duration over which correlations are collected before they are reported. */
     (int) minAnnotationDelay, /**< The minimum time between annotations announcing a detected whistle. */
     (bool) mute, /**< Deactivate sound output in game states in which a whistle could be detected. */
+    (float)(3600.0f) goertzelMinFreq, /**< Minimum frequency for Goertzel whistle detection (Hz). */
+    (float)(4500.0f) goertzelMaxFreq, /**< Maximum frequency for Goertzel whistle detection (Hz). */
+    (float)(3.0f) goertzelMinSNR, /**< Minimum SNR threshold for Goertzel detection (dB). */
+    (float)(0.8f) goertzelMaxFlatness, /**< Maximum spectral flatness for whistle detection. */
+    (float)(120.0f) goertzelMaxBandwidth, /**< Maximum bandwidth for whistle detection (Hz). */
   }),
 });
 
@@ -63,7 +68,7 @@ class WhistleRecognizer : public WhistleRecognizerBase
   double* correlation; /**< The correlation with the signature. */
   fftw_plan fft; /**< The plan to compute the FFT. */
   fftw_plan ifft; /**< The plan to compute the inverse FFT. */
-  float bestCorrelation = 1.f; /**< The best correlation of the last accumulation phase. */
+  float bestCorrelation = 0.0f; /**< The best correlation of the last accumulation phase. */
   unsigned lastTimeWhistleDetected = 0; /**< The last time a whistle was detected. */
   Image<PixelTypes::Edge2Pixel> canvas; /**< Canvas for drawing spectra. */
 
@@ -82,6 +87,23 @@ class WhistleRecognizer : public WhistleRecognizerBase
    */
   float correlate(std::vector<Vector2d>& signature, const RingBuffer<AudioData::Sample>& buffer,
                   bool record = false);
+
+  // Goertzel algorithm structures and methods
+  struct GoertzelResult
+  {
+    float power;
+    float frequency;
+    float snr_db;
+    float spectral_flatness;
+    float bandwidth_hz;
+  };
+
+  /**
+   * Analyze audio buffer using Goertzel algorithm for whistle detection.
+   * @param buffer The audio samples to analyze.
+   * @return GoertzelResult with power, frequency, SNR and other metrics.
+   */
+  GoertzelResult goertzelAnalyze(const RingBuffer<AudioData::Sample>& buffer);
 
 public:
   WhistleRecognizer();
