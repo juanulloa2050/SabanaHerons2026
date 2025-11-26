@@ -1,66 +1,27 @@
 /**
  * @file WhistleRecognizer.cpp
  *
- * This file implements a module that identifies the sound of a whistle by
- * correlating with a number of templates.
- *
- * @author Tim Laue
- * @author Dennis Schuethe
- * @author Thomas Röfer
+ * This file implements a module that identifies the sound of a whistle using
+ * a Goertzel-based analysis (no template signatures).
  */
 
 #include "WhistleRecognizer.h"
 #include "Platform/SystemCall.h"
-#include "Platform/Thread.h"
 #include "Debugging/Annotation.h"
-#include "Debugging/DebugImages.h"
 #include "Debugging/Plot.h"
-#include "Math/BHMath.h"
+
 #include <algorithm>
-#include <limits>
-#include <type_traits>
 #include <iostream>
 #include <cmath>
 
 MAKE_MODULE(WhistleRecognizer);
 
-static DECLARE_SYNC;
-
 WhistleRecognizer::WhistleRecognizer()
 {
-  canvas.setResolution(bufferSize + 1, bufferSize * 2 / 3);
-
-  // Load whistle signatures
-  for(const std::string& fileName : whistles)
-  {
-    InBinaryFile stream("Whistles/" + fileName + ".dat");
-    ASSERT(stream.exists());
-    signatures.emplace_back();
-    stream >> signatures.back();
-    signatures.back().name = fileName;
-  }
-
-  // Allocate memory for FFTW plans
-  samples = fftw_alloc_real(bufferSize * 2);
-  std::memset(samples, 0, sizeof(double) * bufferSize * 2);
-  spectrum = fftw_alloc_complex(bufferSize + 1);
-  correlation = fftw_alloc_real(bufferSize * 2);
-
-  // Create FFTW plans
-  SYNC;
-  fft = fftw_plan_dft_r2c_1d(bufferSize * 2, samples, spectrum, FFTW_MEASURE);
-  ifft = fftw_plan_dft_c2r_1d(bufferSize * 2, spectrum, correlation, FFTW_MEASURE);
+  // No FFTW / signature initialization needed anymore.
 }
 
-WhistleRecognizer::~WhistleRecognizer()
-{
-  SYNC;
-  fftw_destroy_plan(ifft);
-  fftw_destroy_plan(fft);
-  fftw_free(correlation);
-  fftw_free(spectrum);
-  fftw_free(samples);
-}
+WhistleRecognizer::~WhistleRecognizer() = default;
 
 // Goertzel algorithm implementation
 WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingBuffer<AudioData::Sample>& buffer)
@@ -69,17 +30,17 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
   const float f_max = goertzelMaxFreq; // Hz
   const int N = static_cast<int>(buffer.size());
   const float fs = static_cast<float>(this->sampleRate);
-  
-  std::cout << "DEBUG: Goertzel params - N=" << N << ", fs=" << fs 
+
+  std::cout << "DEBUG: Goertzel params - N=" << N << ", fs=" << fs
             << ", f_range=[" << f_min << "-" << f_max << "]" << std::endl;
-  
+
   // Calculate frequency bins in the whistle range
   const int k_min = static_cast<int>(std::ceil(f_min * N / fs));
   const int k_max = static_cast<int>(std::floor(f_max * N / fs));
-  
-  std::cout << "DEBUG: Goertzel bins - k_min=" << k_min << ", k_max=" << k_max 
+
+  std::cout << "DEBUG: Goertzel bins - k_min=" << k_min << ", k_max=" << k_max
             << ", total_bins=" << (k_max - k_min + 1) << std::endl;
-  
+
   // Check volume of buffer first
   float max_sample = 0.0f;
   float rms = 0.0f;
@@ -90,12 +51,12 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
     rms += sample * sample;
   }
   rms = std::sqrt(rms / buffer.size());
-  
-  std::cout << "DEBUG: Audio levels - max_sample=" << max_sample 
-            << ", rms=" << rms 
-            << ", minVolume=" << minVolume 
+
+  std::cout << "DEBUG: Audio levels - max_sample=" << max_sample
+            << ", rms=" << rms
+            << ", minVolume=" << minVolume
             << ", volume_check=" << (max_sample >= minVolume ? "PASS" : "FAIL") << std::endl;
-  
+
   // Use a more permissive volume threshold for Goertzel (1% of max range instead of 20%)
   const float goertzel_min_volume = 0.01f;
   if(max_sample < goertzel_min_volume)
@@ -109,18 +70,18 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
     empty_result.bandwidth_hz = 0.0f;
     return empty_result;
   }
-  
+
   std::vector<float> powers;
   std::vector<float> frequencies;
-  
+
   // Compute Goertzel for each frequency bin
   for(int k = k_min; k <= k_max; ++k)
   {
     const float w = 2.0f * static_cast<float>(M_PI) * k / N;
     const float coeff = 2.0f * std::cos(w);
-    
+
     float q1 = 0.0f, q2 = 0.0f;
-    
+
     // Process all samples in buffer
     for(size_t i = 0; i < buffer.size(); ++i)
     {
@@ -129,15 +90,15 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
       q2 = q1;
       q1 = q0;
     }
-    
+
     // Calculate power for this frequency bin
     const float power = q1 * q1 + q2 * q2 - q1 * q2 * coeff;
     powers.push_back(power);
     frequencies.push_back(k * fs / N);
   }
-  
+
   GoertzelResult result;
-  
+
   if(powers.empty())
   {
     result.power = 0.0f;
@@ -147,34 +108,33 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
     result.bandwidth_hz = 0.0f;
     return result;
   }
-  
+
   // Find peak and show top frequencies
   const auto max_it = std::max_element(powers.begin(), powers.end());
   const int peak_idx = static_cast<int>(max_it - powers.begin());
-  
+
   result.power = *max_it;
   result.frequency = frequencies[peak_idx];
-  
+
   // Show top 5 frequencies for debugging
   std::vector<std::pair<float, float>> freq_power_pairs;
   for(size_t i = 0; i < powers.size(); ++i)
-  {
-    freq_power_pairs.push_back({frequencies[i], powers[i]});
-  }
-  std::sort(freq_power_pairs.begin(), freq_power_pairs.end(), 
-           [](const auto& a, const auto& b) { return a.second > b.second; });
-  
+    freq_power_pairs.emplace_back(frequencies[i], powers[i]);
+
+  std::sort(freq_power_pairs.begin(), freq_power_pairs.end(),
+            [](const auto& a, const auto& b) {return a.second > b.second; });
+
   std::cout << "DEBUG: Top 5 frequencies found:" << std::endl;
   for(int i = 0; i < std::min(5, static_cast<int>(freq_power_pairs.size())); ++i)
   {
-    std::cout << "  " << (i+1) << ". " << freq_power_pairs[i].first << "Hz -> " 
+    std::cout << "  " << (i + 1) << ". " << freq_power_pairs[i].first << "Hz -> "
               << freq_power_pairs[i].second << " power" << std::endl;
   }
-  
+
   // Calculate SNR (peak vs average of rest)
   float sum_rest = 0.0f;
   int count_rest = 0;
-  
+
   for(int i = 0; i < static_cast<int>(powers.size()); ++i)
   {
     if(std::abs(i - peak_idx) > 1) // Exclude peak and immediate neighbors
@@ -183,43 +143,43 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
       count_rest++;
     }
   }
-  
+
   const float avg_rest = (count_rest > 0) ? sum_rest / count_rest : result.power * 0.1f;
   result.snr_db = 10.0f * std::log10((result.power + 1e-12f) / (avg_rest + 1e-12f));
-  
+
   // Calculate spectral flatness (geometric mean / arithmetic mean)
   float geometric_sum = 0.0f;
   float arithmetic_sum = 0.0f;
-  
+
   for(float power : powers)
   {
     const float safe_power = power + 1e-12f;
     geometric_sum += std::log(safe_power);
     arithmetic_sum += safe_power;
   }
-  
+
   const float geometric_mean = std::exp(geometric_sum / powers.size());
   const float arithmetic_mean = arithmetic_sum / powers.size();
   result.spectral_flatness = geometric_mean / arithmetic_mean;
-  
+
   // Calculate bandwidth at -3dB (half power)
   const float half_power = result.power * 0.5f;
   int left_idx = peak_idx, right_idx = peak_idx;
-  
+
   // Find left boundary
   while(left_idx > 0 && powers[left_idx - 1] >= half_power)
     left_idx--;
-  
-  // Find right boundary  
+
+  // Find right boundary
   while(right_idx < static_cast<int>(powers.size() - 1) && powers[right_idx + 1] >= half_power)
     right_idx++;
-    
+
   result.bandwidth_hz = (right_idx - left_idx + 1) * (fs / N);
-  
+
   std::cout << "DEBUG: Goertzel final result - Peak: " << result.frequency << "Hz, "
             << "Power: " << result.power << ", SNR: " << result.snr_db << "dB, "
             << "Flatness: " << result.spectral_flatness << ", BW: " << result.bandwidth_hz << "Hz" << std::endl;
-  
+
   return result;
 }
 
@@ -285,37 +245,7 @@ void WhistleRecognizer::update(Whistle& theWhistle)
       if(!theDamageConfigurationHead.audioChannelsDefect[i])
         ++theWhistle.channelsUsedForWhistleDetection;
 
-  std::string selectedName = "newWhistle";
-  MODIFY("module:WhistleRecognizer:select", selectedName);
-  auto selectedIter = std::find_if(signatures.begin(), signatures.end(),
-    [&selectedName](const Signature& signature) {return signature.name == selectedName;});
-
-  // Record a whistle.
-  DEBUG_RESPONSE_ONCE("module:WhistleRecognizer:record")
-  {
-    if(buffers[firstBuffer].full())
-    {
-      Signature signature;
-      signature.selfCorrelation = correlate(signature.spectrum, buffers[firstBuffer], true);
-      if(signature.selfCorrelation > 0)
-      {
-        signature.name = selectedName;
-        if(selectedIter == signatures.end())
-        {
-          signatures.emplace_back();
-          selectedIter = signatures.end() - 1;
-        }
-        *selectedIter = signature;
-        OutBinaryFile stream("Whistles/" + selectedName + ".dat");
-        if(stream.exists())
-        {
-          stream << *selectedIter;
-          OUTPUT_TEXT("Recorded whistle " << selectedName << " with selfCorrelation = " << signature.selfCorrelation);
-        }
-      }
-    }
-  }
-
+  // Plot input samples for debugging
   for(size_t i = 0; i < buffers.size(); ++i)
     if(!buffers[i].empty())
       switch(i)
@@ -326,144 +256,108 @@ void WhistleRecognizer::update(Whistle& theWhistle)
         case 3: PLOT("module:WhistleRecognizer:samples3", buffers[i].back()); break;
       }
 
-  // Correlate all channels with all signatures or only one if selectedName matches a whistle.
+  // Analyze all channels with Goertzel
   if(shouldRecord && buffers[firstBuffer].full() && samplesRequired <= 0)
   {
-    std::cout << "DEBUG: Starting correlation analysis - shouldRecord=" << shouldRecord 
-              << ", bufferFull=" << buffers[firstBuffer].full() 
-              << ", samplesRequired=" << samplesRequired 
+    std::cout << "DEBUG: Starting correlation analysis - shouldRecord=" << shouldRecord
+              << ", bufferFull=" << buffers[firstBuffer].full()
+              << ", samplesRequired=" << samplesRequired
               << ", bufferSize=" << buffers[firstBuffer].size() << std::endl;
-    COMPLEX_IMAGE("module:WhistleRecognizer:spectra")
+
+    float correlation = 0.f;
+    size_t defects = 0;
+
+    for(size_t i = 0; i < buffers.size(); ++i)
     {
-      std::memset(canvas[0], 128, sizeof(PixelTypes::Edge2Pixel) * canvas.width * canvas.height);
-      if(selectedIter != signatures.end())
-      for(unsigned x = 0; x < selectedIter->spectrum.size(); ++x)
+      if(theDamageConfigurationHead.audioChannelsDefect[i] || !buffers[i].full())
       {
-        const Vector2d& complex = selectedIter->spectrum[x];
-        const unsigned amplitude = std::min(static_cast<unsigned>(complex.norm()), canvas.height);
-        if(amplitude > 0)
+        ++defects;
+      }
+      else
+      {
+        // Use Goertzel algorithm instead of FFT correlation
+        const GoertzelResult result = goertzelAnalyze(buffers[i]);
+
+        std::cout << "DEBUG: Goertzel raw results - Freq: " << result.frequency << "Hz, "
+                  << "Power: " << result.power << ", "
+                  << "SNR: " << result.snr_db << "dB, "
+                  << "Flat: " << result.spectral_flatness << ", "
+                  << "BW: " << result.bandwidth_hz << "Hz" << std::endl;
+
+        // Calculate confidence based on Goertzel metrics
+        float channelCorrelation = 0.0f;
+
+        // Check if frequency is in whistle range
+        std::cout << "DEBUG: Frequency check - freq=" << result.frequency
+                  << ", range=[" << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
+
+        if(result.frequency >= goertzelMinFreq && result.frequency <= goertzelMaxFreq)
         {
-          const PixelTypes::Edge2Pixel pixel(static_cast<char>(128 + 127 * complex.x() / amplitude),
-                                             static_cast<char>(128 + 127 * complex.y() / amplitude));
-          for(size_t y = 0; y < amplitude; ++y)
-            canvas[y][x] = pixel;
+          // Combine SNR, spectral flatness and bandwidth for correlation score (more permissive thresholds)
+          const float snr_score = std::max(0.0f, std::min(1.0f, (result.snr_db - 3.0f) / 15.0f)); // Lowered from 10dB to 3dB
+          const float flat_score = std::max(0.0f, 1.0f - result.spectral_flatness / 0.8f); // Raised from 0.32 to 0.8
+          const float bw_score = std::max(0.0f, 1.0f - result.bandwidth_hz / goertzelMaxBandwidth);
+
+          channelCorrelation = snr_score * flat_score * bw_score;
+
+          std::cout << "DEBUG: Score components:" << std::endl;
+          std::cout << "  SNR: " << result.snr_db << "dB -> score=" << snr_score << " (threshold: 3dB)" << std::endl;
+          std::cout << "  Flatness: " << result.spectral_flatness << " -> score=" << flat_score << " (max: 0.8)" << std::endl;
+          std::cout << "  Bandwidth: " << result.bandwidth_hz << "Hz -> score=" << bw_score << " (max: " << goertzelMaxBandwidth << "Hz)" << std::endl;
+          std::cout << "  Final correlation: " << channelCorrelation << std::endl;
+
+          // Only log if correlation is significant
+          if(channelCorrelation > 0.1f) // Lowered threshold for debugging
+          {
+            std::cout << "POTENTIAL WHISTLE - Freq: " << result.frequency << "Hz, "
+                      << "SNR: " << result.snr_db << "dB, "
+                      << "Flat: " << result.spectral_flatness << ", "
+                      << "BW: " << result.bandwidth_hz << "Hz, "
+                      << "Correlation: " << channelCorrelation << std::endl;
+          }
         }
+        else
+        {
+          std::cout << "DEBUG: Frequency out of range - " << result.frequency << "Hz not in ["
+                    << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
+        }
+
+        correlation += channelCorrelation;
       }
     }
 
-    const Signature* bestSignature = nullptr;
-
-    for(auto& signature : signatures)
-      if(selectedIter == signatures.end() || &signature == &*selectedIter)
-      {
-        size_t defects = 0;
-        float correlation = 0.f;
-        float bestChannelCorrelation = 0.f;
-
-        for(size_t i = 0; i < buffers.size(); ++i)
-          if(theDamageConfigurationHead.audioChannelsDefect[i] || !buffers[i].full())
-            ++defects;
-          else
-          {
-            // Use Goertzel algorithm instead of FFT correlation
-            const GoertzelResult result = goertzelAnalyze(buffers[i]);
-            
-            std::cout << "DEBUG: Goertzel raw results - Freq: " << result.frequency << "Hz, "
-                      << "Power: " << result.power << ", "
-                      << "SNR: " << result.snr_db << "dB, "
-                      << "Flatness: " << result.spectral_flatness << ", "
-                      << "BW: " << result.bandwidth_hz << "Hz" << std::endl;
-            
-            // Calculate confidence based on Goertzel metrics
-            float channelCorrelation = 0.0f;
-            
-            // Check if frequency is in whistle range
-            std::cout << "DEBUG: Frequency check - freq=" << result.frequency 
-                      << ", range=[" << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
-            
-            if(result.frequency >= goertzelMinFreq && result.frequency <= goertzelMaxFreq)
-            {
-              // Combine SNR, spectral flatness and bandwidth for correlation score (more permissive thresholds)
-              const float snr_score = std::max(0.0f, std::min(1.0f, (result.snr_db - 3.0f) / 15.0f)); // Lowered from 10dB to 3dB
-              const float flat_score = std::max(0.0f, 1.0f - result.spectral_flatness / 0.8f); // Raised from 0.32 to 0.8
-              const float bw_score = std::max(0.0f, 1.0f - result.bandwidth_hz / goertzelMaxBandwidth);
-              
-              channelCorrelation = snr_score * flat_score * bw_score;
-              
-              std::cout << "DEBUG: Score components:" << std::endl;
-              std::cout << "  SNR: " << result.snr_db << "dB -> score=" << snr_score << " (threshold: 3dB)" << std::endl;
-              std::cout << "  Flatness: " << result.spectral_flatness << " -> score=" << flat_score << " (max: 0.8)" << std::endl;
-              std::cout << "  Bandwidth: " << result.bandwidth_hz << "Hz -> score=" << bw_score << " (max: " << goertzelMaxBandwidth << "Hz)" << std::endl;
-              std::cout << "  Final correlation: " << channelCorrelation << std::endl;
-              
-              // Only log if correlation is significant
-              if(channelCorrelation > 0.1f) // Lowered threshold for debugging
-              {
-                std::cout << "POTENTIAL WHISTLE - Freq: " << result.frequency << "Hz, "
-                          << "SNR: " << result.snr_db << "dB, "
-                          << "Flat: " << result.spectral_flatness << ", "
-                          << "BW: " << result.bandwidth_hz << "Hz, "
-                          << "Correlation: " << channelCorrelation << std::endl;
-              }
-            }
-            else
-            {
-              std::cout << "DEBUG: Frequency out of range - " << result.frequency << "Hz not in [" 
-                        << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
-            }
-            
-            bestChannelCorrelation = std::max(bestChannelCorrelation, channelCorrelation);
-            correlation += channelCorrelation;
-          }
-
-        if(defects < buffers.size())
-        {
-          // Normalize correlation by number of channels and minimum threshold
-          correlation /= static_cast<float>(buffers.size() - defects);
-          
-          std::cout << "DEBUG: Final correlation check - correlation=" << correlation 
-                    << ", minCorrelation=" << minCorrelation 
-                    << ", bestCorrelation=" << bestCorrelation 
-                    << ", signature=" << signature.name << std::endl;
-          
-          // Apply minimum correlation threshold (use config value)
-          if(correlation >= minCorrelation && correlation >= bestCorrelation)
-          {
-            theWhistle.confidenceOfLastWhistleDetection = correlation;
-            theWhistle.channelsUsedForWhistleDetection = static_cast<unsigned char>(buffers.size() - defects);
-            bestCorrelation = correlation;
-            bestSignature = &signature;
-            
-            std::cout << "DEBUG: NEW BEST SIGNATURE - " << signature.name 
-                      << " with correlation=" << correlation << std::endl;
-          }
-          else
-          {
-            std::cout << "DEBUG: Correlation below threshold or not better than current best" << std::endl;
-          }
-
-          switch(&signature - signatures.data())
-          {
-            case 0: PLOT("module:WhistleRecognizer:correlation0", correlation); break;
-            case 1: PLOT("module:WhistleRecognizer:correlation1", correlation); break;
-            case 2: PLOT("module:WhistleRecognizer:correlation2", correlation); break;
-            case 3: PLOT("module:WhistleRecognizer:correlation3", correlation); break;
-            case 4: PLOT("module:WhistleRecognizer:correlation4", correlation); break;
-            default: PLOT("module:WhistleRecognizer:correlation5", correlation); break;
-          }
-        }
-      }
-
-    if(bestSignature)
+    if(defects < buffers.size())
     {
-      if(theFrameInfo.getTimeSince(lastTimeWhistleDetected) > minAnnotationDelay)
+      // Normalize correlation by number of valid channels
+      const int validChannels = static_cast<int>(buffers.size() - defects);
+      correlation /= static_cast<float>(validChannels);
+
+      std::cout << "DEBUG: Final correlation check - correlation=" << correlation
+                << ", minCorrelation=" << minCorrelation
+                << ", bestCorrelation=" << bestCorrelation << std::endl;
+
+      // Apply minimum correlation threshold
+      if(correlation >= minCorrelation && correlation >= bestCorrelation)
       {
-        ANNOTATION("WhistleRecognizer", bestSignature->name << " with " << static_cast<int>(bestCorrelation * 100.f) << "%");
-        std::cout << "WHISTLE DETECTED! Signature: " << bestSignature->name 
-                  << ", Confidence: " << static_cast<int>(bestCorrelation * 100.f) << "%"
-                  << ", Channels used: " << static_cast<int>(theWhistle.channelsUsedForWhistleDetection) << std::endl;
+        theWhistle.confidenceOfLastWhistleDetection = correlation;
+        theWhistle.channelsUsedForWhistleDetection = static_cast<unsigned char>(validChannels);
+        bestCorrelation = correlation;
+
+        if(theFrameInfo.getTimeSince(lastTimeWhistleDetected) > minAnnotationDelay)
+        {
+          ANNOTATION("WhistleRecognizer", "whistle with " << static_cast<int>(bestCorrelation * 100.f) << "%");
+          std::cout << "WHISTLE DETECTED! Confidence: " << static_cast<int>(bestCorrelation * 100.f) << "%"
+                    << ", Channels used: " << static_cast<int>(theWhistle.channelsUsedForWhistleDetection) << std::endl;
+        }
+        lastTimeWhistleDetected = theFrameInfo.time;
       }
-      lastTimeWhistleDetected = theFrameInfo.time;
+      else
+      {
+        std::cout << "DEBUG: Correlation below threshold or not better than current best" << std::endl;
+      }
+
+      // Use correlation0 plot for the Goertzel-based score
+      PLOT("module:WhistleRecognizer:correlation0", correlation);
     }
 
     samplesRequired = static_cast<unsigned>(bufferSize * newSampleRatio);
@@ -487,93 +381,4 @@ void WhistleRecognizer::update(Whistle& theWhistle)
     lastTimeWhistleDetected = theFrameInfo.time;
     theWhistle.confidenceOfLastWhistleDetection = 2.f;
   }
-
-  SEND_DEBUG_IMAGE("module:WhistleRecognizer:spectra", canvas, PixelTypes::Edge2);
-}
-
-float WhistleRecognizer::correlate(std::vector<Vector2d>& signature, const RingBuffer<AudioData::Sample>& buffer,
-                                   bool record)
-{
-  // Compute volume of samples.
-  float volume = 0;
-  for(AudioData::Sample sample : buffer)
-    volume = std::max(volume, std::abs(static_cast<float>(sample)));
-
-  // Abort if not loud enough.
-  if(volume == 0 || (!record && volume < (std::is_same<AudioData::Sample, short>::value ? std::numeric_limits<short>::max() : 1) * minVolume))
-    return 0.f;
-
-  // Copy samples to FFTW input and normalize them.
-  const double factor = 1.0 / volume;
-  for(size_t i = 0; i < buffer.size(); ++i)
-    samples[i] = buffer[i] * factor;
-
-  // samples -> spectrum
-  fftw_execute(fft);
-
-  COMPLEX_IMAGE("module:WhistleRecognizer:spectra")
-  {
-    for(unsigned x = 0; x < signature.size(); ++x)
-    {
-      const Vector2d complex(spectrum[x][0], spectrum[x][1]);
-      const unsigned amplitude = std::min(static_cast<unsigned>(complex.norm()), canvas.height);
-      if(amplitude > 0)
-      {
-        const PixelTypes::Edge2Pixel pixel(static_cast<char>(128 + 127 * complex.x() / amplitude),
-                                           static_cast<char>(128 + 127 * complex.y() / amplitude));
-        for(size_t y = 0; y < amplitude; ++y)
-          canvas[canvas.height - 1 - y][x] = pixel;
-      }
-    }
-  }
-
-  if(record)
-  {
-    // Store conjugate spectrum as signature and self-correlate input.
-    signature.resize(bufferSize + 1);
-    for(size_t i = 0; i < signature.size(); ++i)
-    {
-      signature[i] = Vector2d(spectrum[i][0], -spectrum[i][1]);
-      spectrum[i][0] = sqr(spectrum[i][0]) + sqr(spectrum[i][1]);
-      spectrum[i][1] = 0;
-    }
-  }
-  else
-  {
-    // Multiply input spectrum with signature spectrum.
-    ASSERT(signature.size() == bufferSize + 1);
-    for(size_t i = 0; i < signature.size(); ++i)
-    {
-      const double spectrumi0 = spectrum[i][0];
-      spectrum[i][0] = spectrumi0 * signature[i][0] - spectrum[i][1] * signature[i][1];
-      spectrum[i][1] = spectrum[i][1] * signature[i][0] + spectrumi0 * signature[i][1];
-    }
-  }
-
-  COMPLEX_IMAGE("module:WhistleRecognizer:spectra")
-  {
-    for(unsigned x = 0; x < signature.size(); ++x)
-    {
-      const Vector2d complex(spectrum[x][0], spectrum[x][1]);
-      const unsigned amplitude = std::min(static_cast<unsigned>(std::sqrt(complex.norm())), canvas.height);
-      if(amplitude > 0)
-      {
-        const PixelTypes::Edge2Pixel pixel(static_cast<char>(128 + 127 * complex.x() / amplitude),
-                                           static_cast<char>(128 + 127 * complex.y() / amplitude));
-        for(size_t y = 0; y < amplitude; ++y)
-          canvas[(canvas.height - amplitude) / 2 + y][x] = pixel;
-      }
-    }
-  }
-
-  // spectrum -> correlation
-  fftw_execute(ifft);
-
-  // Find best correlation.
-  double bestCorrelation = 0;
-  for(size_t i = 0; i < bufferSize * 2; ++i)
-    if(std::abs(correlation[i]) > bestCorrelation)
-      bestCorrelation = std::abs(correlation[i]);
-
-  return static_cast<float>(std::sqrt(bestCorrelation) / bufferSize / 2);
 }
