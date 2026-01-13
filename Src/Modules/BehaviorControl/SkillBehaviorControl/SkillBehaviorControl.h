@@ -14,6 +14,7 @@
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/GoaliePose.h"
 #include "Representations/BehaviorControl/IllegalAreas.h"
+#include "Representations/BehaviorControl/InitialToReady.h"
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Libraries/LibDemo.h"
 #include "Representations/BehaviorControl/Libraries/LibPosition.h"
@@ -77,6 +78,7 @@ MODULE(SkillBehaviorControl,
   REQUIRES(GameState),
   REQUIRES(GoaliePose),
   REQUIRES(IllegalAreas),
+  REQUIRES(InitialToReady),
   REQUIRES(JointSensorData),
   REQUIRES(KickInfo),
   REQUIRES(LibCheck),

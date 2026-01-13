@@ -2,7 +2,10 @@ option(HandleGameState)
 {
   common_transition
   {
-    if(theGameState.isInitial())
+    // Explicit check for standby state (must be before isInitial since standby is included in isInitial by default)
+    if(theGameState.state == GameState::standby)
+      goto standby;
+    else if(theGameState.isInitial(/* orStandby: */ false))
       goto initial;
     else if(theGameState.isReady())
       goto ready;
@@ -32,6 +35,23 @@ option(HandleGameState)
   {
     action
     {
+      theLookAtAnglesSkill({.pan = 0_deg,
+                            .tilt = 0_deg,
+                            .speed = 150_deg});
+      theStandSkill({.high = true});
+    }
+  }
+
+  /**
+   * Standby state: Robot must remain still to avoid "Illegal Motion in Standby" penalty.
+   * The robot waits for the referee gesture detection (via InitialToReady).
+   * When the transition is detected, the GameStateProvider will change to ready state.
+   */
+  state(standby)
+  {
+    action
+    {
+      // Robot must stand still during standby to avoid penalty
       theLookAtAnglesSkill({.pan = 0_deg,
                             .tilt = 0_deg,
                             .speed = 150_deg});
