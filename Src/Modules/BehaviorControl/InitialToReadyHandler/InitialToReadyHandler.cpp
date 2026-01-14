@@ -28,7 +28,12 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
     return;
   }
 
-  OUTPUT_TEXT("[InitialToReadyHandler] Active in STANDBY state - monitoring for ready transition");
+  // Log once when entering standby state
+  if(!hasLoggedStandby)
+  {
+    OUTPUT_TEXT("[InitialToReadyHandler] Active in STANDBY state - monitoring for ready transition");
+    hasLoggedStandby = true;
+  }
 
   theInitialToReady.gestureDetected = false;
   theInitialToReady.detectedBy = 0;
@@ -226,4 +231,7 @@ void InitialToReadyHandler::restart(InitialToReady& theInitialToReady)
 
   pawnsLeft = pawnsLeftToSacrifice;
   observedPawn = Settings::lowestValidPlayerNumber - 1;
+  
+  // Reset standby log flag when restarting
+  hasLoggedStandby = false;
 }

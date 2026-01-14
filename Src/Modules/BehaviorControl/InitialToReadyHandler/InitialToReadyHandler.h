@@ -82,4 +82,5 @@ private:
 
   int observedPawn = Settings::lowestValidPlayerNumber - 1;
   int pawnsLeft = pawnsLeftToSacrifice;
+  bool hasLoggedStandby = false; /**< Flag to prevent logging standby state every cycle */
 };
