@@ -46,6 +46,19 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
     theStrategyStatus.position = Tactic::Position::none;
     theStrategyStatus.role = Role::none;
     skillRequest = SkillRequest::Builder::empty();
+    
+    static bool lastWasEmpty = false;
+    if(!lastWasEmpty)
+    {
+      std::cout << "[StrategyBehaviorControl] Returning empty skill request. PlayerState: " 
+                << (theGameState.playerState == GameState::active ? "active" : "not active")
+                << ", GameState: " << (theGameState.isInitial() ? "initial" : 
+                                      (theGameState.isReady() ? "ready" :
+                                      (theGameState.isSet() ? "set" :
+                                      (theGameState.isPlaying() ? "playing" : "other"))))
+                << std::endl;
+      lastWasEmpty = true;
+    }
   }
   else
   {
@@ -62,6 +75,22 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
     theStrategyStatus.setPlayStep = self->setPlayStep;
     theStrategyStatus.position = self->position;
     theStrategyStatus.role = self->role;
+    
+    static bool lastWasUpdate = false;
+    static int lastSkillType = -1;
+    if(!lastWasUpdate || skillRequest.skill != lastSkillType)
+    {
+      std::cout << "[StrategyBehaviorControl] Behavior update called. Skill: " 
+                << (skillRequest.skill == SkillRequest::walk ? "WALK" :
+                   (skillRequest.skill == SkillRequest::stand ? "STAND" : "OTHER"))
+                << ", GameState: " << (theGameState.isReady() ? "READY" :
+                                      (theGameState.isSet() ? "SET" :
+                                      (theGameState.isPlaying() ? "PLAYING" : "OTHER")))
+                << ", SetPlay: " << (self->acceptedSetPlay != SetPlay::none ? "active" : "none")
+                << std::endl;
+      lastWasUpdate = true;
+      lastSkillType = skillRequest.skill;
+    }
   }
 
   theBehavior.postProcess();

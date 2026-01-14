@@ -770,7 +770,17 @@ void Behavior::assignRoles(std::vector<Agent>& agents, Agent& self, const std::v
 SkillRequest Behavior::execute(const Agent& agent, const Agents& otherAgents)
 {
   if(theGameState.isReady())
+  {
+    static bool loggedReady = false;
+    if(!loggedReady)
+    {
+      std::cout << "[Behavior::execute] READY state - Walking to basePose: (" 
+                << agent.basePose.translation.x() << ", " << agent.basePose.translation.y() 
+                << "), rotation: " << agent.basePose.rotation << std::endl;
+      loggedReady = true;
+    }
     return SkillRequest::Builder::walkTo(agent.basePose);
+  }
   else if(theGameState.isSet())
     return SkillRequest::Builder::stand();
   else if((theGameState.isCornerKick() || theGameState.isGoalKick()) &&

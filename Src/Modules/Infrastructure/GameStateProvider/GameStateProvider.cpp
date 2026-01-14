@@ -347,6 +347,8 @@ void GameStateProvider::update(GameState& gameState)
     gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffSetupDuration;
     gameState.kickOffSetupFromSidelines = true;
     gameStateOverridden = true;
+    std::cout << "[GameStateProvider] STANDBY -> READY via InitialToReady gesture detection. "
+              << "Kicking team: " << (isKickingTeam ? "OWN" : "OPPONENT") << std::endl;
   }
 
 
