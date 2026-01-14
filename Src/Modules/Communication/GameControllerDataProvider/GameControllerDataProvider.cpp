@@ -52,19 +52,20 @@ void GameControllerDataProvider::update(GameControllerData& theGameControllerDat
       
       // Log state transitions, especially to READY
       // State values: INITIAL=0, READY=1, SET=2, PLAYING=3, FINISHED=4
-      const char* stateNames[] = {"INITIAL", "READY", "SET", "PLAYING", "FINISHED"};
-      bool stateChanged = (theGameControllerData.state != buffer.state);
+      static const char* stateNames[] = {"INITIAL", "READY", "SET", "PLAYING", "FINISHED"};
+      const bool stateChanged = (theGameControllerData.state != buffer.state);
+      const uint8_t newState = buffer.state;
       
       static_cast<RoboCup::RoboCupGameControlData&>(theGameControllerData) = buffer;
       theGameControllerData.timeLastPacketReceived = socket.getLastReadTimestamp();
       theGameControllerData.isTrueData = false;
       
-      if(stateChanged && buffer.state <= STATE_FINISHED)
+      if(stateChanged && newState <= STATE_FINISHED)
       {
-        OUTPUT_TEXT("[GameController] State changed to: " << stateNames[buffer.state] 
-                    << " (state=" << static_cast<int>(buffer.state) << ")");
+        OUTPUT_TEXT("[GameController] State changed to: " << stateNames[newState] 
+                    << " (state=" << static_cast<int>(newState) << ")");
         
-        if(buffer.state == STATE_READY)
+        if(newState == STATE_READY)
         {
           OUTPUT_TEXT("[GameController] READY state received - Robot should position on field");
         }
