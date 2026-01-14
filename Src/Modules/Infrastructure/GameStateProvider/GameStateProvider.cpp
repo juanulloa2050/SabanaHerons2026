@@ -12,6 +12,66 @@
 #include "Platform/BHAssert.h"
 #include "Platform/SystemCall.h"
 #include <algorithm>
+#include <iostream>
+
+// Helper function to convert GameController state to string
+static const char* gcStateToString(uint8_t state)
+{
+  switch(state)
+  {
+    case STATE_INITIAL: return "INITIAL";
+    case STATE_READY: return "READY";
+    case STATE_SET: return "SET";
+    case STATE_PLAYING: return "PLAYING";
+    case STATE_FINISHED: return "FINISHED";
+    case STATE_STANDBY: return "STANDBY";
+    default: return "UNKNOWN";
+  }
+}
+
+// Helper function to convert GameState to string
+static const char* gameStateToString(GameState::State state)
+{
+  switch(state)
+  {
+    case GameState::beforeHalf: return "beforeHalf";
+    case GameState::afterHalf: return "afterHalf";
+    case GameState::standby: return "standby";
+    case GameState::setupOwnKickOff: return "setupOwnKickOff";
+    case GameState::setupOpponentKickOff: return "setupOpponentKickOff";
+    case GameState::waitForOwnKickOff: return "waitForOwnKickOff";
+    case GameState::waitForOpponentKickOff: return "waitForOpponentKickOff";
+    case GameState::ownKickOff: return "ownKickOff";
+    case GameState::opponentKickOff: return "opponentKickOff";
+    case GameState::playing: return "playing";
+    default: return "other";
+  }
+}
+
+// Helper function to convert PlayerState to string
+static const char* playerStateToString(GameState::PlayerState state)
+{
+  switch(state)
+  {
+    case GameState::unstiff: return "unstiff";
+    case GameState::calibration: return "calibration";
+    case GameState::active: return "active";
+    case GameState::penalizedManual: return "penalizedManual";
+    case GameState::penalizedIllegalBallContact: return "penalizedIllegalBallContact";
+    case GameState::penalizedPlayerPushing: return "penalizedPlayerPushing";
+    case GameState::penalizedIllegalMotionInSet: return "penalizedIllegalMotionInSet";
+    case GameState::penalizedInactivePlayer: return "penalizedInactivePlayer";
+    case GameState::penalizedIllegalPosition: return "penalizedIllegalPosition";
+    case GameState::penalizedLeavingTheField: return "penalizedLeavingTheField";
+    case GameState::penalizedRequestForPickup: return "penalizedRequestForPickup";
+    case GameState::penalizedLocalGameStuck: return "penalizedLocalGameStuck";
+    case GameState::penalizedIllegalPositionInSet: return "penalizedIllegalPositionInSet";
+    case GameState::penalizedPlayerStance: return "penalizedPlayerStance";
+    case GameState::penalizedIllegalMotionInStandby: return "penalizedIllegalMotionInStandby";
+    case GameState::substitute: return "substitute";
+    default: return "unknown";
+  }
+}
 
 MAKE_MODULE(GameStateProvider);
 
@@ -98,6 +158,20 @@ void GameStateProvider::update(GameState& gameState)
     gameState.gameControllerActive = true;
   else if(theFrameInfo.getTimeSince(timeOfLastIntegratedGameControllerData) >= gameControllerTimeout)
     gameState.gameControllerActive = false;
+
+  // LOG: Print GameController state and robot state
+  static GameState::State lastLoggedState = GameState::beforeHalf;
+  static uint8_t lastLoggedGCState = 255;
+  if(gameState.state != lastLoggedState || theGameControllerData.state != lastLoggedGCState)
+  {
+    std::cout << "[GameStateProvider] GameController state: " << gcStateToString(theGameControllerData.state) 
+              << " | Robot GameState: " << gameStateToString(gameState.state)
+              << " | PlayerState: " << playerStateToString(gameState.playerState)
+              << " | GC Active: " << (gameState.gameControllerActive ? "YES" : "NO")
+              << std::endl;
+    lastLoggedState = gameState.state;
+    lastLoggedGCState = theGameControllerData.state;
+  }
 
   // Reset whistle state transitions that turn out to be wrong.
   if(gameStateOverridden)
