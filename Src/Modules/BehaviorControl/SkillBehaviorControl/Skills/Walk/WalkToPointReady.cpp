@@ -15,6 +15,7 @@
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/RobotPose.h"
 #include <cmath>
+#include <iostream>
 #include "Tools/BehaviorControl/Framework/Skill/CabslSkill.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
 
@@ -51,11 +52,26 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
     {
       transition
       {
+        if(state_time == 0)
+        {
+          std::cout << "[WalkToPointReady] Starting positioning for READY state" << std::endl;
+          std::cout << "[WalkToPointReady] Target position: (" << p.target.translation.x() 
+                    << ", " << p.target.translation.y() << "), rotation: " 
+                    << p.target.rotation << " rad" << std::endl;
+          std::cout << "[WalkToPointReady] Current position: (" << theRobotPose.translation.x() 
+                    << ", " << theRobotPose.translation.y() << "), rotation: " 
+                    << theRobotPose.rotation << " rad" << std::endl;
+          std::cout << "[WalkToPointReady] Distance to target: " 
+                    << targetRelative.translation.norm() << " mm" << std::endl;
+        }
+        
         if (theIllegalAreas.willPositionBeIllegalIn(theRobotPose.translation, 150.f, durationUntilAnticipatedIllegal)) {
+          std::cout << "[WalkToPointReady] Position will become illegal, leaving area" << std::endl;
           goto leaveIllegalAreas;
         }
         if(targetRelative.translation.squaredNorm() < sqr(200.f))
         {
+          std::cout << "[WalkToPointReady] Close to target position, adjusting final pose" << std::endl;
           if(theRobotPose.translation.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius) || opponentPenaltyKickGoalkeeper)
             goto adjustToFinalPosePrecisely;
           else
@@ -63,7 +79,10 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
         }
         else if(timeUntilSetStarts < timeToEmergencyMode &&
                 !theIllegalAreas.willPositionBeIllegal(theRobotPose.translation, 175.f))
+        {
+          std::cout << "[WalkToPointReady] Emergency adjustment - time running out" << std::endl;
           goto emergencyAdjustment;
+        }
       }
       action
       {
@@ -153,11 +172,17 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
     {
       transition
       {
+        if(state_time == 0)
+          std::cout << "[WalkToPointReady] Reached target position, standing" << std::endl;
+          
         if(targetRelative.translation.squaredNorm() > sqr(opponentPenaltyKickGoalkeeper ? 50.f : 300.f) || std::abs(targetRelative.rotation) > (opponentPenaltyKickGoalkeeper ? 5_deg : 15_deg) ||
            theIllegalAreas.isPositionIllegal(theRobotPose.translation, 145.f))
           goto walkToPointReady;
         if(theStandSkill.isDone() && state_time > 1000)
+        {
+          std::cout << "[WalkToPointReady] Standing complete, transitioning to high stand" << std::endl;
           goto standHigh;
+        }
       }
       action
       {
@@ -170,6 +195,9 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
     {
       transition
       {
+        if(state_time == 0)
+          std::cout << "[WalkToPointReady] In final position, standing high and waiting for whistle" << std::endl;
+          
         if(targetRelative.translation.squaredNorm() > sqr(opponentPenaltyKickGoalkeeper ? 50.f : 300.f) || std::abs(targetRelative.rotation) > (opponentPenaltyKickGoalkeeper ? 5_deg : 15_deg) ||
            theIllegalAreas.isPositionIllegal(theRobotPose.translation, 145.f))
           goto walkToPointReady;

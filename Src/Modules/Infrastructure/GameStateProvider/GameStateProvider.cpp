@@ -12,6 +12,7 @@
 #include "Platform/BHAssert.h"
 #include "Platform/SystemCall.h"
 #include <algorithm>
+#include <iostream>
 
 MAKE_MODULE(GameStateProvider);
 
@@ -780,11 +781,18 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   }
   else if(gameControllerData.state == STATE_READY)
   {
+    std::cout << "[GameStateProvider] Processing READY state from GameController" << std::endl;
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
+    {
+      std::cout << "[GameStateProvider] Ready state: Penalty kick setup for " 
+                << (isKickingTeam ? "own team" : "opponent team") << std::endl;
       return isKickingTeam ? GameState::setupOwnPenaltyKick : GameState::setupOpponentPenaltyKick;
+    }
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
+      std::cout << "[GameStateProvider] Ready state: Kick-off setup for " 
+                << (isKickingTeam ? "own team" : "opponent team") << std::endl;
       return isKickingTeam ? GameState::setupOwnKickOff : GameState::setupOpponentKickOff;
     }
   }

@@ -21,6 +21,7 @@
 #endif
 
 #include <cstring>
+#include <iostream>
 
 MAKE_MODULE(GameControllerDataProvider);
 
@@ -48,9 +49,25 @@ void GameControllerDataProvider::update(GameControllerData& theGameControllerDat
       char addressBuffer[INET_ADDRSTRLEN];
       VERIFY(inet_ntop(AF_INET, &ip, addressBuffer, INET_ADDRSTRLEN) == addressBuffer);
       socket.setTarget(addressBuffer, GAMECONTROLLER_RETURN_PORT);
+      
+      // Log state transitions, especially to READY
+      const char* stateNames[] = {"INITIAL", "READY", "SET", "PLAYING", "FINISHED"};
+      bool stateChanged = (theGameControllerData.state != buffer.state);
+      
       static_cast<RoboCup::RoboCupGameControlData&>(theGameControllerData) = buffer;
       theGameControllerData.timeLastPacketReceived = socket.getLastReadTimestamp();
       theGameControllerData.isTrueData = false;
+      
+      if(stateChanged)
+      {
+        std::cout << "[GameController] State changed to: " << stateNames[buffer.state] 
+                  << " (state=" << static_cast<int>(buffer.state) << ")" << std::endl;
+        
+        if(buffer.state == STATE_READY)
+        {
+          std::cout << "[GameController] READY state received - Robot should position on field" << std::endl;
+        }
+      }
     }
   }
 

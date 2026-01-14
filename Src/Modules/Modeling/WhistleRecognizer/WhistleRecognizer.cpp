@@ -31,15 +31,9 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
   const int N = static_cast<int>(buffer.size());
   const float fs = static_cast<float>(this->sampleRate);
 
-  std::cout << "DEBUG: Goertzel params - N=" << N << ", fs=" << fs
-            << ", f_range=[" << f_min << "-" << f_max << "]" << std::endl;
-
   // Calculate frequency bins in the whistle range
   const int k_min = static_cast<int>(std::ceil(f_min * N / fs));
   const int k_max = static_cast<int>(std::floor(f_max * N / fs));
-
-  std::cout << "DEBUG: Goertzel bins - k_min=" << k_min << ", k_max=" << k_max
-            << ", total_bins=" << (k_max - k_min + 1) << std::endl;
 
   // Check volume of buffer first
   float max_sample = 0.0f;
@@ -52,16 +46,10 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
   }
   rms = std::sqrt(rms / buffer.size());
 
-  std::cout << "DEBUG: Audio levels - max_sample=" << max_sample
-            << ", rms=" << rms
-            << ", minVolume=" << minVolume
-            << ", volume_check=" << (max_sample >= minVolume ? "PASS" : "FAIL") << std::endl;
-
   // Use a more permissive volume threshold for Goertzel (1% of max range instead of 20%)
   const float goertzel_min_volume = 0.01f;
   if(max_sample < goertzel_min_volume)
   {
-    std::cout << "DEBUG: Volume too low for Goertzel analysis (" << max_sample << " < " << goertzel_min_volume << ")" << std::endl;
     GoertzelResult empty_result;
     empty_result.power = 0.0f;
     empty_result.frequency = 0.0f;
@@ -109,27 +97,12 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
     return result;
   }
 
-  // Find peak and show top frequencies
+  // Find peak
   const auto max_it = std::max_element(powers.begin(), powers.end());
   const int peak_idx = static_cast<int>(max_it - powers.begin());
 
   result.power = *max_it;
   result.frequency = frequencies[peak_idx];
-
-  // Show top 5 frequencies for debugging
-  std::vector<std::pair<float, float>> freq_power_pairs;
-  for(size_t i = 0; i < powers.size(); ++i)
-    freq_power_pairs.emplace_back(frequencies[i], powers[i]);
-
-  std::sort(freq_power_pairs.begin(), freq_power_pairs.end(),
-            [](const auto& a, const auto& b) {return a.second > b.second; });
-
-  std::cout << "DEBUG: Top 5 frequencies found:" << std::endl;
-  for(int i = 0; i < std::min(5, static_cast<int>(freq_power_pairs.size())); ++i)
-  {
-    std::cout << "  " << (i + 1) << ". " << freq_power_pairs[i].first << "Hz -> "
-              << freq_power_pairs[i].second << " power" << std::endl;
-  }
 
   // Calculate SNR (peak vs average of rest)
   float sum_rest = 0.0f;
@@ -176,10 +149,6 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
 
   result.bandwidth_hz = (right_idx - left_idx + 1) * (fs / N);
 
-  std::cout << "DEBUG: Goertzel final result - Peak: " << result.frequency << "Hz, "
-            << "Power: " << result.power << ", SNR: " << result.snr_db << "dB, "
-            << "Flatness: " << result.spectral_flatness << ", BW: " << result.bandwidth_hz << "Hz" << std::endl;
-
   return result;
 }
 
@@ -210,10 +179,7 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   const bool shouldRecord = (theGameState.isSet() || theGameState.isPlaying())
                             && !soundWasPlaying;
   if(!hasRecorded && shouldRecord)
-  {
     buffers.clear();
-    std::cout << "WhistleRecognizer: Starting whistle detection - buffers cleared and recording enabled" << std::endl;
-  }
   hasRecorded = shouldRecord;
 
   // Adapt number of channels to audio data.
@@ -259,11 +225,6 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   // Analyze all channels with Goertzel
   if(shouldRecord && buffers[firstBuffer].full() && samplesRequired <= 0)
   {
-    std::cout << "DEBUG: Starting correlation analysis - shouldRecord=" << shouldRecord
-              << ", bufferFull=" << buffers[firstBuffer].full()
-              << ", samplesRequired=" << samplesRequired
-              << ", bufferSize=" << buffers[firstBuffer].size() << std::endl;
-
     float correlation = 0.f;
     size_t defects = 0;
 
@@ -278,19 +239,10 @@ void WhistleRecognizer::update(Whistle& theWhistle)
         // Use Goertzel algorithm instead of FFT correlation
         const GoertzelResult result = goertzelAnalyze(buffers[i]);
 
-        std::cout << "DEBUG: Goertzel raw results - Freq: " << result.frequency << "Hz, "
-                  << "Power: " << result.power << ", "
-                  << "SNR: " << result.snr_db << "dB, "
-                  << "Flat: " << result.spectral_flatness << ", "
-                  << "BW: " << result.bandwidth_hz << "Hz" << std::endl;
-
         // Calculate confidence based on Goertzel metrics
         float channelCorrelation = 0.0f;
 
         // Check if frequency is in whistle range
-        std::cout << "DEBUG: Frequency check - freq=" << result.frequency
-                  << ", range=[" << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
-
         if(result.frequency >= goertzelMinFreq && result.frequency <= goertzelMaxFreq)
         {
           // Combine SNR, spectral flatness and bandwidth for correlation score (more permissive thresholds)
@@ -299,27 +251,6 @@ void WhistleRecognizer::update(Whistle& theWhistle)
           const float bw_score = std::max(0.0f, 1.0f - result.bandwidth_hz / goertzelMaxBandwidth);
 
           channelCorrelation = snr_score * flat_score * bw_score;
-
-          std::cout << "DEBUG: Score components:" << std::endl;
-          std::cout << "  SNR: " << result.snr_db << "dB -> score=" << snr_score << " (threshold: 3dB)" << std::endl;
-          std::cout << "  Flatness: " << result.spectral_flatness << " -> score=" << flat_score << " (max: 0.8)" << std::endl;
-          std::cout << "  Bandwidth: " << result.bandwidth_hz << "Hz -> score=" << bw_score << " (max: " << goertzelMaxBandwidth << "Hz)" << std::endl;
-          std::cout << "  Final correlation: " << channelCorrelation << std::endl;
-
-          // Only log if correlation is significant
-          if(channelCorrelation > 0.1f) // Lowered threshold for debugging
-          {
-            std::cout << "POTENTIAL WHISTLE - Freq: " << result.frequency << "Hz, "
-                      << "SNR: " << result.snr_db << "dB, "
-                      << "Flat: " << result.spectral_flatness << ", "
-                      << "BW: " << result.bandwidth_hz << "Hz, "
-                      << "Correlation: " << channelCorrelation << std::endl;
-          }
-        }
-        else
-        {
-          std::cout << "DEBUG: Frequency out of range - " << result.frequency << "Hz not in ["
-                    << goertzelMinFreq << "-" << goertzelMaxFreq << "]" << std::endl;
         }
 
         correlation += channelCorrelation;
@@ -332,10 +263,6 @@ void WhistleRecognizer::update(Whistle& theWhistle)
       const int validChannels = static_cast<int>(buffers.size() - defects);
       correlation /= static_cast<float>(validChannels);
 
-      std::cout << "DEBUG: Final correlation check - correlation=" << correlation
-                << ", minCorrelation=" << minCorrelation
-                << ", bestCorrelation=" << bestCorrelation << std::endl;
-
       // Apply minimum correlation threshold
       if(correlation >= minCorrelation && correlation >= bestCorrelation)
       {
@@ -344,16 +271,8 @@ void WhistleRecognizer::update(Whistle& theWhistle)
         bestCorrelation = correlation;
 
         if(theFrameInfo.getTimeSince(lastTimeWhistleDetected) > minAnnotationDelay)
-        {
           ANNOTATION("WhistleRecognizer", "whistle with " << static_cast<int>(bestCorrelation * 100.f) << "%");
-          std::cout << "WHISTLE DETECTED! Confidence: " << static_cast<int>(bestCorrelation * 100.f) << "%"
-                    << ", Channels used: " << static_cast<int>(theWhistle.channelsUsedForWhistleDetection) << std::endl;
-        }
         lastTimeWhistleDetected = theFrameInfo.time;
-      }
-      else
-      {
-        std::cout << "DEBUG: Correlation below threshold or not better than current best" << std::endl;
       }
 
       // Use correlation0 plot for the Goertzel-based score
@@ -366,11 +285,6 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   // Publish whistle detection and reset best correlation after accumulation phase.
   if(theFrameInfo.getTimeSince(lastTimeWhistleDetected) >= accumulationDuration)
   {
-    if(theWhistle.lastTimeWhistleDetected != lastTimeWhistleDetected)
-    {
-      std::cout << "WHISTLE PUBLISHED! Detection finalized after accumulation period. "
-                << "Final confidence: " << static_cast<int>(theWhistle.confidenceOfLastWhistleDetection * 100.f) << "%" << std::endl;
-    }
     theWhistle.lastTimeWhistleDetected = lastTimeWhistleDetected;
     bestCorrelation = 0.0f;
     soundWasPlaying = SystemCall::soundIsPlaying();
