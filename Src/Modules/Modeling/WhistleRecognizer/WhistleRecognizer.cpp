@@ -11,7 +11,6 @@
 #include "Debugging/Plot.h"
 
 #include <algorithm>
-#include <iostream>
 #include <cmath>
 
 MAKE_MODULE(WhistleRecognizer);

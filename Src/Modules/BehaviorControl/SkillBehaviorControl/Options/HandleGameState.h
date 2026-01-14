@@ -75,13 +75,9 @@ option(HandleGameState)
       if(theStrategyStatus.role != PositionRole::toRole(PositionRole::goalkeeper))
         theArmObstacleAvoidanceSkill();
       if(theSkillRequest.skill == SkillRequest::walk)
-      {
-        OUTPUT_TEXT("[HandleGameState] READY: Walking to position on field");
         theWalkToPointReadySkill({.target = theSkillRequest.target});
-      }
       else
       {
-        OUTPUT_TEXT("[HandleGameState] READY: Standing in position");
         theLookActiveSkill({.ignoreBall = true});
         theStandSkill();
       }
