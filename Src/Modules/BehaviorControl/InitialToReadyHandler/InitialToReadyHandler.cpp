@@ -11,7 +11,7 @@
 #include <iterator>
 #include "InitialToReadyHandler.h"
 #include "Platform/SystemCall.h"
-#include <iostream>
+#include "Streaming/Output.h"
 
 MAKE_MODULE(InitialToReadyHandler);
 
@@ -28,7 +28,7 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
     return;
   }
 
-  std::cout << "[InitialToReadyHandler] Active in STANDBY state - monitoring for ready transition" << std::endl;
+  OUTPUT_TEXT("[InitialToReadyHandler] Active in STANDBY state - monitoring for ready transition");
 
   theInitialToReady.gestureDetected = false;
   theInitialToReady.detectedBy = 0;
@@ -58,15 +58,15 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
     if((theRefereePercept.gesture == RefereePercept::Gesture::initialToReady && refereeInSight()) ||
       forceTransition)
     {
-      std::cout << "[InitialToReadyHandler] Referee gesture detected for initial-to-ready transition!" << std::endl;
+      OUTPUT_TEXT("[InitialToReadyHandler] Referee gesture detected for initial-to-ready transition!");
       // save detection only when threshold to last detection is met
       if(theFrameInfo.getTimeSince(theInitialToReady.timestamp) > thresholdForIndependentDetections)
       {
         theInitialToReady.gestureDetected = true;
         theInitialToReady.detectedBy = detectByMate = theGameState.playerNumber;
         theInitialToReady.timestamp = theFrameInfo.time;
-        std::cout << "[InitialToReadyHandler] Gesture detection confirmed by robot #" 
-                  << theGameState.playerNumber << std::endl;
+        OUTPUT_TEXT("[InitialToReadyHandler] Gesture detection confirmed by robot #" 
+                    << theGameState.playerNumber);
         if(enableSound)
           SystemCall::playSound("sirene.wav");
       }
@@ -88,8 +88,8 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
     // some mate detect the referee gesture
     if(detectByMate >= Settings::lowestValidPlayerNumber)
     {
-      std::cout << "[InitialToReadyHandler] Transition to ready initiated by robot #" 
-                << detectByMate << std::endl;
+      OUTPUT_TEXT("[InitialToReadyHandler] Transition to ready initiated by robot #" 
+                  << detectByMate);
       int pawn;
       if(setNextPawn(pawn))
       {
@@ -98,15 +98,15 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
         {
           theInitialToReady.state = InitialToReady::State::transition;
           theInitialToReady.isPawn = true;
-          std::cout << "[InitialToReadyHandler] Robot #" << theGameState.playerNumber 
-                    << " selected as pawn - transitioning to position on field" << std::endl;
+          OUTPUT_TEXT("[InitialToReadyHandler] Robot #" << theGameState.playerNumber 
+                      << " selected as pawn - transitioning to position on field");
         }
         else
         {
           theInitialToReady.state = InitialToReady::State::waiting;
           observedPawn = pawn;
-          std::cout << "[InitialToReadyHandler] Robot #" << theGameState.playerNumber 
-                    << " waiting for pawn #" << pawn << " to position" << std::endl;
+          OUTPUT_TEXT("[InitialToReadyHandler] Robot #" << theGameState.playerNumber 
+                      << " waiting for pawn #" << pawn << " to position");
         }
       }
       else
@@ -118,14 +118,14 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
   {
     if(isPawnPenalized(observedPawn))
     {
-      std::cout << "[InitialToReadyHandler] Observed pawn #" << observedPawn 
-                << " was penalized, returning to observing state" << std::endl;
+      OUTPUT_TEXT("[InitialToReadyHandler] Observed pawn #" << observedPawn 
+                  << " was penalized, returning to observing state");
       theInitialToReady.state = InitialToReady::State::observing;
     }
     else if(theFrameInfo.getTimeSince(theInitialToReady.timestamp) > waitForPawnSacrifice)
     {
-      std::cout << "[InitialToReadyHandler] Pawn timeout - Robot #" << theGameState.playerNumber 
-                << " now transitioning to position on field" << std::endl;
+      OUTPUT_TEXT("[InitialToReadyHandler] Pawn timeout - Robot #" << theGameState.playerNumber 
+                  << " now transitioning to position on field");
       theInitialToReady.state = InitialToReady::State::transition;
       if(enableSound)
         SystemCall::playSound("wyld.wav");

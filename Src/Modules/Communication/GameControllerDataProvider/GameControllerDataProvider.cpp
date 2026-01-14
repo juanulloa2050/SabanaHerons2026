@@ -8,6 +8,7 @@
 
 #include "GameControllerDataProvider.h"
 #include "Framework/Settings.h"
+#include "Streaming/Output.h"
 #include <VisualRefereeChallenge.h>
 
 #ifdef WINDOWS
@@ -21,7 +22,6 @@
 #endif
 
 #include <cstring>
-#include <iostream>
 
 MAKE_MODULE(GameControllerDataProvider);
 
@@ -51,6 +51,7 @@ void GameControllerDataProvider::update(GameControllerData& theGameControllerDat
       socket.setTarget(addressBuffer, GAMECONTROLLER_RETURN_PORT);
       
       // Log state transitions, especially to READY
+      // State values: INITIAL=0, READY=1, SET=2, PLAYING=3, FINISHED=4
       const char* stateNames[] = {"INITIAL", "READY", "SET", "PLAYING", "FINISHED"};
       bool stateChanged = (theGameControllerData.state != buffer.state);
       
@@ -58,14 +59,14 @@ void GameControllerDataProvider::update(GameControllerData& theGameControllerDat
       theGameControllerData.timeLastPacketReceived = socket.getLastReadTimestamp();
       theGameControllerData.isTrueData = false;
       
-      if(stateChanged)
+      if(stateChanged && buffer.state <= STATE_FINISHED)
       {
-        std::cout << "[GameController] State changed to: " << stateNames[buffer.state] 
-                  << " (state=" << static_cast<int>(buffer.state) << ")" << std::endl;
+        OUTPUT_TEXT("[GameController] State changed to: " << stateNames[buffer.state] 
+                    << " (state=" << static_cast<int>(buffer.state) << ")");
         
         if(buffer.state == STATE_READY)
         {
-          std::cout << "[GameController] READY state received - Robot should position on field" << std::endl;
+          OUTPUT_TEXT("[GameController] READY state received - Robot should position on field");
         }
       }
     }

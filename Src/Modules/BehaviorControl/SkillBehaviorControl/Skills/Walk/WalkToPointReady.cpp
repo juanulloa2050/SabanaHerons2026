@@ -14,8 +14,8 @@
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/RobotPose.h"
+#include "Streaming/Output.h"
 #include <cmath>
-#include <iostream>
 #include "Tools/BehaviorControl/Framework/Skill/CabslSkill.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
 
@@ -54,24 +54,24 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
       {
         if(state_time == 0)
         {
-          std::cout << "[WalkToPointReady] Starting positioning for READY state" << std::endl;
-          std::cout << "[WalkToPointReady] Target position: (" << p.target.translation.x() 
-                    << ", " << p.target.translation.y() << "), rotation: " 
-                    << p.target.rotation << " rad" << std::endl;
-          std::cout << "[WalkToPointReady] Current position: (" << theRobotPose.translation.x() 
-                    << ", " << theRobotPose.translation.y() << "), rotation: " 
-                    << theRobotPose.rotation << " rad" << std::endl;
-          std::cout << "[WalkToPointReady] Distance to target: " 
-                    << targetRelative.translation.norm() << " mm" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Starting positioning for READY state");
+          OUTPUT_TEXT("[WalkToPointReady] Target position: (" << p.target.translation.x() 
+                      << ", " << p.target.translation.y() << "), rotation: " 
+                      << p.target.rotation << " rad");
+          OUTPUT_TEXT("[WalkToPointReady] Current position: (" << theRobotPose.translation.x() 
+                      << ", " << theRobotPose.translation.y() << "), rotation: " 
+                      << theRobotPose.rotation << " rad");
+          OUTPUT_TEXT("[WalkToPointReady] Distance to target: " 
+                      << targetRelative.translation.norm() << " mm");
         }
         
         if (theIllegalAreas.willPositionBeIllegalIn(theRobotPose.translation, 150.f, durationUntilAnticipatedIllegal)) {
-          std::cout << "[WalkToPointReady] Position will become illegal, leaving area" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Position will become illegal, leaving area");
           goto leaveIllegalAreas;
         }
         if(targetRelative.translation.squaredNorm() < sqr(200.f))
         {
-          std::cout << "[WalkToPointReady] Close to target position, adjusting final pose" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Close to target position, adjusting final pose");
           if(theRobotPose.translation.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius) || opponentPenaltyKickGoalkeeper)
             goto adjustToFinalPosePrecisely;
           else
@@ -80,7 +80,7 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
         else if(timeUntilSetStarts < timeToEmergencyMode &&
                 !theIllegalAreas.willPositionBeIllegal(theRobotPose.translation, 175.f))
         {
-          std::cout << "[WalkToPointReady] Emergency adjustment - time running out" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Emergency adjustment - time running out");
           goto emergencyAdjustment;
         }
       }
@@ -173,14 +173,14 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
       transition
       {
         if(state_time == 0)
-          std::cout << "[WalkToPointReady] Reached target position, standing" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Reached target position, standing");
           
         if(targetRelative.translation.squaredNorm() > sqr(opponentPenaltyKickGoalkeeper ? 50.f : 300.f) || std::abs(targetRelative.rotation) > (opponentPenaltyKickGoalkeeper ? 5_deg : 15_deg) ||
            theIllegalAreas.isPositionIllegal(theRobotPose.translation, 145.f))
           goto walkToPointReady;
         if(theStandSkill.isDone() && state_time > 1000)
         {
-          std::cout << "[WalkToPointReady] Standing complete, transitioning to high stand" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] Standing complete, transitioning to high stand");
           goto standHigh;
         }
       }
@@ -196,7 +196,7 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
       transition
       {
         if(state_time == 0)
-          std::cout << "[WalkToPointReady] In final position, standing high and waiting for whistle" << std::endl;
+          OUTPUT_TEXT("[WalkToPointReady] In final position, standing high and waiting for whistle");
           
         if(targetRelative.translation.squaredNorm() > sqr(opponentPenaltyKickGoalkeeper ? 50.f : 300.f) || std::abs(targetRelative.rotation) > (opponentPenaltyKickGoalkeeper ? 5_deg : 15_deg) ||
            theIllegalAreas.isPositionIllegal(theRobotPose.translation, 145.f))
