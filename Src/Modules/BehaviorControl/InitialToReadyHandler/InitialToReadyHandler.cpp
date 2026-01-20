@@ -11,13 +11,55 @@
 #include <iterator>
 #include "InitialToReadyHandler.h"
 #include "Platform/SystemCall.h"
+#include <iostream>
 
 MAKE_MODULE(InitialToReadyHandler);
+
+// Helper function to convert InitialToReady state to string
+static const char* stateToString(InitialToReady::State state)
+{
+  switch(state)
+  {
+    case InitialToReady::State::observing: return "observing";
+    case InitialToReady::State::waiting: return "waiting";
+    case InitialToReady::State::transition: return "transition";
+    default: return "unknown";
+  }
+}
+
+// Helper function to convert RefereePercept gesture to string
+static const char* gestureToString(RefereePercept::Gesture gesture)
+{
+  switch(gesture)
+  {
+    case RefereePercept::Gesture::none: return "none";
+    case RefereePercept::Gesture::kickInBlue: return "kickInBlue";
+    case RefereePercept::Gesture::kickInRed: return "kickInRed";
+    case RefereePercept::Gesture::goalKickBlue: return "goalKickBlue";
+    case RefereePercept::Gesture::goalKickRed: return "goalKickRed";
+    case RefereePercept::Gesture::cornerKickBlue: return "cornerKickBlue";
+    case RefereePercept::Gesture::cornerKickRed: return "cornerKickRed";
+    case RefereePercept::Gesture::goalBlue: return "goalBlue";
+    case RefereePercept::Gesture::goalRed: return "goalRed";
+    case RefereePercept::Gesture::pushingFreeKickBlue: return "pushingFreeKickBlue";
+    case RefereePercept::Gesture::pushingFreeKickRed: return "pushingFreeKickRed";
+    case RefereePercept::Gesture::fullTime: return "fullTime";
+    case RefereePercept::Gesture::substitution: return "substitution";
+    case RefereePercept::Gesture::substitutionRed: return "substitutionRed";
+    case RefereePercept::Gesture::initialToReady: return "initialToReady";
+    default: return "unknown";
+  }
+}
 
 InitialToReadyHandler::InitialToReadyHandler() = default;
 
 void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
 {
+  // Log state periodically when in standby
+  static unsigned lastLogTime = 0;
+  static InitialToReady::State lastLoggedState = InitialToReady::State::observing;
+  static RefereePercept::Gesture lastLoggedGesture = RefereePercept::Gesture::none;
+  
   // this module is only useful during initial state and when robot is active
   if(theGameState.state != GameState::standby ||
      theGameState.playerState != GameState::PlayerState::active)
@@ -25,6 +67,22 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
     // after transition restart Handler for next iteration
     restart(theInitialToReady);
     return;
+  }
+
+  // Log when in standby mode (every 2 seconds or on state change)
+  bool stateChanged = (theInitialToReady.state != lastLoggedState) || 
+                      (theRefereePercept.gesture != lastLoggedGesture);
+  if(stateChanged || theFrameInfo.getTimeSince(lastLogTime) > 2000)
+  {
+    std::cout << "[InitialToReadyHandler] State: " << stateToString(theInitialToReady.state)
+              << " | RefereeGesture: " << gestureToString(theRefereePercept.gesture)
+              << " | InSight: " << (refereeInSight() ? "YES" : "NO")
+              << " | PawnsLeft: " << pawnsLeft
+              << " | GestureDetected: " << (theInitialToReady.gestureDetected ? "YES" : "NO")
+              << std::endl;
+    lastLogTime = theFrameInfo.time;
+    lastLoggedState = theInitialToReady.state;
+    lastLoggedGesture = theRefereePercept.gesture;
   }
 
   theInitialToReady.gestureDetected = false;
@@ -50,14 +108,34 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
   {
     int detectByMate = Settings::lowestValidPlayerNumber - 1;
     bool forceTransition = false;
+    
+    // Debug response to force transition (use in SimRobot console: dr module:InitialToReadyHandler:initiateTransition)
     DEBUG_RESPONSE_ONCE("module:InitialToReadyHandler:initiateTransition")
+    {
       forceTransition = true;
-    if((theRefereePercept.gesture == RefereePercept::Gesture::initialToReady && refereeInSight()) ||
-      forceTransition)
+      std::cout << "[InitialToReadyHandler] >>> FORCING TRANSITION TO READY (debug command) <<<" << std::endl;
+    }
+    
+    // Also check for forced transition via persistent flag (for testing without console)
+    DEBUG_RESPONSE("module:InitialToReadyHandler:forceReadyMode")
+    {
+      forceTransition = true;
+    }
+    
+    bool gestureDetected = theRefereePercept.gesture == RefereePercept::Gesture::initialToReady;
+    bool inSight = refereeInSight();
+    
+    if((gestureDetected && inSight) || forceTransition)
     {
       // save detection only when threshold to last detection is met
       if(theFrameInfo.getTimeSince(theInitialToReady.timestamp) > thresholdForIndependentDetections)
       {
+        std::cout << "[InitialToReadyHandler] >>> REFEREE GESTURE DETECTED! <<<" 
+                  << " | Forced: " << (forceTransition ? "YES" : "NO")
+                  << " | Gesture: " << gestureToString(theRefereePercept.gesture)
+                  << " | InSight: " << (inSight ? "YES" : "NO")
+                  << std::endl;
+        
         theInitialToReady.gestureDetected = true;
         theInitialToReady.detectedBy = detectByMate = theGameState.playerNumber;
         theInitialToReady.timestamp = theFrameInfo.time;
@@ -105,13 +183,23 @@ void InitialToReadyHandler::update(InitialToReady& theInitialToReady)
   if(theInitialToReady.state == InitialToReady::State::waiting)
   {
     if(isPawnPenalized(observedPawn))
+    {
+      std::cout << "[InitialToReadyHandler] Pawn " << observedPawn << " was penalized, returning to observing" << std::endl;
       theInitialToReady.state = InitialToReady::State::observing;
+    }
     else if(theFrameInfo.getTimeSince(theInitialToReady.timestamp) > waitForPawnSacrifice)
     {
+      std::cout << "[InitialToReadyHandler] >>> TRANSITIONING TO READY STATE! <<< (wait time exceeded)" << std::endl;
       theInitialToReady.state = InitialToReady::State::transition;
       if(enableSound)
         SystemCall::playSound("wyld.wav");
     }
+  }
+  
+  // Log when transitioning
+  if(theInitialToReady.state == InitialToReady::State::transition && lastLoggedState != InitialToReady::State::transition)
+  {
+    std::cout << "[InitialToReadyHandler] >>> STATE CHANGED TO TRANSITION! Robot will move to ready position <<<" << std::endl;
   }
 }
 
