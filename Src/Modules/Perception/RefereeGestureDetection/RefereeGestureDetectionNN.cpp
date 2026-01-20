@@ -11,8 +11,33 @@
 #include "Platform/Time.h"
 #include "RefereeGestureDetectionNN.h"
 #include <CompiledNN2ONNX/Model.h>
+#include <iostream>
 
 MAKE_MODULE(RefereeGestureDetectionNN);
+
+// Helper function to convert gesture to string for logging
+static const char* gestureToStringNN(RefereePercept::Gesture gesture)
+{
+  switch(gesture)
+  {
+    case RefereePercept::Gesture::none: return "none";
+    case RefereePercept::Gesture::kickInBlue: return "kickInBlue";
+    case RefereePercept::Gesture::kickInRed: return "kickInRed";
+    case RefereePercept::Gesture::goalKickBlue: return "goalKickBlue";
+    case RefereePercept::Gesture::goalKickRed: return "goalKickRed";
+    case RefereePercept::Gesture::cornerKickBlue: return "cornerKickBlue";
+    case RefereePercept::Gesture::cornerKickRed: return "cornerKickRed";
+    case RefereePercept::Gesture::goalBlue: return "goalBlue";
+    case RefereePercept::Gesture::goalRed: return "goalRed";
+    case RefereePercept::Gesture::pushingFreeKickBlue: return "pushingFreeKickBlue";
+    case RefereePercept::Gesture::pushingFreeKickRed: return "pushingFreeKickRed";
+    case RefereePercept::Gesture::fullTime: return "fullTime";
+    case RefereePercept::Gesture::substitution: return "substitution";
+    case RefereePercept::Gesture::substitutionRed: return "substitutionRed";
+    case RefereePercept::Gesture::initialToReady: return "initialToReady";
+    default: return "unknown";
+  }
+}
 
 RefereeGestureDetectionNN::RefereeGestureDetectionNN()
   : detector(&Global::getAsmjitRuntime())
@@ -141,8 +166,28 @@ void RefereeGestureDetectionNN::update(RefereePercept& theRefereePercept)
       }
     }
     gestureMemory.push_front(gestureCandidate);
-    //OUTPUT_TEXT("OUTPUT START");
-    //OUTPUT_TEXT(output[-13]<<","<<output[-12]<<","<<output[-11]<<","<<output[-10]<<","<<output[-9]<<","<<output[-8]<<","<<output[-7]<<","<<output[-6]<<","<<output[-5]<<","<<output[-4]<<","<<output[-3]<<","<<output[-2]<<","<<output[-1]);
+    
+    // Log when a non-none gesture is detected
+    static RefereePercept::Gesture lastLoggedDetection = RefereePercept::Gesture::none;
+    static unsigned lastDetectionLogTime = 0;
+    
+    if(theRefereePercept.gesture != RefereePercept::Gesture::none)
+    {
+      if(theRefereePercept.gesture != lastLoggedDetection || Time::getTimeSince(lastDetectionLogTime) > 1000)
+      {
+        std::cout << "[RefereeGestureNN] Detected gesture: " << gestureToStringNN(theRefereePercept.gesture)
+                  << " | Confidence: " << maxProb
+                  << std::endl;
+        lastLoggedDetection = theRefereePercept.gesture;
+        lastDetectionLogTime = Time::getCurrentSystemTime();
+      }
+    }
+    else if(lastLoggedDetection != RefereePercept::Gesture::none)
+    {
+      // Log when gesture detection stops
+      std::cout << "[RefereeGestureNN] Gesture detection ended (now: none)" << std::endl;
+      lastLoggedDetection = RefereePercept::Gesture::none;
+    }
   }
 }
 
