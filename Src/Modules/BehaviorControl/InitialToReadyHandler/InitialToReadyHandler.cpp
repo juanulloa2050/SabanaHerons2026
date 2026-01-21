@@ -45,7 +45,6 @@ static const char* gestureToString(RefereePercept::Gesture gesture)
     case RefereePercept::Gesture::pushingFreeKickRed: return "pushingFreeKickRed";
     case RefereePercept::Gesture::fullTime: return "fullTime";
     case RefereePercept::Gesture::substitution: return "substitution";
-    case RefereePercept::Gesture::substitutionRed: return "substitutionRed";
     case RefereePercept::Gesture::initialToReady: return "initialToReady";
     default: return "unknown";
   }

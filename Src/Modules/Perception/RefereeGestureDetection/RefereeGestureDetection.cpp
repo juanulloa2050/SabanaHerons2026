@@ -10,6 +10,7 @@
 #include "Debugging/Debugging.h"
 #include "Platform/SystemCall.h"
 #include "Platform/Time.h"
+#include "Tools/Math/Transformation.h"
 #include <algorithm>
 
 MAKE_MODULE(RefereeGestureDetection);
@@ -46,7 +47,7 @@ void RefereeGestureDetection::update(RefereePercept& theRefereePercept)
     lastHistoryUpdate = Time::getCurrentSystemTime();
 
     // Detect gesture and filter it over time.
-    updateHistogram(crossesMiddle() ? detectGesture() : RefereePercept::none);
+    updateHistogram((!mustCrossMiddle || crossesMiddle()) && pointsLowEnough() ? detectGesture() : RefereePercept::none);
     theRefereePercept.gesture = getPredominantGesture();
   }
 
@@ -71,6 +72,18 @@ bool RefereeGestureDetection::crossesMiddle() const
       isRight |= theKeypoints.points[keypoint].position.x() >= theOptionalCameraImage.image.value().width;
     }
   return isLeft && isRight;
+}
+
+bool RefereeGestureDetection::pointsLowEnough() const
+{
+  Vector2f dummy;
+  FOREACH_ENUM(Keypoints::Keypoint, keypoint)
+  {
+    const Keypoints::Point& point = theKeypoints.points[keypoint];
+    if(point.valid && point.position.y() > yThreshold)
+      return true;
+  }
+  return false;
 }
 
 const Keypoints::Point& RefereeGestureDetection::getOrdered(const Keypoints::Keypoint keypoint) const
