@@ -27,6 +27,8 @@ STREAMABLE(Strategy,
     defensiva,
     Tortuga,
     s5v5_Scaled,
+    s3v3_scaled,
+    s4v4_scaled,
   });
 
   template<typename SetPlayType>
