@@ -67,7 +67,7 @@ if [ "${DEVICE_SIZE}" -lt "${IMAGE_SIZE}" ]; then
   exit 15
 fi
 
-if [ "${DEVICE_REMOVABLE}" != "1" ]; then
+if [ "${DEVICE_REMOVABLE}" != " 1" ]; then
   >&2 echo "Target device is not removable."
   exit 16
 fi
