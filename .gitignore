@@ -29,6 +29,8 @@ Thumbs.db
 !/Make/Linux/.idea/fileTemplates
 /Make/Linux/.idea/fileTemplates/includes/Set Author.
 !/Make/Linux/.idea/runConfigurations
+/Make/Linux/cmake-build-debug
+/Make/Linux/cmake-build-release
 /Make/Windows/B-Human.lnk
 /Make/macOS/B-Human.xcodeproj
 /Util/Buildchain/macOS/bin/cmake
