@@ -11,9 +11,13 @@
 #include "BallPerceptor.h"
 #include "Platform/File.h"
 #include "Platform/SystemCall.h"
+#include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/Stopwatch.h"
 #include "Streaming/Global.h"
+#include "Streaming/Output.h"
+#include <iostream>
+#include <chrono>
 #include "Tools/Math/Projection.h"
 #include "Tools/Math/Transformation.h"
 
@@ -37,11 +41,19 @@ void BallPerceptor::update(BallPercept& theBallPercept)
   theBallPercept.status = BallPercept::notSeen;
 
   if(!encoder.valid() || !classifier.valid() || !corrector.valid())
+  {
+    OUTPUT_TEXT("[BallPerceptor] Neural networks not compiled - skipping detection");
     return;
+  }
 
   const std::vector<Vector2i>& ballSpots = theBallSpots.ballSpots;
   if(ballSpots.empty())
+  {
+    OUTPUT_TEXT("[BallPerceptor] No ball spots to classify");
     return;
+  }
+
+  OUTPUT_TEXT("[BallPerceptor] Classifying " << static_cast<unsigned>(ballSpots.size()) << " spots | patchSize=" << static_cast<unsigned>(patchSize) << " | thresholds: guessed=" << guessedThreshold << " accept=" << acceptThreshold << " ensure=" << ensureThreshold);
 
   float prob, bestProb = guessedThreshold;
   Vector2f ballPosition, bestBallPosition;
@@ -62,8 +74,12 @@ void BallPerceptor::update(BallPercept& theBallPercept)
       bestProb = prob;
       bestBallPosition = ballPosition;
       bestRadius = radius;
+      OUTPUT_TEXT("[BallPerceptor]   New best: spot[" << static_cast<unsigned>(i) << "] prob=" << prob << " pos=(" << ballPosition.x() << ", " << ballPosition.y() << ") radius=" << radius);
       if(SystemCall::getMode() == SystemCall::physicalRobot && prob >= ensureThreshold)
+      {
+        OUTPUT_TEXT("[BallPerceptor]   Ensure threshold reached - stopping early");
         break;
+      }
     }
   }
 
@@ -77,8 +93,34 @@ void BallPerceptor::update(BallPercept& theBallPercept)
                                                        theBallPercept.positionOnField, theBallPercept.covarianceOnField))
     {
       theBallPercept.status = bestProb >= acceptThreshold ? BallPercept::seen : BallPercept::guessed;
+      OUTPUT_TEXT("[BallPerceptor] DETECTED: status=" << (theBallPercept.status == BallPercept::seen ? "SEEN" : "GUESSED") << " | prob=" << bestProb << " | imgPos=(" << bestBallPosition.x() << ", " << bestBallPosition.y() << ") | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | radius=" << bestRadius);
+      ANNOTATION("BallPerceptor", (theBallPercept.status == BallPercept::seen ? "SEEN" : "GUESSED") << " prob=" << bestProb << " imgPos=(" << static_cast<int>(bestBallPosition.x()) << "," << static_cast<int>(bestBallPosition.y()) << ") fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm r=" << static_cast<int>(bestRadius));
+      {
+        using Clock = std::chrono::steady_clock;
+        static Clock::time_point lastBallLogTime = Clock::time_point::min();
+        const auto now = Clock::now();
+        if(std::chrono::duration_cast<std::chrono::milliseconds>(now - lastBallLogTime).count() > 2000)
+        {
+          lastBallLogTime = now;
+          std::cout << "[BallPerceptor|" << (theCameraInfo.camera == CameraInfo::upper ? "U" : "L") << "] "
+                    << (theBallPercept.status == BallPercept::seen ? "SEEN" : "GUESSED")
+                    << " prob=" << bestProb
+                    << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << ","
+                    << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm"
+                    << " r=" << static_cast<int>(bestRadius) << std::endl;
+        }
+      }
       return;
     }
+    else
+    {
+      OUTPUT_TEXT("[BallPerceptor] Probability=" << bestProb << " but transform to field failed");
+    }
+  }
+  else
+  {
+    OUTPUT_TEXT("[BallPerceptor] No spot passed guessed threshold (bestProb=" << bestProb << ")");
+    ANNOTATION("BallPerceptor", "notSeen bestProb=" << bestProb << " spots=" << static_cast<unsigned>(ballSpots.size()));
   }
 
   // Special ball handling for penalty goal keeper
@@ -110,6 +152,7 @@ void BallPerceptor::update(BallPercept& theBallPercept)
           theBallPercept.radiusInImage = 30.f;
         }
     }
+    OUTPUT_TEXT("[BallPerceptor] Penalty keeper special: status=" << (theBallPercept.status == BallPercept::seen ? "SEEN" : "notSeen"));
   }
 }
 
@@ -119,10 +162,15 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
   Geometry::Circle ball;
   if(!(Transformation::imageToRobotHorizontalPlane(ballSpot.cast<float>(), theBallSpecification.radius, theCameraMatrix, theCameraInfo, relativePoint)
        && Projection::calculateBallInImage(relativePoint, theCameraMatrix, theCameraInfo, theBallSpecification.radius, ball)))
+  {
+    OUTPUT_TEXT("[BallPerceptor::apply] Spot (" << ballSpot.x() << ", " << ballSpot.y() << ") -> projection failed");
     return -1.f;
+  }
 
   int ballArea = static_cast<int>(ball.radius * ballAreaFactor);
   ballArea += 4 - (ballArea % 4);
+
+  OUTPUT_TEXT("[BallPerceptor::apply] Spot (" << ballSpot.x() << ", " << ballSpot.y() << ") | relField=(" << relativePoint.x() << ", " << relativePoint.y() << ") | dist=" << relativePoint.norm() << "mm | ballArea=" << ballArea << "px | imgRadius=" << ball.radius << "px");
 
   RECTANGLE("module:BallPerceptor:spots", static_cast<int>(ballSpot.x() - ballArea / 2), static_cast<int>(ballSpot.y() - ballArea / 2), static_cast<int>(ballSpot.x() + ballArea / 2), static_cast<int>(ballSpot.y() + ballArea / 2), 2, Drawings::PenStyle::solidPen, ColorRGBA::black);
 
@@ -161,6 +209,8 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
   classifier.apply();
   const float pred = classifier.output(0)[0];
 
+  OUTPUT_TEXT("[BallPerceptor::apply]   Classifier prob=" << pred);
+
   // predict ball position if poss for ball is high enough
   if(pred > guessedThreshold)
   {
@@ -169,6 +219,7 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
     ballPosition.x() = (corrector.output(0)[0] - patchSize / 2) * stepSize + ballSpot.x();
     ballPosition.y() = (corrector.output(0)[1] - patchSize / 2) * stepSize + ballSpot.y();
     predRadius = corrector.output(0)[2] * stepSize;
+    OUTPUT_TEXT("[BallPerceptor::apply]   Corrector: correctedPos=(" << ballPosition.x() << ", " << ballPosition.y() << ") correctedRadius=" << predRadius);
   }
 
   return pred;
