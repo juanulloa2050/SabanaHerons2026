@@ -221,7 +221,19 @@ void CameraStreamer::encodeAndSend()
   if(sz == 0)
     return;
 
-  // ── Send header + JPEG to all clients ────────────────────────────────────
+  // ── Build ball-detection metadata (13 bytes) ─────────────────────────────
+  // Layout: uint8 status | float32_LE x | float32_LE y | float32_LE radius
+  // status: 0=notSeen  1=seen  2=guessed  (matches BallPercept::Status enum)
+  unsigned char meta[13];
+  meta[0] = static_cast<unsigned char>(theBallPercept.status);
+  const float bx = theBallPercept.positionInImage.x();
+  const float by = theBallPercept.positionInImage.y();
+  const float br = theBallPercept.radiusInImage;
+  std::memcpy(&meta[1], &bx, 4);
+  std::memcpy(&meta[5], &by, 4);
+  std::memcpy(&meta[9], &br, 4);
+
+  // ── Send header + JPEG + metadata to all clients ──────────────────────────
   unsigned char header[8];
   header[0] = MAGIC[0]; header[1] = MAGIC[1];
   header[2] = MAGIC[2]; header[3] = MAGIC[3];
@@ -234,7 +246,8 @@ void CameraStreamer::encodeAndSend()
   for(int fd : clients)
   {
     if(!sendAll(fd, header, 8) ||
-       !sendAll(fd, jpegBuf.data(), static_cast<int>(sz)))
+       !sendAll(fd, jpegBuf.data(), static_cast<int>(sz)) ||
+       !sendAll(fd, meta, 13))
     {
       ::close(fd);
       toRemove.push_back(fd);
