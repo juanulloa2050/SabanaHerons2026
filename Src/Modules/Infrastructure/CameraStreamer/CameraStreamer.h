@@ -18,6 +18,7 @@
 #include "Representations/Infrastructure/CameraImage.h"
 #include "Representations/Infrastructure/CameraInfo.h"
 #include "Representations/Infrastructure/CameraStream.h"
+#include "Representations/Perception/BallPercepts/BallPercept.h"
 #include "Framework/Module.h"
 #include <vector>
 
@@ -25,6 +26,7 @@ MODULE(CameraStreamer,
 {,
   REQUIRES(CameraImage),
   REQUIRES(CameraInfo),
+  REQUIRES(BallPercept),
   PROVIDES(CameraStream),
   LOADS_PARAMETERS(
   {,
