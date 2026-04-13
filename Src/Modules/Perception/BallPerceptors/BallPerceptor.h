@@ -12,6 +12,7 @@
 
 #include "Representations/Configuration/BallSpecification.h"
 #include "Representations/Configuration/FieldDimensions.h"
+#include "Representations/Infrastructure/CameraImage.h"
 #include "Representations/Infrastructure/CameraInfo.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/RobotPose.h"
@@ -31,6 +32,7 @@ MODULE(BallPerceptor,
 {,
   REQUIRES(BallSpots),
   REQUIRES(BallSpecification),
+  REQUIRES(CameraImage),
   REQUIRES(CameraInfo),
   REQUIRES(CameraMatrix),
   REQUIRES(ECImage),
@@ -78,8 +80,17 @@ private:
   std::unique_ptr<NeuralNetwork::Model> corModel;
 
   std::size_t patchSize = 0;
+  bool useColorEncoder = false; /**< true when encoder.h5 has 3-channel (YCrCb) input */
 
   void update(BallPercept& theBallPercept) override;
   float apply(const Vector2i& ballSpot, Vector2f& ballPosition, float& predRadius);
   void compile();
+
+  /**
+   * Extracts a YCrCb color patch centered at ballSpot and writes it directly
+   * into encoder.input(0).data() as float HWC [patchSize, patchSize, 3].
+   * Channel order: Y, Cr(=V), Cb(=U) — matches Python cv2.COLOR_BGR2YCrCb.
+   * Each channel is normalized independently with normalizeBrightness.
+   */
+  void extractColorPatch(const Vector2i& ballSpot, int ballArea);
 };

@@ -16,8 +16,10 @@
 #include "Debugging/Stopwatch.h"
 #include "Streaming/Global.h"
 #include "Streaming/Output.h"
+#include <algorithm>
 #include <iostream>
 #include <chrono>
+#include <vector>
 #include "Tools/Math/Projection.h"
 #include "Tools/Math/Transformation.h"
 
@@ -175,30 +177,37 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
   RECTANGLE("module:BallPerceptor:spots", static_cast<int>(ballSpot.x() - ballArea / 2), static_cast<int>(ballSpot.y() - ballArea / 2), static_cast<int>(ballSpot.x() + ballArea / 2), static_cast<int>(ballSpot.y() + ballArea / 2), 2, Drawings::PenStyle::solidPen, ColorRGBA::black);
 
   STOPWATCH("module:BallPerceptor:getImageSection")
-    if(useFloat)
+  {
+    if(useColorEncoder)
     {
-      PatchUtilities::extractPatch(ballSpot, Vector2i(ballArea, ballArea), Vector2i(patchSize, patchSize), theECImage.grayscaled, encoder.input(0).data(), extractionMode);
+      // Color encoder: extract YCrCb patch from raw CameraImage (YUYV)
+      extractColorPatch(ballSpot, ballArea);
+    }
+    else if(useFloat)
+    {
+      PatchUtilities::extractPatch(ballSpot, Vector2i(ballArea, ballArea), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), theECImage.grayscaled, encoder.input(0).data(), extractionMode);
       switch(normalizationMode)
       {
         case BallPerceptorModule::Params::normalizeContrast:
-          PatchUtilities::normalizeContrast(encoder.input(0).data(), Vector2i(patchSize, patchSize), normalizationOutlierRatio);
+          PatchUtilities::normalizeContrast(encoder.input(0).data(), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), normalizationOutlierRatio);
           break;
         case BallPerceptorModule::Params::normalizeBrightness:
-          PatchUtilities::normalizeBrightness(encoder.input(0).data(), Vector2i(patchSize, patchSize), normalizationOutlierRatio);
+          PatchUtilities::normalizeBrightness(encoder.input(0).data(), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), normalizationOutlierRatio);
       }
     }
     else
     {
-      PatchUtilities::extractPatch(ballSpot, Vector2i(ballArea, ballArea), Vector2i(patchSize, patchSize), theECImage.grayscaled, reinterpret_cast<unsigned char*>(encoder.input(0).data()), extractionMode);
+      PatchUtilities::extractPatch(ballSpot, Vector2i(ballArea, ballArea), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), theECImage.grayscaled, reinterpret_cast<unsigned char*>(encoder.input(0).data()), extractionMode);
       switch(normalizationMode)
       {
         case BallPerceptorModule::Params::normalizeContrast:
-          PatchUtilities::normalizeContrast(reinterpret_cast<unsigned char*>(encoder.input(0).data()), Vector2i(patchSize, patchSize), normalizationOutlierRatio);
+          PatchUtilities::normalizeContrast(reinterpret_cast<unsigned char*>(encoder.input(0).data()), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), normalizationOutlierRatio);
           break;
         case BallPerceptorModule::Params::normalizeBrightness:
-          PatchUtilities::normalizeBrightness(reinterpret_cast<unsigned char*>(encoder.input(0).data()), Vector2i(patchSize, patchSize), normalizationOutlierRatio);
+          PatchUtilities::normalizeBrightness(reinterpret_cast<unsigned char*>(encoder.input(0).data()), Vector2i(static_cast<int>(patchSize), static_cast<int>(patchSize)), normalizationOutlierRatio);
       }
     }
+  }
   const float stepSize = static_cast<float>(ballArea) / static_cast<float>(patchSize);
 
   // encode patch
@@ -249,9 +258,64 @@ void BallPerceptor::compile()
 
   ASSERT(encoder.input(0).rank() == 3);
   ASSERT(encoder.input(0).dims(0) == encoder.input(0).dims(1));
-  ASSERT(encoder.input(0).dims(2) == 1);
+
+  // Support grayscale (1ch) and color YCrCb (3ch) encoders
+  const auto inputChannels = encoder.input(0).dims(2);
+  ASSERT(inputChannels == 1 || inputChannels == 3);
+  useColorEncoder = (inputChannels == 3);
+
+  // Color encoder requires float buffer; enforce it at compile time
+  if(useColorEncoder && !useFloat)
+    OUTPUT_TEXT("[BallPerceptor] WARNING: useFloat must be true for color encoder — results may be wrong.");
 
   ASSERT(classifier.output(0).rank() == 1);
   ASSERT(classifier.output(0).dims(0) == 1 && corrector.output(0).dims(0) == 3);
   patchSize = encoder.input(0).dims(0);
+}
+
+void BallPerceptor::extractColorPatch(const Vector2i& ballSpot, int ballArea)
+{
+  // encoder.input(0).data() → float[patchSize * patchSize * 3] in HWC layout
+  // Channel order: Y(0), Cr=V(1), Cb=U(2)  ← matches Python cv2.COLOR_BGR2YCrCb
+
+  const int ps   = static_cast<int>(patchSize);
+  const int half = ballArea / 2;
+  const int imgW = static_cast<int>(theCameraImage.width);
+  const int imgH = static_cast<int>(theCameraImage.height);
+  const float step = static_cast<float>(ballArea) / static_cast<float>(ps);
+  const int x0 = ballSpot.x() - half;
+  const int y0 = ballSpot.y() - half;
+
+  // Extract three planar channels from the YUYV camera image
+  std::vector<float> chY(static_cast<size_t>(ps * ps));
+  std::vector<float> chCr(static_cast<size_t>(ps * ps));
+  std::vector<float> chCb(static_cast<size_t>(ps * ps));
+
+  for(int oy = 0; oy < ps; ++oy)
+  {
+    for(int ox = 0; ox < ps; ++ox)
+    {
+      const int ix  = std::clamp(x0 + static_cast<int>(static_cast<float>(ox) * step), 0, imgW - 1);
+      const int iy  = std::clamp(y0 + static_cast<int>(static_cast<float>(oy) * step), 0, imgH - 1);
+      const int idx = oy * ps + ox;
+      chY[idx]  = static_cast<float>(theCameraImage.getY(static_cast<size_t>(ix), static_cast<size_t>(iy)));
+      chCr[idx] = static_cast<float>(theCameraImage.getV(static_cast<size_t>(ix), static_cast<size_t>(iy)));  // V = Cr
+      chCb[idx] = static_cast<float>(theCameraImage.getU(static_cast<size_t>(ix), static_cast<size_t>(iy)));  // U = Cb
+    }
+  }
+
+  // Normalize each channel independently (replica of Python normalizeBrightness)
+  const Vector2i sz(ps, ps);
+  PatchUtilities::normalizeBrightness(chY.data(),  sz, normalizationOutlierRatio);
+  PatchUtilities::normalizeBrightness(chCr.data(), sz, normalizationOutlierRatio);
+  PatchUtilities::normalizeBrightness(chCb.data(), sz, normalizationOutlierRatio);
+
+  // Interleave into HWC float buffer
+  float* out = encoder.input(0).data();
+  for(int i = 0; i < ps * ps; ++i)
+  {
+    out[i * 3 + 0] = chY[i];
+    out[i * 3 + 1] = chCr[i];
+    out[i * 3 + 2] = chCb[i];
+  }
 }

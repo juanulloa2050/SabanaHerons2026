@@ -44,6 +44,9 @@ public:
 
   unsigned timestamp = 0; /**< The timestamp of this image. */
 
+  const unsigned char* getData() const { return allocator.data(); }
+  unsigned             getSize() const { return size; }
+
 protected:
   /**
    * Read this object from a stream.
