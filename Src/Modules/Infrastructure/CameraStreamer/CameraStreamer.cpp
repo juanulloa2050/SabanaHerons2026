@@ -137,7 +137,7 @@ void CameraStreamer::acceptClients()
 
     clients.push_back(clientFd);
     OUTPUT_TEXT("[CameraStreamer] New client on port " << activePort
-                << " (total=" << clients.size() << ")");
+                << " (total=" << static_cast<unsigned int>(clients.size()) << ")");
   }
 }
 
@@ -233,6 +233,22 @@ void CameraStreamer::encodeAndSend()
   std::memcpy(&meta[5], &by, 4);
   std::memcpy(&meta[9], &br, 4);
 
+  // ── Build BallSpots payload (1 + N*8 bytes) ───────────────────────────────
+  // Layout: uint8 count | (int32_LE x, int32_LE y) × count
+  // BallSpots are candidates BEFORE classification — useful to diagnose whether
+  // the pipeline even proposes the trionda as a candidate region.
+  const auto& spots = theBallSpots.ballSpots;
+  const uint8_t numSpots = static_cast<uint8_t>(std::min(spots.size(), size_t(50)));
+  std::vector<unsigned char> spotsData(1u + static_cast<size_t>(numSpots) * 8u);
+  spotsData[0] = numSpots;
+  for(int i = 0; i < static_cast<int>(numSpots); ++i)
+  {
+    const int32_t sx = spots[static_cast<size_t>(i)].x();
+    const int32_t sy = spots[static_cast<size_t>(i)].y();
+    std::memcpy(spotsData.data() + 1 + i * 8,     &sx, 4);
+    std::memcpy(spotsData.data() + 1 + i * 8 + 4, &sy, 4);
+  }
+
   // ── Send header + JPEG + metadata to all clients ──────────────────────────
   unsigned char header[8];
   header[0] = MAGIC[0]; header[1] = MAGIC[1];
@@ -247,7 +263,8 @@ void CameraStreamer::encodeAndSend()
   {
     if(!sendAll(fd, header, 8) ||
        !sendAll(fd, jpegBuf.data(), static_cast<int>(sz)) ||
-       !sendAll(fd, meta, 13))
+       !sendAll(fd, meta, 13) ||
+       !sendAll(fd, spotsData.data(), static_cast<int>(spotsData.size())))
     {
       ::close(fd);
       toRemove.push_back(fd);
@@ -257,7 +274,7 @@ void CameraStreamer::encodeAndSend()
   for(int fd : toRemove)
   {
     clients.erase(std::remove(clients.begin(), clients.end(), fd), clients.end());
-    OUTPUT_TEXT("[CameraStreamer] Client disconnected (remaining=" << clients.size() << ")");
+    OUTPUT_TEXT("[CameraStreamer] Client disconnected (remaining=" << static_cast<unsigned int>(clients.size()) << ")");
   }
 }
 
