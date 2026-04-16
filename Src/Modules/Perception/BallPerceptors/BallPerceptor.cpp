@@ -52,6 +52,7 @@ void BallPerceptor::update(BallPercept& theBallPercept)
   const std::vector<Vector2i>& ballSpots = theBallSpots.ballSpots;
   if(ballSpots.empty())
   {
+    circleStreak = std::max(0, circleStreak - 1);  // decay, not hard reset
     OUTPUT_TEXT("[BallPerceptor] No ball spots to classify");
     return;
   }
@@ -88,6 +89,26 @@ void BallPerceptor::update(BallPercept& theBallPercept)
 
   if(bestProb > guessedThreshold)
   {
+    // Temporal hysteresis: track consecutive frames with a circle-confirmed spot
+    // at the same image position to promote guessed → seen.
+    const bool isCircleResult = (bestProb == guessedThreshold);
+    if(isCircleResult)
+    {
+      const float drift = (bestBallPosition - circleLastPos).norm();
+      if(circleStreak > 0 && drift < bestRadius * 2.f)
+        ++circleStreak;
+      else
+        circleStreak = 1;
+      circleLastPos = bestBallPosition;
+
+      if(circleStreak >= circleStreakForSeen)
+        bestProb = acceptThreshold;  // promote to seen
+    }
+    else
+    {
+      circleStreak = std::max(0, circleStreak - 1);
+    }
+
     theBallPercept.positionInImage = bestBallPosition;
     theBallPercept.radiusInImage = bestRadius;
 
@@ -221,15 +242,18 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
 
   OUTPUT_TEXT("[BallPerceptor::apply]   Classifier prob=" << pred);
 
-  // Circle fallback: if NN score is low, check for circular edge profile
+  // Circle fallback: sample at 3 radii to handle projection errors when head moves
   if(useCircleFallback && pred < guessedThreshold)
   {
-    const float cs = computeCircleScore(ballSpot, ball.radius);
+    const float r = ball.radius;
+    const float cs = std::max({computeCircleScore(ballSpot, r * 0.75f),
+                                computeCircleScore(ballSpot, r),
+                                computeCircleScore(ballSpot, r * 1.35f)});
     OUTPUT_TEXT("[BallPerceptor::apply]   CircleScore=" << cs << " threshold=" << circleScoreThreshold);
     if(cs >= circleScoreThreshold)
     {
       ballPosition = ballSpot.cast<float>();
-      predRadius   = ball.radius;
+      predRadius   = r;
       OUTPUT_TEXT("[BallPerceptor::apply]   CircleFallback ACCEPTED score=" << cs);
       return guessedThreshold;
     }

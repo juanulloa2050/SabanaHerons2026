@@ -22,12 +22,14 @@
 #include "Representations/Infrastructure/CameraImage.h"
 #include "Representations/Infrastructure/CameraInfo.h"
 #include "Representations/Perception/BallPercepts/BallSpots.h"
+#include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include <vector>
 
 MODULE(TriondaBallSpotsProvider,
 {,
   REQUIRES(CameraImage),
   REQUIRES(CameraInfo),
+  REQUIRES(ECImage),
   PROVIDES(BallSpots),
   DEFINES_PARAMETERS(
   {,
@@ -68,6 +70,18 @@ MODULE(TriondaBallSpotsProvider,
      * Should be roughly equal to the expected ball diameter at mid-range.
      */
     (int)(40) mergeRadius,
+
+    /**
+     * Saturation-based gate (second pass using ECImage.saturated).
+     * Catches blue/red/white patches of the trionda that the chroma gate misses.
+     * minSat: min saturation (0-255). Pixels below this are considered grey/white.
+     * maxGreenHue: hue range [0-255 BHuman scale] excluded as grass-green.
+     *   BHuman hue: 0=red, 64=yellow, 128=green, 192=blue.
+     */
+    (int)(60)  minSaturation,
+    (int)(80)  greenHueLow,
+    (int)(170) greenHueHigh,
+    (bool)(true) useSatGate,
   }),
 });
 
