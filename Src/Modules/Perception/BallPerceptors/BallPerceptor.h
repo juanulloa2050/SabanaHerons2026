@@ -62,6 +62,9 @@ MODULE(BallPerceptor,
     (float) ballAreaFactor,
     (bool) useFloat,
     (PatchUtilities::ExtractionMode) extractionMode,
+    (bool)(true) useCircleFallback,        /**< If true, accept spots with circular edge profile even if NN score is low. */
+    (float)(0.45f) circleScoreThreshold,   /**< Fraction [0,1] of perimeter points with strong edge required. */
+    (int)(25) circleEdgeThreshold,         /**< Gradient magnitude (0-255 scale) to count a perimeter point as an edge. */
   }),
 });
 
@@ -85,6 +88,7 @@ private:
   void update(BallPercept& theBallPercept) override;
   float apply(const Vector2i& ballSpot, Vector2f& ballPosition, float& predRadius);
   void compile();
+  float computeCircleScore(const Vector2i& center, float radius) const;
 
   /**
    * Extracts a YCrCb color patch centered at ballSpot and writes it directly

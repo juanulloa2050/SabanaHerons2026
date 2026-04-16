@@ -17,6 +17,7 @@
 #include "Streaming/Global.h"
 #include "Streaming/Output.h"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <chrono>
 #include <vector>
@@ -220,7 +221,21 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
 
   OUTPUT_TEXT("[BallPerceptor::apply]   Classifier prob=" << pred);
 
-  // predict ball position if poss for ball is high enough
+  // Circle fallback: if NN score is low, check for circular edge profile
+  if(useCircleFallback && pred < guessedThreshold)
+  {
+    const float cs = computeCircleScore(ballSpot, ball.radius);
+    OUTPUT_TEXT("[BallPerceptor::apply]   CircleScore=" << cs << " threshold=" << circleScoreThreshold);
+    if(cs >= circleScoreThreshold)
+    {
+      ballPosition = ballSpot.cast<float>();
+      predRadius   = ball.radius;
+      OUTPUT_TEXT("[BallPerceptor::apply]   CircleFallback ACCEPTED score=" << cs);
+      return guessedThreshold;
+    }
+  }
+
+  // predict ball position if NN prob is high enough
   if(pred > guessedThreshold)
   {
     corrector.input(0) = encoder.output(0);
@@ -232,6 +247,38 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
   }
 
   return pred;
+}
+
+float BallPerceptor::computeCircleScore(const Vector2i& center, float radius) const
+{
+  static constexpr float twoPi = 6.28318530717959f;
+  static constexpr int   N     = 16;
+
+  const int w = static_cast<int>(theECImage.grayscaled.width);
+  const int h = static_cast<int>(theECImage.grayscaled.height);
+  int hits  = 0;
+  int valid = 0;
+
+  for(int i = 0; i < N; ++i)
+  {
+    const float angle = twoPi * i / N;
+    const int x = center.x() + static_cast<int>(radius * std::cos(angle));
+    const int y = center.y() + static_cast<int>(radius * std::sin(angle));
+
+    if(x < 1 || x >= w - 1 || y < 1 || y >= h - 1)
+      continue;
+
+    ++valid;
+    const int gx = static_cast<int>(theECImage.grayscaled[Vector2i(x + 1, y)])
+                 - static_cast<int>(theECImage.grayscaled[Vector2i(x - 1, y)]);
+    const int gy = static_cast<int>(theECImage.grayscaled[Vector2i(x, y + 1)])
+                 - static_cast<int>(theECImage.grayscaled[Vector2i(x, y - 1)]);
+    const float grad = std::sqrt(static_cast<float>(gx * gx + gy * gy));
+    if(grad >= static_cast<float>(circleEdgeThreshold))
+      ++hits;
+  }
+
+  return valid > 0 ? static_cast<float>(hits) / valid : 0.f;
 }
 
 void BallPerceptor::compile()
