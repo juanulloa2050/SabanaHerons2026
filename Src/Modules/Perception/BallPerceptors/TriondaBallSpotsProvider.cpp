@@ -118,6 +118,46 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
     }
   }
 
+  // Second pass: saturation gate using ECImage — catches red/blue/white patches
+  // that the chroma gate misses. Excludes grass-green by hue range.
+  if(useSatGate)
+  {
+    const int satH = static_cast<int>(theECImage.grayscaled.height);
+    const int satW = static_cast<int>(theECImage.grayscaled.width);
+
+    for(int vy = 0; vy < satH; vy += yStep)
+    {
+      for(int vx = 0; vx < satW; vx += scanStep)
+      {
+        const int sat = static_cast<int>(theECImage.saturated[Vector2i(vx, vy)]);
+        if(sat < minSaturation)
+          continue;
+
+        const int hue = static_cast<int>(theECImage.hued[Vector2i(vx, vy)]);
+        if(hue >= greenHueLow && hue <= greenHueHigh)
+          continue;  // grass green — skip
+
+        const int Y = static_cast<int>(theECImage.grayscaled[Vector2i(vx, vy)]);
+        if(Y < minY || Y > maxY)
+          continue;
+
+        Blob* best = nullptr;
+        int   bestD2 = mr2 + 1;
+        for(auto& b : blobs)
+        {
+          const int dx = vx - b.cx();
+          const int dy = vy - b.cy();
+          const int d2 = dx * dx + dy * dy;
+          if(d2 < bestD2) { bestD2 = d2; best = &b; }
+        }
+        if(best)
+          best->absorb(vx, vy);
+        else
+          blobs.push_back(Blob{}), blobs.back().absorb(vx, vy);
+      }
+    }
+  }
+
   // Sort by blob size descending so the largest (most likely the ball) comes first
   std::sort(blobs.begin(), blobs.end(), [](const Blob& a, const Blob& b){ return a.count > b.count; });
 

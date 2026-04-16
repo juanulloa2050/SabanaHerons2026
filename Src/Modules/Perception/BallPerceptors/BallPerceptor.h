@@ -65,6 +65,7 @@ MODULE(BallPerceptor,
     (bool)(true) useCircleFallback,        /**< If true, accept spots with circular edge profile even if NN score is low. */
     (float)(0.45f) circleScoreThreshold,   /**< Fraction [0,1] of perimeter points with strong edge required. */
     (int)(25) circleEdgeThreshold,         /**< Gradient magnitude (0-255 scale) to count a perimeter point as an edge. */
+    (int)(2) circleStreakForSeen,          /**< Consecutive circle-confirmed frames needed to promote guessed → seen. */
   }),
 });
 
@@ -83,7 +84,12 @@ private:
   std::unique_ptr<NeuralNetwork::Model> corModel;
 
   std::size_t patchSize = 0;
-  bool useColorEncoder = false; /**< true when encoder.h5 has 3-channel (YCrCb) input */
+  bool useColorEncoder = false;
+
+  // Temporal hysteresis for circle fallback: tracks consecutive frames with a
+  // circle-confirmed spot at the same position to promote guessed → seen.
+  Vector2f circleLastPos = Vector2f::Zero();
+  int      circleStreak  = 0;
 
   void update(BallPercept& theBallPercept) override;
   float apply(const Vector2i& ballSpot, Vector2f& ballPosition, float& predRadius);
