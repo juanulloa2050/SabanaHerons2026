@@ -20,6 +20,7 @@
 #include "Representations/Perception/MeasurementCovariance.h"
 #include "Representations/Perception/BallPercepts/BallPercept.h"
 #include "Representations/Perception/BallPercepts/BallSpots.h"
+#include "Representations/Perception/BallPercepts/RawBallPatch.h"
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
 #include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include "ImageProcessing/PatchUtilities.h"
@@ -42,6 +43,7 @@ MODULE(BallPerceptor,
   REQUIRES(MotionInfo),
   REQUIRES(RobotPose),
   PROVIDES(BallPercept),
+  PROVIDES(RawBallPatch),
   LOADS_PARAMETERS(
   {
     ENUM(NormalizationMode,
@@ -62,10 +64,18 @@ MODULE(BallPerceptor,
     (float) ballAreaFactor,
     (bool) useFloat,
     (PatchUtilities::ExtractionMode) extractionMode,
-    (bool)(true) useCircleFallback,        /**< If true, accept spots with circular edge profile even if NN score is low. */
-    (float)(0.45f) circleScoreThreshold,   /**< Fraction [0,1] of perimeter points with strong edge required. */
-    (int)(25) circleEdgeThreshold,         /**< Gradient magnitude (0-255 scale) to count a perimeter point as an edge. */
-    (int)(2) circleStreakForSeen,          /**< Consecutive circle-confirmed frames needed to promote guessed → seen. */
+    (bool)(true) useCircleFallback,
+    (float)(0.45f) circleScoreThreshold,
+    (int)(25) circleEdgeThreshold,
+    (int)(2) circleStreakForSeen,
+    // Upper-camera overrides (smaller circle → lower thresholds)
+    (float)(0.30f) upperCircleScoreThreshold,
+    (int)(15) upperCircleEdgeThreshold,
+    (int)(2) upperCircleStreakForSeen,
+    // Color diversity check: rejects monocolor blobs (grass, lines, jerseys)
+    (bool)(true)  useColorDiversity,
+    (float)(8.f)  colorDiversityThreshold, /**< Min std-dev of Cr or Cb inside circle. */
+    (float)(6.f)  upperColorDiversityThreshold,
   }),
 });
 
@@ -86,15 +96,26 @@ private:
   std::size_t patchSize = 0;
   bool useColorEncoder = false;
 
-  // Temporal hysteresis for circle fallback: tracks consecutive frames with a
-  // circle-confirmed spot at the same position to promote guessed → seen.
+  // Temporal hysteresis for circle fallback
   Vector2f circleLastPos = Vector2f::Zero();
   int      circleStreak  = 0;
 
+  // Raw patch streaming: holds the last extracted patch for CameraStreamer
+  std::vector<float> lastExtractedPatch;  // filled by extractColorPatch() each call
+  Vector2i           lastExtractedSpot;
+  int                lastExtractedArea = 0;
+  // Best-candidate patch this frame (set in update() when new best is found)
+  std::vector<float> bestFramePatch;
+  Vector2i           bestFrameSpot;
+  int                bestFrameArea = 0;
+  bool               bestFrameValid = false;
+
   void update(BallPercept& theBallPercept) override;
+  void update(RawBallPatch& theRawBallPatch) override;
   float apply(const Vector2i& ballSpot, Vector2f& ballPosition, float& predRadius);
   void compile();
   float computeCircleScore(const Vector2i& center, float radius) const;
+  float computeColorDiversity(const Vector2i& center, float radius) const;
 
   /**
    * Extracts a YCrCb color patch centered at ballSpot and writes it directly

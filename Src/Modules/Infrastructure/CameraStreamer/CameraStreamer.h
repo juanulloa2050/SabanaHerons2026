@@ -20,6 +20,7 @@
 #include "Representations/Infrastructure/CameraStream.h"
 #include "Representations/Perception/BallPercepts/BallPercept.h"
 #include "Representations/Perception/BallPercepts/BallSpots.h"
+#include "Representations/Perception/BallPercepts/RawBallPatch.h"
 #include "Framework/Module.h"
 #include <vector>
 
@@ -29,6 +30,7 @@ MODULE(CameraStreamer,
   REQUIRES(CameraInfo),
   REQUIRES(BallPercept),
   REQUIRES(BallSpots),
+  REQUIRES(RawBallPatch),
   PROVIDES(CameraStream),
   LOADS_PARAMETERS(
   {,
