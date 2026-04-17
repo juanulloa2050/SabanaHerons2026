@@ -42,6 +42,7 @@ void BallPerceptor::update(BallPercept& theBallPercept)
     compile();
 
   theBallPercept.status = BallPercept::notSeen;
+  bestFrameValid = false;
 
   if(!encoder.valid() || !classifier.valid() || !corrector.valid())
   {
@@ -78,6 +79,13 @@ void BallPerceptor::update(BallPercept& theBallPercept)
       bestProb = prob;
       bestBallPosition = ballPosition;
       bestRadius = radius;
+      if(useColorEncoder && !lastExtractedPatch.empty())
+      {
+        bestFramePatch = lastExtractedPatch;
+        bestFrameSpot  = lastExtractedSpot;
+        bestFrameArea  = lastExtractedArea;
+        bestFrameValid = true;
+      }
       OUTPUT_TEXT("[BallPerceptor]   New best: spot[" << static_cast<unsigned>(i) << "] prob=" << prob << " pos=(" << ballPosition.x() << ", " << ballPosition.y() << ") radius=" << radius);
       if(SystemCall::getMode() == SystemCall::physicalRobot && prob >= ensureThreshold)
       {
@@ -101,7 +109,9 @@ void BallPerceptor::update(BallPercept& theBallPercept)
         circleStreak = 1;
       circleLastPos = bestBallPosition;
 
-      if(circleStreak >= circleStreakForSeen)
+      const int streakNeeded = (theCameraInfo.camera == CameraInfo::upper)
+                               ? upperCircleStreakForSeen : circleStreakForSeen;
+      if(circleStreak >= streakNeeded)
         bestProb = acceptThreshold;  // promote to seen
     }
     else
@@ -245,13 +255,28 @@ float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, flo
   // Circle fallback: sample at 3 radii to handle projection errors when head moves
   if(useCircleFallback && pred < guessedThreshold)
   {
+    const bool  isUpper   = (theCameraInfo.camera == CameraInfo::upper);
+    const float csThresh  = isUpper ? upperCircleScoreThreshold : circleScoreThreshold;
     const float r = ball.radius;
     const float cs = std::max({computeCircleScore(ballSpot, r * 0.75f),
                                 computeCircleScore(ballSpot, r),
                                 computeCircleScore(ballSpot, r * 1.35f)});
-    OUTPUT_TEXT("[BallPerceptor::apply]   CircleScore=" << cs << " threshold=" << circleScoreThreshold);
-    if(cs >= circleScoreThreshold)
+    OUTPUT_TEXT("[BallPerceptor::apply]   CircleScore=" << cs << " threshold=" << csThresh);
+    if(cs >= csThresh)
     {
+      // Reject monocolor blobs (grass, lines, jerseys) via color diversity
+      if(useColorDiversity)
+      {
+        const float divThresh = (theCameraInfo.camera == CameraInfo::upper)
+                                ? upperColorDiversityThreshold : colorDiversityThreshold;
+        const float div = computeColorDiversity(ballSpot, r);
+        OUTPUT_TEXT("[BallPerceptor::apply]   ColorDiversity=" << div << " threshold=" << divThresh);
+        if(div < divThresh)
+        {
+          OUTPUT_TEXT("[BallPerceptor::apply]   CircleFallback REJECTED monocolor div=" << div);
+          return -1.f;
+        }
+      }
       ballPosition = ballSpot.cast<float>();
       predRadius   = r;
       OUTPUT_TEXT("[BallPerceptor::apply]   CircleFallback ACCEPTED score=" << cs);
@@ -277,6 +302,8 @@ float BallPerceptor::computeCircleScore(const Vector2i& center, float radius) co
 {
   static constexpr float twoPi = 6.28318530717959f;
   static constexpr int   N     = 16;
+  const int edgeThresh = (theCameraInfo.camera == CameraInfo::upper)
+                         ? upperCircleEdgeThreshold : circleEdgeThreshold;
 
   const int w = static_cast<int>(theECImage.grayscaled.width);
   const int h = static_cast<int>(theECImage.grayscaled.height);
@@ -298,7 +325,7 @@ float BallPerceptor::computeCircleScore(const Vector2i& center, float radius) co
     const int gy = static_cast<int>(theECImage.grayscaled[Vector2i(x, y + 1)])
                  - static_cast<int>(theECImage.grayscaled[Vector2i(x, y - 1)]);
     const float grad = std::sqrt(static_cast<float>(gx * gx + gy * gy));
-    if(grad >= static_cast<float>(circleEdgeThreshold))
+    if(grad >= static_cast<float>(edgeThresh))
       ++hits;
   }
 
@@ -389,4 +416,62 @@ void BallPerceptor::extractColorPatch(const Vector2i& ballSpot, int ballArea)
     out[i * 3 + 1] = chCr[i];
     out[i * 3 + 2] = chCb[i];
   }
+
+  // Cache patch for RawBallPatch streaming
+  lastExtractedPatch.assign(out, out + ps * ps * 3);
+  lastExtractedSpot = ballSpot;
+  lastExtractedArea = ballArea;
+}
+
+void BallPerceptor::update(RawBallPatch& theRawBallPatch)
+{
+  theRawBallPatch.valid = bestFrameValid;
+  if(bestFrameValid)
+  {
+    theRawBallPatch.data         = bestFramePatch;
+    theRawBallPatch.patchSize    = static_cast<int>(patchSize);
+    theRawBallPatch.spotPosition = bestFrameSpot;
+    theRawBallPatch.ballArea     = bestFrameArea;
+  }
+  else
+  {
+    theRawBallPatch.data.clear();
+    theRawBallPatch.patchSize = 0;
+  }
+}
+
+float BallPerceptor::computeColorDiversity(const Vector2i& center, float radius) const
+{
+  // Sample a 7×7 grid inside the projected ball circle.
+  // Return max(stddev_Cr, stddev_Cb) — the trionda has mixed saturated colors
+  // so diversity is high; monocolor FPs (grass, lines, jerseys) have low diversity.
+  static constexpr int G = 7;
+  const int imgW = static_cast<int>(theCameraImage.width);   // YUYV cols
+  const int imgH = static_cast<int>(theCameraImage.height);
+
+  float sumCr = 0, sumCb = 0;
+  float sumCr2 = 0, sumCb2 = 0;
+  int   n = 0;
+
+  for(int gy = -(G/2); gy <= G/2; ++gy)
+  {
+    for(int gx = -(G/2); gx <= G/2; ++gx)
+    {
+      if(gx*gx + gy*gy > (G/2+1)*(G/2+1)) continue;  // stay inside circle
+      const int vx = center.x() + static_cast<int>(gx * radius / (G/2));
+      const int vy = center.y() + static_cast<int>(gy * radius / (G/2));
+      const int yuvX = std::clamp(vx / 2, 0, imgW - 1);
+      const int yuvY = std::clamp(vy,     0, imgH - 1);
+      const float cr = static_cast<float>(theCameraImage.getV(yuvX, yuvY));
+      const float cb = static_cast<float>(theCameraImage.getU(yuvX, yuvY));
+      sumCr += cr;  sumCr2 += cr*cr;
+      sumCb += cb;  sumCb2 += cb*cb;
+      ++n;
+    }
+  }
+
+  if(n < 2) return 0.f;
+  const float varCr = sumCr2/n - (sumCr/n)*(sumCr/n);
+  const float varCb = sumCb2/n - (sumCb/n)*(sumCb/n);
+  return std::sqrt(std::max({varCr, varCb, 0.f}));
 }

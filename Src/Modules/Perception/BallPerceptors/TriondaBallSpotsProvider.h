@@ -82,6 +82,11 @@ MODULE(TriondaBallSpotsProvider,
     (int)(80)  greenHueLow,
     (int)(170) greenHueHigh,
     (bool)(true) useSatGate,
+
+    // Upper-camera overrides (ball is smaller/further → need denser scan + lower thresholds)
+    (int)(2) upperScanStep,
+    (int)(2) upperMinBlobPixels,
+    (int)(40) upperMinSaturation,
   }),
 });
 

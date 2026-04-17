@@ -249,6 +249,26 @@ void CameraStreamer::encodeAndSend()
     std::memcpy(spotsData.data() + 1 + i * 8 + 4, &sy, 4);
   }
 
+  // ── Build raw patch payload ───────────────────────────────────────────────
+  // Layout: uint8 valid | [uint16_LE patchSize | float32_LE × patchSize²×3]
+  const bool patchValid = theRawBallPatch.valid && !theRawBallPatch.data.empty();
+  std::vector<unsigned char> patchData;
+  if(patchValid)
+  {
+    const uint16_t ps = static_cast<uint16_t>(theRawBallPatch.patchSize);
+    const size_t   nf = theRawBallPatch.data.size();  // ps*ps*3 floats
+    patchData.resize(1u + 2u + nf * 4u);
+    patchData[0] = 1u;
+    patchData[1] = static_cast<unsigned char>( ps       & 0xFF);
+    patchData[2] = static_cast<unsigned char>((ps >> 8) & 0xFF);
+    std::memcpy(patchData.data() + 3, theRawBallPatch.data.data(), nf * 4u);
+  }
+  else
+  {
+    patchData.resize(1u);
+    patchData[0] = 0u;
+  }
+
   // ── Send header + JPEG + metadata to all clients ──────────────────────────
   unsigned char header[8];
   header[0] = MAGIC[0]; header[1] = MAGIC[1];
@@ -264,7 +284,8 @@ void CameraStreamer::encodeAndSend()
     if(!sendAll(fd, header, 8) ||
        !sendAll(fd, jpegBuf.data(), static_cast<int>(sz)) ||
        !sendAll(fd, meta, 13) ||
-       !sendAll(fd, spotsData.data(), static_cast<int>(spotsData.size())))
+       !sendAll(fd, spotsData.data(), static_cast<int>(spotsData.size())) ||
+       !sendAll(fd, patchData.data(), static_cast<int>(patchData.size())))
     {
       ::close(fd);
       toRemove.push_back(fd);

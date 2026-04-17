@@ -50,10 +50,14 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
   const int yuvW  = static_cast<int>(theCameraImage.width);  // YUYV columns
   const int vW    = yuvW * 2;                                 // visual width
 
-  // Step in YUYV columns.  scanStep is in visual pixels; each YUYV column
-  // covers 2 visual pixels, so the YUYV step is scanStep/2 (minimum 1).
-  const int yuvStep = std::max(1, scanStep / 2);
-  const int yStep   = scanStep;
+  // Per-camera parameter overrides: upper camera sees ball smaller/further away
+  const bool isUpper      = (theCameraInfo.camera == CameraInfo::upper);
+  const int  activeScan   = isUpper ? upperScanStep    : scanStep;
+  const int  activeMinBlob= isUpper ? upperMinBlobPixels: minBlobPixels;
+  const int  activeMinSat = isUpper ? upperMinSaturation: minSaturation;
+
+  const int yuvStep = std::max(1, activeScan / 2);
+  const int yStep   = activeScan;
 
   std::vector<Blob> blobs;
   blobs.reserve(16);
@@ -130,7 +134,7 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
       for(int vx = 0; vx < satW; vx += scanStep)
       {
         const int sat = static_cast<int>(theECImage.saturated[Vector2i(vx, vy)]);
-        if(sat < minSaturation)
+        if(sat < activeMinSat)
           continue;
 
         const int hue = static_cast<int>(theECImage.hued[Vector2i(vx, vy)]);
@@ -164,7 +168,7 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
   // Emit spots for blobs that are large enough
   for(const auto& b : blobs)
   {
-    if(b.count >= minBlobPixels)
+    if(b.count >= activeMinBlob)
       ballSpots.addBallSpot(b.cx(), b.cy());
   }
 
