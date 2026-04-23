@@ -18,8 +18,6 @@ MAKE_MODULE(RLSkillProvider);
 
 void RLSkillProvider::update(SkillRequest& skillRequest)
 {
-  static int callCount = 0;
-  fprintf(stderr, "[RLSkillProvider] call #%d frame=%u\n", ++callCount, theFrameInfo.time);
   const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
   RLPlayerIO& io = RLSharedState::instance().player(n);
 
