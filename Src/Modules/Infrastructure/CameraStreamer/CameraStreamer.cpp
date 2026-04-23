@@ -132,8 +132,9 @@ void CameraStreamer::acceptClients()
     // Disable Nagle: send small headers + large JPEG payload without delay
     int flag = 1;
     ::setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-    // Non-blocking sends
-    ::fcntl(clientFd, F_SETFL, O_NONBLOCK);
+    // Set send timeout so a slow/dead client doesn't block the camera thread
+    struct timeval tv{ .tv_sec = 1, .tv_usec = 0 };
+    ::setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     clients.push_back(clientFd);
     OUTPUT_TEXT("[CameraStreamer] New client on port " << activePort
@@ -304,21 +305,11 @@ bool CameraStreamer::sendAll(int fd, const unsigned char* data, int len)
   int sent = 0;
   while(sent < len)
   {
-    const int n = static_cast<int>(::send(fd, data + sent, static_cast<size_t>(len - sent), MSG_DONTWAIT));
+    const int n = static_cast<int>(::send(fd, data + sent, static_cast<size_t>(len - sent), 0));
     if(n > 0)
-    {
       sent += n;
-    }
-    else if(n == 0)
-    {
-      return false; // disconnected
-    }
     else
-    {
-      if(errno == EAGAIN || errno == EWOULDBLOCK)
-        return false; // client too slow — drop this frame
-      return false;   // error
-    }
+      return false; // disconnected or send timeout
   }
   return true;
 }
