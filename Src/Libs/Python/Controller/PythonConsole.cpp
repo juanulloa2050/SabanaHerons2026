@@ -27,8 +27,7 @@ void PythonConsole::setWorldState(const GroundTruthWorldState& ws)
 
 void PythonConsole::update()
 {
-  // trigger() posts the ThreadFrame's internal sem — wakes the robot thread.
-  // The robot thread then runs main() which injects the frame and posts updatedSignal.
+  updateRequested.store(true, std::memory_order_release);
   trigger();
   updatedSignal.wait();
 }
@@ -40,8 +39,9 @@ void PythonConsole::init()
 bool PythonConsole::main()
 {
   injectFrame();
-  updatedSignal.post();
-  return true;  // ThreadFrame::threadMain() will call wait() → blocks on sem until next trigger()
+  if(updateRequested.exchange(false, std::memory_order_acq_rel))
+    updatedSignal.post();
+  return true;
 }
 
 void PythonConsole::injectFrame()

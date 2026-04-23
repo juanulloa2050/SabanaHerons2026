@@ -22,6 +22,7 @@
 #include "Representations/MotionControl/MotionInfo.h"
 #include "Streaming/MessageIDs.h"
 #include "Streaming/MessageQueue.h"
+#include <atomic>
 #include <mutex>
 #include <string>
 
@@ -58,6 +59,7 @@ private:
   GroundTruthWorldState worldState;
   std::mutex            worldStateMutex;
   unsigned int          frameCounter = 0;
+  std::atomic<bool>     updateRequested{false};
 
   Semaphore updatedSignal;  ///< robot thread → main thread: "frame injected"
 };

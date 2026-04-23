@@ -96,7 +96,6 @@ bool ModuleContainer::main()
 
   if((executionUnit->beforeFrame() || moduleGraphRunner.hasChanged()) && moduleGraphRunner.isValid())
   {
-    fprintf(stderr, "[ModuleContainer::main '%s'] EXECUTING modules\n", getName().c_str());
     Global::getTimingManager().signalThreadStart();
 
     executionUnit->beforeModules();

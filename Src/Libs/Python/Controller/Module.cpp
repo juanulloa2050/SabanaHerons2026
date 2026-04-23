@@ -90,6 +90,9 @@ Args:
        float target_x, float target_y, float target_theta)
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      // Drain any stale posts from obsSignal so the next rl_get_obs only
+      // wakes up on the fresh observation triggered by this frame.
+      while(io.obsSignal.tryWait()) {}
       std::lock_guard<std::mutex> lock(io.mutex);
       io.skill       = skill;
       io.targetX     = target_x;
@@ -106,7 +109,6 @@ Args:
     [](int player_number, unsigned int timeout_ms) -> py::dict
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      // Wait for RLSkillProvider to post the observation (with timeout)
       io.obsSignal.wait(timeout_ms);
       std::lock_guard<std::mutex> lock(io.mutex);
       py::dict d;
