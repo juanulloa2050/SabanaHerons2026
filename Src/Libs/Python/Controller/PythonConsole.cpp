@@ -19,8 +19,18 @@ PythonConsole::~PythonConsole()
 {
 }
 
+void PythonConsole::setWorldState(const GroundTruthWorldState& ws)
+{
+  std::lock_guard<std::mutex> lock(worldStateMutex);
+  worldState = ws;
+}
+
 void PythonConsole::update()
 {
+  // trigger() posts the ThreadFrame's internal sem — wakes the robot thread.
+  // The robot thread then runs main() which injects the frame and posts updatedSignal.
+  trigger();
+  updatedSignal.wait();
 }
 
 void PythonConsole::init()
@@ -29,7 +39,52 @@ void PythonConsole::init()
 
 bool PythonConsole::main()
 {
-  return true;
+  injectFrame();
+  updatedSignal.post();
+  return true;  // ThreadFrame::threadMain() will call wait() → blocks on sem until next trigger()
+}
+
+void PythonConsole::injectFrame()
+{
+  GroundTruthWorldState ws;
+  {
+    std::lock_guard<std::mutex> lock(worldStateMutex);
+    ws = worldState;
+  }
+
+  const unsigned int t = ++frameCounter * 33u;
+
+  FrameInfo frameInfo;
+  frameInfo.time = t;
+
+  CameraInfo cameraInfo;
+  GroundTruthOdometryData odometryData;
+
+  FallDownState fallDownState;
+  fallDownState.state = FallDownState::upright;
+
+  GroundContactState groundContactState;
+  groundContactState.contact = true;
+
+  CameraMatrix cameraMatrix;
+  cameraMatrix.isValid = false;
+
+  MotionInfo motionInfo;
+  GameControllerData gameControllerData;
+
+  // Match LocalConsole 2D injection order
+  debugSender->bin(idFrameBegin)               << "Cognition";
+  debugSender->bin(idFrameInfo)                << frameInfo;
+  debugSender->bin(idCameraInfo)               << cameraInfo;
+  debugSender->bin(idGroundTruthOdometryData)  << odometryData;
+  debugSender->bin(idFallDownState)            << fallDownState;
+  debugSender->bin(idGroundContactState)       << groundContactState;
+  debugSender->bin(idCameraMatrix)             << cameraMatrix;
+  debugSender->bin(idMotionInfo)               << motionInfo;
+  debugSender->bin(idGameControllerData)       << gameControllerData;
+  debugSender->bin(idGroundTruthWorldState)    << ws;
+  debugSender->bin(idFrameFinished)            << "Cognition";
+  debugSender->send(false);
 }
 
 DebugReceiver<MessageQueue>* PythonConsole::connectReceiverWithRobot(Debug* debug)

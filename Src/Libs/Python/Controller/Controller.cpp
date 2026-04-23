@@ -67,6 +67,12 @@ void Controller::addPlayer(const std::string& name, int teamNumber, Settings::Te
   robots.emplace_back(std::make_unique<PythonRobot>(Settings("Nao", "Nao", teamNumber, fieldPlayerColor, goalkeeperColor, playerNumber, location, scenario, 0), name));
 }
 
+void Controller::setWorldState(int robotIndex, const GroundTruthWorldState& ws)
+{
+  if(robotIndex >= 0 && robotIndex < static_cast<int>(robots.size()))
+    robots[robotIndex]->setWorldState(ws);
+}
+
 SystemCall::Mode SystemCall::getMode()
 {
   return SystemCall::simulatedRobot;

@@ -10,7 +10,19 @@
 
 #include "Framework/Communication.h"
 #include "Framework/ThreadFrame.h"
+#include "Platform/Semaphore.h"
+#include "Representations/Communication/GameControllerData.h"
+#include "Representations/Infrastructure/CameraInfo.h"
+#include "Representations/Infrastructure/FrameInfo.h"
+#include "Representations/Infrastructure/GroundTruthWorldState.h"
+#include "Representations/MotionControl/OdometryData.h"
+#include "Representations/Sensing/FallDownState.h"
+#include "Representations/Sensing/GroundContactState.h"
+#include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
+#include "Representations/MotionControl/MotionInfo.h"
+#include "Streaming/MessageIDs.h"
 #include "Streaming/MessageQueue.h"
+#include <mutex>
 #include <string>
 
 class Debug;
@@ -19,57 +31,33 @@ struct Settings;
 class PythonConsole : public ThreadFrame
 {
 public:
-  /**
-   * Constructor
-   * @param settings The settings for the robot.
-   * @param robotName The name of the robot.
-   * @param debug The debug thread of the robot instance.
-   */
   PythonConsole(const Settings& settings, const std::string& robotName, Debug* debug);
-
-  /** Destructor. */
   ~PythonConsole() override;
 
-  /** Triggers an update of the thread (called from main thread). */
+  /**
+   * Triggers one synchronised Cognition frame (called from Python main thread).
+   * Calls trigger() to wake the robot thread, then waits for frame completion.
+   */
   void update();
 
+  /** Set the world state to inject on the next frame. Thread-safe. */
+  void setWorldState(const GroundTruthWorldState& ws);
+
 protected:
-  /**
-   * The function determines the priority of the thread.
-   * @return The priority of the thread.
-   */
   int getPriority() const override { return 0; }
-
-  /**
-   * That function is called once before the first main(). It can be used
-   * for things that can't be done in the constructor.
-   */
   void init() override;
-
-  /**
-   * The function is called from the framework once in every frame.
-   */
   bool main() override;
-
-  /**
-   * The function is called when the thread is terminated.
-   */
   void terminate() override {}
 
 private:
-  /**
-   * The function connects the robot to the returned receiver.
-   *
-   * @param debug The debug connection of the robot.
-   * @return The receiver connected to the robot.
-   */
   DebugReceiver<MessageQueue>* connectReceiverWithRobot(Debug* debug);
+  DebugSender<MessageQueue>*   connectSenderWithRobot(Debug* debug) const;
 
-  /**
-   * The function connects the robot to the returned sender.
-   *
-   * @param debug The debug connection of the robot.
-   * @return The sender connected to the robot.
-   */
-  DebugSender<MessageQueue>* connectSenderWithRobot(Debug* debug) const;
+  void injectFrame();
+
+  GroundTruthWorldState worldState;
+  std::mutex            worldStateMutex;
+  unsigned int          frameCounter = 0;
+
+  Semaphore updatedSignal;  ///< robot thread → main thread: "frame injected"
 };

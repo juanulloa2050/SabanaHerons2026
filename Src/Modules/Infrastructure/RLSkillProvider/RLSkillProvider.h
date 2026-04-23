@@ -1,0 +1,32 @@
+/**
+ * @file RLSkillProvider.h
+ *
+ * Replaces StrategyBehaviorControl for RL training.
+ * Reads action from RLSharedState (set by Python via pybh.controller),
+ * provides SkillRequest + StrategyStatus, and writes back the observation.
+ */
+
+#pragma once
+
+#include "Representations/BehaviorControl/SkillRequest.h"
+#include "Representations/BehaviorControl/StrategyStatus.h"
+#include "Representations/Infrastructure/FrameInfo.h"
+#include "Representations/Infrastructure/GameState.h"
+#include "Representations/Infrastructure/GroundTruthWorldState.h"
+#include "Framework/Module.h"
+
+MODULE(RLSkillProvider,
+{,
+  REQUIRES(GroundTruthWorldState),
+  REQUIRES(FrameInfo),
+  REQUIRES(GameState),
+  PROVIDES(SkillRequest),
+  PROVIDES(StrategyStatus),
+});
+
+class RLSkillProvider : public RLSkillProviderBase
+{
+private:
+  void update(SkillRequest& skillRequest) override;
+  void update(StrategyStatus& strategyStatus) override;
+};
