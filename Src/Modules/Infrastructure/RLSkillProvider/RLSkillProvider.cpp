@@ -40,22 +40,41 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   else
     skillRequest = SkillRequest::Builder::stand();
 
-  // Write observation back to Python
-  float bx = 0.f, by = 0.f;
-  if(!theGroundTruthWorldState.balls.empty())
-  {
-    bx = theGroundTruthWorldState.balls[0].position.x();
-    by = theGroundTruthWorldState.balls[0].position.y();
-  }
-  const Pose2f& rp = theGroundTruthWorldState.ownPose;
+  float bx = 0.f;
+  float by = 0.f;
+  float rx = 0.f;
+  float ry = 0.f;
+  float rt = 0.f;
 
   {
     std::lock_guard<std::mutex> lock(io.mutex);
+    if(io.sim2D.enabled && io.sim2D.initialized)
+    {
+      RLSim2D::stepFromSkill(io.sim2D, skill, skillRequest);
+      bx = io.sim2D.ballX;
+      by = io.sim2D.ballY;
+      rx = io.sim2D.robotX;
+      ry = io.sim2D.robotY;
+      rt = io.sim2D.robotTheta;
+    }
+    else
+    {
+      if(!theGroundTruthWorldState.balls.empty())
+      {
+        bx = theGroundTruthWorldState.balls[0].position.x();
+        by = theGroundTruthWorldState.balls[0].position.y();
+      }
+      const Pose2f& rp = theGroundTruthWorldState.ownPose;
+      rx = rp.translation.x();
+      ry = rp.translation.y();
+      rt = static_cast<float>(rp.rotation);
+    }
+
     io.ballX      = bx;
     io.ballY      = by;
-    io.robotX     = rp.translation.x();
-    io.robotY     = rp.translation.y();
-    io.robotTheta = static_cast<float>(rp.rotation);
+    io.robotX     = rx;
+    io.robotY     = ry;
+    io.robotTheta = rt;
     io.frame      = theFrameInfo.time;
     io.obsReady   = true;
   }

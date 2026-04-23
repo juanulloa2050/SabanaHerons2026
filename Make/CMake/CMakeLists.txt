@@ -208,6 +208,10 @@ if(BUILD_DESKTOP)
     endif()
   endif()
 
+  if(PYTHON_ONLY)
+    include("${SIMROBOT_PREFIX}/Make/CMake/Qt6.cmake")
+  endif()
+
   if(MACOS)
     find_library(APP_KIT_FRAMEWORK AppKit)
     find_library(IO_KIT_FRAMEWORK IOKit)

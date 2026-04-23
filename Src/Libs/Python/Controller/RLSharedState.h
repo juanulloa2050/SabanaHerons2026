@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "RLSim2D.h"
 #include "Platform/Semaphore.h"
 #include <array>
 #include <mutex>
@@ -31,6 +32,10 @@ struct RLPlayerIO
   float robotTheta  = 0.f;
   unsigned int frame = 0;
   bool obsReady     = false;
+
+  // Optional headless 2D simulation state used by pybh when Python wants
+  // B-Human cognition plus a C++ physics backend rooted in SabanaHerons.
+  RLSim2DState sim2D;
 
   // Semaphore posted by RLSkillProvider when observation is ready.
   // Python waits on this after controller.update().

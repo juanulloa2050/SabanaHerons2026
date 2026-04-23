@@ -40,7 +40,9 @@ if(Python3_FOUND)
       "${PYTHON_ROOT_DIR}/Controller/Module.cpp"
       "${PYTHON_ROOT_DIR}/Controller/PythonConsole.cpp"
       "${PYTHON_ROOT_DIR}/Controller/PythonConsole.h"
-      "${PYTHON_ROOT_DIR}/Controller/PythonRobot.h")
+      "${PYTHON_ROOT_DIR}/Controller/PythonRobot.h"
+      "${PYTHON_ROOT_DIR}/Controller/SimRobotHost.cpp"
+      "${PYTHON_ROOT_DIR}/Controller/SimRobotHost.h")
 
   Python3_add_library(PythonController MODULE WITH_SOABI ${PYTHON_CONTROLLER_SOURCES})
   set_property(TARGET PythonController PROPERTY FOLDER Libs)
@@ -52,12 +54,17 @@ if(Python3_FOUND)
     set_property(TARGET PythonController PROPERTY LIBRARY_OUTPUT_DIRECTORY "${PYTHON_OUTPUT_DIR}")
     set_property(TARGET PythonController PROPERTY PDB_OUTPUT_DIRECTORY "${PYTHON_OUTPUT_DIR}")
   endif()
+  target_compile_definitions(PythonController PRIVATE BHUMAN_PREFIX_PATH="${BHUMAN_PREFIX}")
   set_property(TARGET PythonController PROPERTY EXCLUDE_FROM_ALL TRUE)
   target_link_libraries(PythonController PRIVATE B-Human)
   target_link_libraries(PythonController PRIVATE Framework)
   target_link_libraries(PythonController PRIVATE Platform)
   target_link_libraries(PythonController PRIVATE Streaming)
+  target_link_libraries(PythonController PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
   target_include_directories(PythonController SYSTEM PRIVATE "${BHUMAN_PREFIX}/Util/pybind11/include")
   target_include_directories(PythonController PRIVATE "${PYTHON_ROOT_DIR}/..")
+  target_include_directories(PythonController PRIVATE "${BHUMAN_PREFIX}/Util/SimRobot/Src/SimRobot")
+  target_include_directories(PythonController PRIVATE "${BHUMAN_PREFIX}/Util/SimRobot/Src/SimRobotCore2")
+  target_include_directories(PythonController PRIVATE "${BHUMAN_PREFIX}/Util/SimRobot/Src/SimRobotCore2D")
   source_group(TREE "${PYTHON_ROOT_DIR}/Controller" FILES ${PYTHON_CONTROLLER_SOURCES})
 endif()
