@@ -32,7 +32,7 @@ struct Settings;
 class PythonConsole : public ThreadFrame
 {
 public:
-  PythonConsole(const Settings& settings, const std::string& robotName, Debug* debug);
+  PythonConsole(const Settings& settings, const std::string& robotName, Debug* debug, int playerNumber);
   ~PythonConsole() override;
 
   /**
@@ -60,6 +60,7 @@ private:
   std::mutex            worldStateMutex;
   unsigned int          frameCounter = 0;
   std::atomic<bool>     updateRequested{false};
+  int                   playerNumber = 1;
 
   Semaphore updatedSignal;  ///< robot thread → main thread: "frame injected"
 };

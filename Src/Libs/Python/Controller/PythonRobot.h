@@ -24,7 +24,7 @@ public:
    */
   PythonRobot(const Settings& settings, const std::string& name) :
     Robot(settings, name),
-    console(new PythonConsole(settings, name, static_cast<Debug*>(front())))
+    console(new PythonConsole(settings, name, static_cast<Debug*>(front()), settings.playerNumber))
   {
     push_back(console);
   }
