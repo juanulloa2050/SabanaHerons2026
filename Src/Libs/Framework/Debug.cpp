@@ -154,7 +154,11 @@ bool Debug::main()
   // Send messages to the threads
 #ifndef TARGET_ROBOT
   for(DebugSender<MessageQueue>& sender : senders)
+  {
+    fprintf(stderr, "[Debug::main] sending to '%s' empty=%d\n", sender.receiverThreadName.c_str(), (int)sender.empty());
     sender.send(true);
+    fprintf(stderr, "[Debug::main] sent to '%s'\n", sender.receiverThreadName.c_str());
+  }
   debugSender->send();
 #else
   for(DebugSender<MessageQueue>& sender : senders)
@@ -323,8 +327,13 @@ bool Debug::handleMessage(MessageQueue::Message message)
       [[fallthrough]];
 
     default:
-      *senderMap[currentThreadName.empty() ? threadName : currentThreadName] << message;
+    {
+      const std::string& target = currentThreadName.empty() ? threadName : currentThreadName;
+      if(message.id() == idFrameBegin || message.id() == idFrameFinished)
+        fprintf(stderr, "[Debug::handleMessage] id=%d → target='%s'\n", (int)message.id(), target.c_str());
+      *senderMap[target] << message;
       currentThreadName = "";
       return true;
+    }
   }
 }

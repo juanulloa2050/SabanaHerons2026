@@ -11,6 +11,7 @@
 #include "PythonConsole.h"
 #include "Framework/Debug.h"
 #include "Framework/Robot.h"
+#include "Representations/Infrastructure/GroundTruthWorldState.h"
 #include <string>
 
 class PythonRobot : public Robot
@@ -32,6 +33,11 @@ public:
   void update()
   {
     console->update();
+  }
+
+  void setWorldState(const GroundTruthWorldState& ws)
+  {
+    console->setWorldState(ws);
   }
 
 private:
