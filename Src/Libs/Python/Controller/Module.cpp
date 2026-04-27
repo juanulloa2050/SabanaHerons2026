@@ -186,7 +186,7 @@ Args:
        float robot_x, float robot_y, float robot_theta)
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      std::lock_guard<std::mutex> lock(io.mutex);
+      io.lock();
       RLSim2D::reset(io.sim2D, ball_x, ball_y, robot_x, robot_y, robot_theta);
       io.ballX = ball_x;
       io.ballY = ball_y;
@@ -194,6 +194,7 @@ Args:
       io.robotY = robot_y;
       io.robotTheta = robot_theta;
       io.obsReady = false;
+      io.unlock();
     },
     "Reset the headless 2D simulator for a player.",
     py::arg("player_number"),
@@ -205,10 +206,11 @@ Args:
     [](int player_number, bool enabled)
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      std::lock_guard<std::mutex> lock(io.mutex);
+      io.lock();
       io.sim2D.enabled = enabled;
       if(!enabled)
         io.sim2D.initialized = false;
+      io.unlock();
     },
     "Enable or disable the headless 2D simulator for a player.",
     py::arg("player_number"), py::arg("enabled"));
@@ -221,13 +223,14 @@ Args:
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
       // Drain any stale posts from obsSignal so the next rl_get_obs only
       // wakes up on the fresh observation triggered by this frame.
-      while(io.obsSignal.tryWait()) {}
-      std::lock_guard<std::mutex> lock(io.mutex);
-      io.skill       = skill;
+      while(io.tryWaitObs()) {}
+      io.lock();
+      io.setSkill(skill);
       io.targetX     = target_x;
       io.targetY     = target_y;
       io.targetTheta = target_theta;
       io.obsReady    = false;
+      io.unlock();
     },
     "Set RL action in shared state before controller.update().",
     py::arg("player_number"), py::arg("skill"),
@@ -238,8 +241,8 @@ Args:
     [](int player_number, unsigned int timeout_ms) -> py::dict
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      io.obsSignal.wait(timeout_ms);
-      std::lock_guard<std::mutex> lock(io.mutex);
+      io.waitForObs(timeout_ms);
+      io.lock();
       py::dict d;
       d["ball_x"]      = io.ballX;
       d["ball_y"]      = io.ballY;
@@ -249,6 +252,7 @@ Args:
       d["frame"]       = io.frame;
       d["obs_ready"]   = io.obsReady;
       d["sim_enabled"] = io.sim2D.enabled;
+      io.unlock();
       return d;
     },
     "Read BHuman observation from shared state after controller.update().",

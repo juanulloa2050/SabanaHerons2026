@@ -52,12 +52,13 @@ void PythonConsole::injectFrame()
   RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
   bool useSim2D = false;
   {
-    std::lock_guard<std::mutex> lock(io.mutex);
+    io.lock();
     if(io.sim2D.enabled && io.sim2D.initialized)
     {
       ws = RLSim2D::toWorldState(io.sim2D);
       useSim2D = true;
     }
+    io.unlock();
   }
 
   if(!useSim2D)

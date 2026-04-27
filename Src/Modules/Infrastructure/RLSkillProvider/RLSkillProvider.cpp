@@ -16,6 +16,75 @@
 
 MAKE_MODULE(RLSkillProvider);
 
+namespace
+{
+  MotionRequest buildMotionRequest(const std::string& skill,
+                                   float tx, float ty, float tt,
+                                   const GroundTruthWorldState& worldState,
+                                   const FieldDimensions& fieldDimensions)
+  {
+    MotionRequest request;
+    request.motion = MotionRequest::stand;
+    request.walkSpeed = Pose2f(1.f, 1.f, 1.f);
+    request.keepTargetRotation = true;
+
+    if(skill == "walkTo")
+    {
+      request.motion = MotionRequest::walkToPose;
+      request.walkTarget = Pose2f(tt, tx, ty);
+      return request;
+    }
+
+    if(skill == "dribble")
+    {
+      request.motion = MotionRequest::dribble;
+    }
+    else if(skill == "shoot")
+    {
+      request.motion = MotionRequest::walkToBallAndKick;
+      request.kickLength = 6000.f;
+      request.alignPrecisely = KickPrecision::notPrecise;
+    }
+    else
+      return request;
+
+    const Pose2f& ownPose = worldState.ownPose;
+    Vector2f ballOnField = Vector2f::Zero();
+    if(!worldState.balls.empty())
+      ballOnField = worldState.balls[0].position.head<2>();
+
+    request.ballEstimate.position = ownPose.inverse() * ballOnField;
+    request.ballEstimate.velocity = Vector2f::Zero();
+    request.ballEstimateTimestamp = 0;
+    request.ballTimeWhenLastSeen = 0;
+
+    const Vector2f goalCenterOnField(fieldDimensions.xPosOpponentGroundLine, 0.f);
+    const Vector2f goalInRobot = ownPose.inverse() * goalCenterOnField;
+    request.targetDirection = goalInRobot.angle();
+    request.kickType = request.ballEstimate.position.y() >= 0.f ? KickInfo::forwardFastLeft : KickInfo::forwardFastRight;
+    return request;
+  }
+}
+
+void RLSkillProvider::update(MotionRequest& motionRequest)
+{
+  const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+  RLPlayerIO& io = RLSharedState::instance().player(n);
+
+  std::string skill;
+  float tx;
+  float ty;
+  float tt;
+  io.lock();
+  skill = io.getSkill();
+  tx = io.targetX;
+  ty = io.targetY;
+  tt = io.targetTheta;
+  io.unlock();
+
+  motionRequest = buildMotionRequest(skill, tx, ty, tt, theGroundTruthWorldState, theFieldDimensions);
+}
+
 void RLSkillProvider::update(SkillRequest& skillRequest)
 {
   const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
@@ -24,17 +93,18 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   std::string skill;
   float tx, ty, tt;
   {
-    std::lock_guard<std::mutex> lock(io.mutex);
-    skill = io.skill;
+    io.lock();
+    skill = io.getSkill();
     tx    = io.targetX;
     ty    = io.targetY;
     tt    = io.targetTheta;
+    io.unlock();
   }
 
-  if(skill == "shoot")
-    skillRequest = SkillRequest::Builder::shoot();
-  else if(skill == "walkTo")
+  if(skill == "walkTo")
     skillRequest = SkillRequest::Builder::walkTo(Pose2f(tt, tx, ty));
+  else if(skill == "shoot")
+    skillRequest = SkillRequest::Builder::shoot();
   else if(skill == "dribble")
     skillRequest = SkillRequest::Builder::dribbleTo(tt);
   else
@@ -47,7 +117,7 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   float rt = 0.f;
 
   {
-    std::lock_guard<std::mutex> lock(io.mutex);
+    io.lock();
     if(io.sim2D.enabled && io.sim2D.initialized)
     {
       RLSim2D::stepFromSkill(io.sim2D, skill, skillRequest);
@@ -77,8 +147,9 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
     io.robotTheta = rt;
     io.frame      = theFrameInfo.time;
     io.obsReady   = true;
+    io.unlock();
   }
-  io.obsSignal.post();  // wake up any Python thread waiting for this observation
+  io.postObs();  // wake up any Python thread waiting for this observation
 }
 
 void RLSkillProvider::update(StrategyStatus& strategyStatus)
