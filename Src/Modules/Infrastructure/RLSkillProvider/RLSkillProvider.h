@@ -13,6 +13,7 @@
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Infrastructure/GroundTruthWorldState.h"
+#include "Representations/MotionControl/MotionRequest.h"
 #include "Framework/Module.h"
 
 MODULE(RLSkillProvider,
@@ -20,6 +21,8 @@ MODULE(RLSkillProvider,
   REQUIRES(GroundTruthWorldState),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
+  REQUIRES(FieldDimensions),
+  PROVIDES(MotionRequest),
   PROVIDES(SkillRequest),
   PROVIDES(StrategyStatus),
 });
@@ -27,6 +30,7 @@ MODULE(RLSkillProvider,
 class RLSkillProvider : public RLSkillProviderBase
 {
 private:
+  void update(MotionRequest& motionRequest) override;
   void update(SkillRequest& skillRequest) override;
   void update(StrategyStatus& strategyStatus) override;
 };

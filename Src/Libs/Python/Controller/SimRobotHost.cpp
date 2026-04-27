@@ -178,6 +178,8 @@ private:
   {
     const QString bhDir = detectBHDir();
     const QStringList candidates{
+      bhDir + "/Make/Python/Build/Linux/SimRobot/Develop",
+      bhDir + "/Make/Python/Build/Linux/SimRobot/Release",
       bhDir + "/Build/Linux/SimRobot/Develop",
       bhDir + "/Build/Linux/SimRobot/Release",
       QFileInfo(appPath).absolutePath()

@@ -10,6 +10,9 @@ file(GLOB_RECURSE SIMULATEDNAO_SOURCES_ADDITIONAL CONFIGURE_DEPENDS
     "${SIMULATEDNAO_ROOT_DIR}/Visualization/*.cpp" "${SIMULATEDNAO_ROOT_DIR}/Visualization/*.h")
 list(APPEND SIMULATEDNAO_SOURCES ${SIMULATEDNAO_SOURCES_ADDITIONAL})
 list(APPEND SIMULATEDNAO_SOURCES "${SIMULATEDNAO_ROOT_DIR}/Controller.qrc")
+list(APPEND SIMULATEDNAO_SOURCES
+    "${BHUMAN_PREFIX}/Src/Libs/Python/Controller/RLSharedState.cpp"
+    "${BHUMAN_PREFIX}/Src/Libs/Python/Controller/RLSharedState.h")
 
 add_library(SimulatedNao MODULE ${SIMULATEDNAO_SOURCES})
 
@@ -44,7 +47,7 @@ target_link_libraries(SimulatedNao PRIVATE snappy::snappy)
 target_link_libraries(SimulatedNao PRIVATE Flags::Default)
 target_link_options(SimulatedNao PRIVATE $<${_is_msvc}:$<$<CONFIG:Develop>:/DEBUG>>)
 
-source_group(TREE "${SIMULATEDNAO_ROOT_DIR}" FILES ${SIMULATEDNAO_SOURCES})
+source_group(TREE "${BHUMAN_PREFIX}/Src/Libs" FILES ${SIMULATEDNAO_SOURCES})
 
 if(WINDOWS)
   add_custom_command(TARGET SimRobot POST_BUILD

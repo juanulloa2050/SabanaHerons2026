@@ -1,45 +1,51 @@
 /**
  * @file RLSharedState.h
  *
- * Thread-safe shared state between the Python RL loop and BHuman modules.
- * Python writes actions; RLSkillProvider writes observations.
- * Indexed by player number (1-based, up to MAX_PLAYERS).
+ * Process-wide shared state between the Python RL loop and BHuman modules.
+ * This state is backed by POSIX shared memory so it is shared across
+ * independently loaded shared objects such as controller.so and libSimulatedNao.so.
  */
 
 #pragma once
 
 #include "RLSim2D.h"
-#include "Platform/Semaphore.h"
+
+#include <pthread.h>
+#include <semaphore.h>
+
 #include <array>
-#include <mutex>
+#include <cstddef>
 #include <string>
 
 struct RLPlayerIO
 {
-  std::mutex mutex;
+  pthread_mutex_t mutex;
 
-  // Python → BHuman (action): set before controller.update()
-  std::string skill = "stand";  // "stand" | "walkTo" | "shoot" | "dribble"
-  float targetX     = 0.f;      // mm, field coords
-  float targetY     = 0.f;
-  float targetTheta = 0.f;      // radians
+  char skill[16];
+  float targetX = 0.f;
+  float targetY = 0.f;
+  float targetTheta = 0.f;
 
-  // BHuman → Python (observation): written by RLSkillProvider each frame
-  float ballX       = 0.f;
-  float ballY       = 0.f;
-  float robotX      = 0.f;
-  float robotY      = 0.f;
-  float robotTheta  = 0.f;
+  float ballX = 0.f;
+  float ballY = 0.f;
+  float robotX = 0.f;
+  float robotY = 0.f;
+  float robotTheta = 0.f;
   unsigned int frame = 0;
-  bool obsReady     = false;
+  bool obsReady = false;
 
-  // Optional headless 2D simulation state used by pybh when Python wants
-  // B-Human cognition plus a C++ physics backend rooted in SabanaHerons.
   RLSim2DState sim2D;
 
-  // Semaphore posted by RLSkillProvider when observation is ready.
-  // Python waits on this after controller.update().
-  Semaphore obsSignal;
+  sem_t obsSignal;
+
+  void lock();
+  void unlock();
+  bool waitForObs(unsigned timeoutMs);
+  bool tryWaitObs();
+  void postObs();
+
+  std::string getSkill() const;
+  void setSkill(const std::string& value);
 };
 
 class RLSharedState
@@ -47,18 +53,26 @@ class RLSharedState
 public:
   static constexpr int MAX_PLAYERS = 6;
 
-  static RLSharedState& instance()
-  {
-    static RLSharedState inst;
-    return inst;
-  }
+  static RLSharedState& instance();
 
-  RLPlayerIO& player(int number)
-  {
-    const int idx = (number >= 1 && number <= MAX_PLAYERS) ? number - 1 : 0;
-    return players[idx];
-  }
+  RLPlayerIO& player(int number);
 
 private:
-  std::array<RLPlayerIO, MAX_PLAYERS> players;
+  struct SharedBlock
+  {
+    unsigned int magic = 0;
+    unsigned int version = 0;
+    std::array<RLPlayerIO, MAX_PLAYERS> players;
+  };
+
+  RLSharedState();
+  ~RLSharedState();
+
+  RLSharedState(const RLSharedState&) = delete;
+  RLSharedState& operator=(const RLSharedState&) = delete;
+
+  void initializeBlock();
+
+  int fd = -1;
+  SharedBlock* block = nullptr;
 };

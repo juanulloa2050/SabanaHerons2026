@@ -41,6 +41,8 @@ if(Python3_FOUND)
       "${PYTHON_ROOT_DIR}/Controller/PythonConsole.cpp"
       "${PYTHON_ROOT_DIR}/Controller/PythonConsole.h"
       "${PYTHON_ROOT_DIR}/Controller/PythonRobot.h"
+      "${PYTHON_ROOT_DIR}/Controller/RLSharedState.cpp"
+      "${PYTHON_ROOT_DIR}/Controller/RLSharedState.h"
       "${PYTHON_ROOT_DIR}/Controller/SimRobotHost.cpp"
       "${PYTHON_ROOT_DIR}/Controller/SimRobotHost.h")
 
