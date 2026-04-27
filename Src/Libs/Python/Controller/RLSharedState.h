@@ -25,6 +25,7 @@ struct RLPlayerIO
   float targetX = 0.f;
   float targetY = 0.f;
   float targetTheta = 0.f;
+  int passTarget = -1;
 
   float ballX = 0.f;
   float ballY = 0.f;

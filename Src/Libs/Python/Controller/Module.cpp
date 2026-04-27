@@ -218,7 +218,8 @@ Args:
   // RL API — direct in-memory bridge to RLSkillProvider (no subprocess, no JSON)
   m.def("rl_set_action",
     [](int player_number, const std::string& skill,
-       float target_x, float target_y, float target_theta)
+       float target_x, float target_y, float target_theta,
+       int pass_target)
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
       // Drain any stale posts from obsSignal so the next rl_get_obs only
@@ -229,13 +230,14 @@ Args:
       io.targetX     = target_x;
       io.targetY     = target_y;
       io.targetTheta = target_theta;
+      io.passTarget  = pass_target;
       io.obsReady    = false;
       io.unlock();
     },
     "Set RL action in shared state before controller.update().",
     py::arg("player_number"), py::arg("skill"),
     py::arg("target_x") = 0.f, py::arg("target_y") = 0.f,
-    py::arg("target_theta") = 0.f);
+    py::arg("target_theta") = 0.f, py::arg("pass_target") = -1);
 
   m.def("rl_get_obs",
     [](int player_number, unsigned int timeout_ms) -> py::dict
@@ -252,6 +254,8 @@ Args:
       d["frame"]       = io.frame;
       d["obs_ready"]   = io.obsReady;
       d["sim_enabled"] = io.sim2D.enabled;
+      d["requested_skill"] = io.getSkill();
+      d["requested_pass_target"] = io.passTarget;
       io.unlock();
       return d;
     },

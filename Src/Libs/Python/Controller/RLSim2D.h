@@ -180,9 +180,13 @@ namespace RLSim2D
     if(!state.enabled || !state.initialized)
       return;
 
-    if(skillRequest.skill == SkillRequest::walk)
+    if(skillRequest.skill == SkillRequest::walk ||
+       skillRequest.skill == SkillRequest::block ||
+       skillRequest.skill == SkillRequest::mark ||
+       skillRequest.skill == SkillRequest::observe)
       stepWalkTo(state, skillRequest.target);
-    else if(skillRequest.skill == SkillRequest::shoot && state.lastSkill != "shoot")
+    else if((skillRequest.skill == SkillRequest::shoot || skillRequest.skill == SkillRequest::pass) &&
+            state.lastSkill != skill)
       stepShoot(state);
     else if(skillRequest.skill == SkillRequest::dribble)
       stepDribble(state);
