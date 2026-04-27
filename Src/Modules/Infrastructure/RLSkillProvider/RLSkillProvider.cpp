@@ -28,7 +28,14 @@ namespace
     request.walkSpeed = Pose2f(1.f, 1.f, 1.f);
     request.keepTargetRotation = true;
 
-    if(skill == "walkTo")
+    if(skill == "walkTo" || skill == "walk")
+    {
+      request.motion = MotionRequest::walkToPose;
+      request.walkTarget = Pose2f(tt, tx, ty);
+      return request;
+    }
+
+    if(skill == "block" || skill == "mark" || skill == "observe")
     {
       request.motion = MotionRequest::walkToPose;
       request.walkTarget = Pose2f(tt, tx, ty);
@@ -39,10 +46,10 @@ namespace
     {
       request.motion = MotionRequest::dribble;
     }
-    else if(skill == "shoot")
+    else if(skill == "shoot" || skill == "pass")
     {
       request.motion = MotionRequest::walkToBallAndKick;
-      request.kickLength = 6000.f;
+      request.kickLength = skill == "pass" ? 2500.f : 6000.f;
       request.alignPrecisely = KickPrecision::notPrecise;
     }
     else
@@ -92,21 +99,31 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
 
   std::string skill;
   float tx, ty, tt;
+  int passTarget;
   {
     io.lock();
     skill = io.getSkill();
     tx    = io.targetX;
     ty    = io.targetY;
     tt    = io.targetTheta;
+    passTarget = io.passTarget;
     io.unlock();
   }
 
-  if(skill == "walkTo")
+  if(skill == "walkTo" || skill == "walk")
     skillRequest = SkillRequest::Builder::walkTo(Pose2f(tt, tx, ty));
   else if(skill == "shoot")
     skillRequest = SkillRequest::Builder::shoot();
+  else if(skill == "pass")
+    skillRequest = SkillRequest::Builder::passTo(passTarget);
   else if(skill == "dribble")
     skillRequest = SkillRequest::Builder::dribbleTo(tt);
+  else if(skill == "block")
+    skillRequest = SkillRequest::Builder::block(Vector2f(tx, ty));
+  else if(skill == "mark")
+    skillRequest = SkillRequest::Builder::mark(Vector2f(tx, ty));
+  else if(skill == "observe")
+    skillRequest = SkillRequest::Builder::observe(Vector2f(tx, ty));
   else
     skillRequest = SkillRequest::Builder::stand();
 
