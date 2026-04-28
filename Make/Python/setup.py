@@ -26,6 +26,10 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
+    def run(self):
+        self._cmake_built = False
+        super().run()
+
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
 
@@ -90,12 +94,14 @@ class CMakeBuild(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
-        subprocess.check_call(
-            ['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp
-        )
-        subprocess.check_call(
-            ['cmake', '--build', '.', '--target', 'PythonLogs', 'PythonController'] + build_args, cwd=self.build_temp
-        )
+        if not self._cmake_built:
+            subprocess.check_call(
+                ['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp
+            )
+            subprocess.check_call(
+                ['cmake', '--build', '.', '--target', 'PythonLogs', 'PythonController'] + build_args, cwd=self.build_temp
+            )
+            self._cmake_built = True
 
 
 # The information here can also be placed in setup.cfg - better separation of
@@ -107,7 +113,11 @@ setup(
     author_email='b-human@uni-bremen.de',
     url='https://b-human.de',
     description='Python bindings for B-Human.',
-    ext_modules=[CMakeExtension('pybh.')],  # . to create a folder for the libs
+    packages=['pybh'],
+    ext_modules=[
+        CMakeExtension('pybh.logs'),
+        CMakeExtension('pybh.controller'),
+    ],
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False,
 )
