@@ -50,7 +50,7 @@ bool ConsoleRoboCupCtrl::compile()
   if(!RoboCupCtrl::compile())
     return false;
 
-  if(is2D)
+  if(is2D || qEnvironmentVariableIsSet("PYBH_SIMROBOT_HEADLESS"))
     calculateImage = false;
 
   if(!robots.empty())
