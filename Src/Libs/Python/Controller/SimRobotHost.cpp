@@ -2,6 +2,7 @@
 
 #include "Platform/File.h"
 
+#include <SimRobotCore2.h>
 #include <SimRobotCore2D.h>
 
 #include <QApplication>
@@ -15,6 +16,7 @@
 #include <QVector>
 
 #include <memory>
+#include <cmath>
 #include <vector>
 
 namespace
@@ -36,6 +38,31 @@ QString detectBHDir()
     return projectRoot;
 
   return bhDir;
+}
+
+float normalizeAngle(float theta)
+{
+  return std::atan2(std::sin(theta), std::cos(theta));
+}
+
+float extractYaw(const float (&rotation)[3][3])
+{
+  return normalizeAngle(std::atan2(rotation[1][0], rotation[0][0]));
+}
+
+void makeYawRotation(float theta, float (&rotation)[3][3])
+{
+  const float c = std::cos(theta);
+  const float s = std::sin(theta);
+  rotation[0][0] = c;
+  rotation[0][1] = -s;
+  rotation[0][2] = 0.f;
+  rotation[1][0] = s;
+  rotation[1][1] = c;
+  rotation[1][2] = 0.f;
+  rotation[2][0] = 0.f;
+  rotation[2][1] = 0.f;
+  rotation[2][2] = 1.f;
 }
 }
 
@@ -78,7 +105,8 @@ public:
     lastWarningMessage.clear();
 
     const QString suffix = fileInfo.suffix().toLower();
-    const QString coreModule = suffix == "ros2d" ? "SimRobotCore2D" : "SimRobotCore2";
+    is2DScene = suffix == "ros2d";
+    const QString coreModule = is2DScene ? "SimRobotCore2D" : "SimRobotCore2";
     if(!loadModule(coreModule))
       return false;
     if(!compileModules())
@@ -92,6 +120,7 @@ public:
   {
     running = false;
     compiled = false;
+    is2DScene = false;
     objectsByName.clear();
     childrenByParent.clear();
     registeredModules.clear();
@@ -126,6 +155,11 @@ public:
   bool isLoaded() const
   {
     return !filePath.isEmpty() && compiled;
+  }
+
+  bool is2D() const
+  {
+    return is2DScene;
   }
 
   SimRobot::Object* getObject(const QString& fullName, int kind = 0) const
@@ -165,6 +199,7 @@ private:
     if(QApplication::instance())
       return;
 
+    qputenv("PYBH_SIMROBOT_HEADLESS", QByteArray("1"));
     if(qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
       qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
 
@@ -186,7 +221,7 @@ private:
     };
 
     for(const QString& candidate : candidates)
-      if(QFileInfo(candidate + "/libSimRobotCore2D.so").exists())
+      if(QFileInfo(candidate + "/libSimRobotCore2D.so").exists() || QFileInfo(candidate + "/libSimRobotCore2.so").exists())
         return candidate;
 
     return candidates.front();
@@ -368,6 +403,7 @@ private:
   QString lastWarningMessage;
   bool compiled = false;
   bool running = false;
+  bool is2DScene = false;
   std::vector<std::unique_ptr<LoadedModule>> loadedModules;
   QHash<QString, LoadedModule*> loadedModulesByName;
   QHash<QString, QString> registeredModules;
@@ -416,57 +452,121 @@ std::string SimRobotHost::lastError() const
 bool SimRobotHost::getRobotPose(const std::string& robotName, float& x, float& y, float& theta) const
 {
   const QString fullName = "RoboCup.robots." + QString::fromStdString(robotName);
-  auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject(fullName, SimRobotCore2D::body));
+  if(app->is2D())
+  {
+    auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject(fullName, SimRobotCore2D::body));
+    if(!body)
+      return false;
+
+    float position[2];
+    body->getPose(position, &theta);
+    x = position[0];
+    y = position[1];
+    return true;
+  }
+
+  auto* body = dynamic_cast<SimRobotCore2::Body*>(app->getObject(fullName, SimRobotCore2::body));
   if(!body)
     return false;
 
-  float position[2];
-  body->getPose(position, &theta);
+  float position[3];
+  float rotation[3][3];
+  if(!body->getPose(position, rotation))
+    return false;
   x = position[0];
   y = position[1];
+  theta = extractYaw(rotation);
   return true;
 }
 
 bool SimRobotHost::setRobotPose(const std::string& robotName, float x, float y, float theta)
 {
   const QString fullName = "RoboCup.robots." + QString::fromStdString(robotName);
-  auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject(fullName, SimRobotCore2D::body));
+  if(app->is2D())
+  {
+    auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject(fullName, SimRobotCore2D::body));
+    if(!body)
+      return false;
+
+    const float position[2] = {x, y};
+    body->move(position, theta);
+    body->resetDynamics();
+    return true;
+  }
+
+  auto* body = dynamic_cast<SimRobotCore2::Body*>(app->getObject(fullName, SimRobotCore2::body));
   if(!body)
     return false;
 
-  const float position[2] = {x, y};
-  body->move(position, theta);
+  const float* currentPosition = body->getPosition();
+  float position[3] = {x, y, currentPosition ? currentPosition[2] : 0.f};
+  float rotation[3][3];
+  makeYawRotation(theta, rotation);
+  body->move(position, rotation);
   body->resetDynamics();
   return true;
 }
 
 bool SimRobotHost::getBallState(float& x, float& y, float& vx, float& vy) const
 {
-  auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2D::body));
+  if(app->is2D())
+  {
+    auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2D::body));
+    if(!body)
+      return false;
+
+    float position[2];
+    float linear[2];
+    float theta = 0.f;
+    body->getPose(position, &theta);
+    body->getVelocity(linear);
+    x = position[0];
+    y = position[1];
+    vx = linear[0];
+    vy = linear[1];
+    return true;
+  }
+
+  auto* body = dynamic_cast<SimRobotCore2::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2::body));
   if(!body)
     return false;
 
-  float position[2];
-  float linear[2];
-  float theta = 0.f;
-  body->getPose(position, &theta);
-  body->getVelocity(linear);
+  float position[3];
+  float rotation[3][3];
+  if(!body->getPose(position, rotation))
+    return false;
+  const float* linear = body->getVelocity();
   x = position[0];
   y = position[1];
-  vx = linear[0];
-  vy = linear[1];
+  vx = linear ? linear[0] : 0.f;
+  vy = linear ? linear[1] : 0.f;
   return true;
 }
 
 bool SimRobotHost::setBallState(float x, float y, float vx, float vy)
 {
-  auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2D::body));
+  if(app->is2D())
+  {
+    auto* body = dynamic_cast<SimRobotCore2D::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2D::body));
+    if(!body)
+      return false;
+
+    const float position[2] = {x, y};
+    const float velocity[2] = {vx, vy};
+    body->move(position, 0.f);
+    body->resetDynamics();
+    body->setVelocity(velocity);
+    return true;
+  }
+
+  auto* body = dynamic_cast<SimRobotCore2::Body*>(app->getObject("RoboCup.balls.ball", SimRobotCore2::body));
   if(!body)
     return false;
 
-  const float position[2] = {x, y};
-  const float velocity[2] = {vx, vy};
-  body->move(position, 0.f);
+  const float* currentPosition = body->getPosition();
+  float position[3] = {x, y, currentPosition ? currentPosition[2] : 0.f};
+  const float velocity[3] = {vx, vy, 0.f};
+  body->move(position);
   body->resetDynamics();
   body->setVelocity(velocity);
   return true;

@@ -22,6 +22,15 @@
 #include "Math/Pose3f.h"
 #include "Streaming/InStreams.h"
 #include <SimRobotCore2.h>
+#include <cstdlib>
+
+namespace
+{
+bool isPyBHHeadless()
+{
+  return std::getenv("PYBH_SIMROBOT_HEADLESS") != nullptr;
+}
+}
 
 SimRobotCore2::SensorPort* SimulatedRobot3D::activeCameras[SimulatedRobot::robotsPerTeam * 2] = {nullptr};
 unsigned SimulatedRobot3D::activeCameraCount = 0;
@@ -135,6 +144,12 @@ void SimulatedRobot3D::getRobotPose(Pose2f& robotPose) const
   ASSERT(rightFoot && leftFoot);
 
   getPose2f(robot, robotPose);
+  if(isPyBHHeadless())
+  {
+    if(firstTeam)
+      robotPose = Pose2f(pi) + robotPose;
+    return;
+  }
   robotPose.translation = (getPosition(leftFoot) + getPosition(rightFoot)) * 0.5f;
 
   if(firstTeam)
@@ -314,7 +329,16 @@ void SimulatedRobot3D::getSensorData(FsrSensorData& fsrSensorData, InertialSenso
   ASSERT(robot);
 
   // FSR
-  if(leftFoot && rightFoot)
+  if(isPyBHHeadless())
+  {
+    FOREACH_ENUM(Legs::Leg, leg)
+    {
+      fsrSensorData.totals[leg] = 0.f;
+      FOREACH_ENUM(FsrSensors::FsrSensor, sensor)
+        fsrSensorData.pressures[leg][sensor] = 0.f;
+    }
+  }
+  else if(leftFoot && rightFoot)
   {
     const SimRobot::Object* feet[Legs::numOfLegs] = {leftFoot, rightFoot};
     std::array<Vector2f, FsrSensors::numOfFsrSensors>* fsrPositions[Legs::numOfLegs] = {&robotDimensions.leftFsrPositions, &robotDimensions.rightFsrPositions};
