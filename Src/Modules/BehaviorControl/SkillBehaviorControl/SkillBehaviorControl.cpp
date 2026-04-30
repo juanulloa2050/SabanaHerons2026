@@ -7,6 +7,7 @@
  */
 
 #include "SkillBehaviorControl.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"
 #include <string>
 
@@ -90,6 +91,34 @@ void SkillBehaviorControl::update(ActivationGraph&)
 
   endFrame();
   theSkillRegistry.postProcess();
+
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    bool postObs = false;
+    io.lock();
+    io.debugSkillBehaviorSkillRequest = static_cast<int>(theSkillRequest.skill);
+    io.debugSkillBehaviorMotionRequest = static_cast<int>(theMotionRequest.motion);
+    ++io.debugSkillBehaviorCallCount;
+    io.debugSkillBehaviorWalkTargetX = theMotionRequest.walkTarget.translation.x();
+    io.debugSkillBehaviorWalkTargetY = theMotionRequest.walkTarget.translation.y();
+    io.debugSkillBehaviorWalkTargetTheta = static_cast<float>(theMotionRequest.walkTarget.rotation);
+    if(io.sim2D.enabled && io.sim2D.initialized)
+    {
+      RLSim2D::stepFromMotionRequest(io.sim2D, theMotionRequest);
+      io.ballX = io.sim2D.ballX;
+      io.ballY = io.sim2D.ballY;
+      io.robotX = io.sim2D.robotX;
+      io.robotY = io.sim2D.robotY;
+      io.robotTheta = io.sim2D.robotTheta;
+      io.frame = theFrameInfo.time;
+      io.obsReady = true;
+      postObs = true;
+    }
+    io.unlock();
+    if(postObs)
+      io.postObs();
+  }
 
   theLibCheck.performCheck();
 }

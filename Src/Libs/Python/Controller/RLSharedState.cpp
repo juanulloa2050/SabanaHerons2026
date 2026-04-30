@@ -15,12 +15,16 @@ namespace
 {
 constexpr const char* shmName = "/pybh_rl_shared_state_v2";
 constexpr unsigned int magic = 0x50594248u; // PYBH
-constexpr unsigned int version = 3u;
+constexpr unsigned int version = 12u;
 }
 
 void RLPlayerIO::lock()
 {
-  pthread_mutex_lock(&mutex);
+  const int result = pthread_mutex_lock(&mutex);
+  if(result == EOWNERDEAD)
+    pthread_mutex_consistent(&mutex);
+  else if(result != 0)
+    throw std::runtime_error("pthread_mutex_lock failed for RLPlayerIO");
 }
 
 void RLPlayerIO::unlock()
@@ -114,6 +118,7 @@ void RLSharedState::initializeBlock()
   pthread_mutexattr_t mutexAttr;
   pthread_mutexattr_init(&mutexAttr);
   pthread_mutexattr_setpshared(&mutexAttr, PTHREAD_PROCESS_SHARED);
+  pthread_mutexattr_setrobust(&mutexAttr, PTHREAD_MUTEX_ROBUST);
 
   for(RLPlayerIO& player : block->players)
   {

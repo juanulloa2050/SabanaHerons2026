@@ -14,6 +14,7 @@
 #include "Platform/BHAssert.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/Infrastructure/GroundTruthWorldState.h"
+#include "Representations/MotionControl/MotionRequest.h"
 #include "Tools/Modeling/BallPhysics.h"
 #include <algorithm>
 #include <cmath>
@@ -125,10 +126,9 @@ namespace RLSim2D
     state.ballVy = ballVel.y();
   }
 
-  inline void stepWalkTo(RLSim2DState& state, const Pose2f& target)
+  inline void stepWalkTargetRelative(RLSim2DState& state, const Pose2f& walkTarget)
   {
     const Pose2f robotPose(state.robotTheta, state.robotX, state.robotY);
-    const Pose2f walkTarget = robotPose.inverse() * target;
 
     Angle modRotation = walkTarget.rotation;
     const float targetNorm = walkTarget.translation.norm();
@@ -159,6 +159,22 @@ namespace RLSim2D
     state.robotY = newPose.translation.y();
     state.robotTheta = newPose.rotation;
     state.leftPhase = isLeftPhase ? 1 : 0;
+  }
+
+  inline void stepWalkTo(RLSim2DState& state, const Pose2f& target)
+  {
+    const Pose2f robotPose(state.robotTheta, state.robotX, state.robotY);
+    stepWalkTargetRelative(state, robotPose.inverse() * target);
+  }
+
+  inline void stepWalkVelocity(RLSim2DState& state, const Pose2f& speed)
+  {
+    const Pose2f robotPose(state.robotTheta, state.robotX, state.robotY);
+    const Pose2f delta(speed.rotation * dt, speed.translation * dt);
+    const Pose2f newPose = robotPose * delta;
+    state.robotX = newPose.translation.x();
+    state.robotY = newPose.translation.y();
+    state.robotTheta = newPose.rotation;
   }
 
   inline void stepShoot(RLSim2DState& state)
@@ -193,5 +209,39 @@ namespace RLSim2D
 
     stepBall(state);
     state.lastSkill = skill;
+  }
+
+  inline void stepFromMotionRequest(RLSim2DState& state, const MotionRequest& motionRequest)
+  {
+    if(!state.enabled || !state.initialized)
+      return;
+
+    if(motionRequest.motion == MotionRequest::walkToPose)
+      stepWalkTargetRelative(state, motionRequest.walkTarget);
+    else if(motionRequest.motion == MotionRequest::walkAtRelativeSpeed)
+      stepWalkVelocity(state, Pose2f(motionRequest.walkSpeed.rotation * maxSpeed.rotation,
+                                     motionRequest.walkSpeed.translation.x() * maxSpeed.translation.x(),
+                                     motionRequest.walkSpeed.translation.y() * maxSpeed.translation.y()));
+    else if(motionRequest.motion == MotionRequest::walkAtAbsoluteSpeed)
+      stepWalkVelocity(state, motionRequest.walkSpeed);
+    else if(motionRequest.motion == MotionRequest::walkToBallAndKick)
+    {
+      const Vector2f ballRelative = motionRequest.ballEstimate.position;
+      if(ballRelative.norm() < 230.f)
+        stepShoot(state);
+      else
+        stepWalkTargetRelative(state, Pose2f(ballRelative.angle(), ballRelative));
+    }
+    else if(motionRequest.motion == MotionRequest::dribble)
+    {
+      const Vector2f ballRelative = motionRequest.ballEstimate.position;
+      if(ballRelative.norm() > 230.f)
+        stepWalkTargetRelative(state, Pose2f(ballRelative.angle(), ballRelative));
+      else
+        stepDribble(state);
+    }
+
+    stepBall(state);
+    state.lastSkill = std::to_string(static_cast<int>(motionRequest.motion));
   }
 }

@@ -391,7 +391,10 @@ void WalkPhaseBase::constructorOtherCase()
     if(joint < Joints::firstArmJoint || joint == Joints::lWristYaw || joint == Joints::lHand || joint == Joints::rWristYaw || joint == Joints::rHand)
       continue;
     if(startJointAngles.angles[joint] == JointAngles::off || startJointAngles.angles[joint] == JointAngles::ignore)
-      startJointAngles.angles[joint] = engine.theJointAngles.angles[joint];
+    {
+      const Angle measuredAngle = engine.theJointAngles.angles[joint];
+      startJointAngles.angles[joint] = measuredAngle != JointAngles::off && measuredAngle != JointAngles::ignore ? measuredAngle : request.angles[joint];
+    }
     const Angle dif = startJointAngles.angles[joint] - request.angles[joint];
     const float factor = joint >= Joints::firstArmJoint && joint < Joints::firstLeftLegJoint ? 2.f : 1.f; // arms are factored more than all other joints
     jointDiff = std::max(jointDiff, Angle(std::abs(dif * factor)));
