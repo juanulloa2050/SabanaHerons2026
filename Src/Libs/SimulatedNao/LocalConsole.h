@@ -20,6 +20,7 @@
 #include "Representations/Modeling/Whistle.h"
 #include "Representations/MotionControl/MotionInfo.h"
 #include "Representations/MotionControl/OdometryData.h"
+#include "Math/Eigen.h"
 #include <memory>
 
 class Debug;
@@ -50,6 +51,7 @@ private:
   bool imageCalculated = false; /**< Whether \c cameraImage contains a rendered image. */
   Semaphore updateSignal; /**< A signal used for synchronizing main() and update(). */
   Semaphore updatedSignal; /**< A signal used for yielding processing time to main(). */
+  int playerNumber = 1; /**< The player number used by the RL shared-state bridge. */
 
 public:
   /**
@@ -80,6 +82,8 @@ public:
   void update() override;
 
 private:
+  void applyPendingRLReset();
+
   /**
    * The function connects the robot to the returned receiver.
    *

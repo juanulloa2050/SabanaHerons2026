@@ -23,7 +23,7 @@
     </Compound>
 
     <Compound name="scenarios">
-      <Compound name="4v4_Scaled"/>
+      <Compound name="4v4_RL2D"/>
     </Compound>
 
     <Compound name="robots">

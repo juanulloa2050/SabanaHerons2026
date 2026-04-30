@@ -199,6 +199,7 @@ private:
 #include "Options/HandlePhotoMode.h"
 #include "Options/HandlePhysicalRobot.h"
 #include "Options/HandlePlayerState.h"
+#include "Options/HandleRLRequest.h"
 #include "Options/HandleRefereeSignal.h"
 #include "Options/HandleReplayWalk.h"
 #include "Options/HandleStrikerLostBall.h"

@@ -26,34 +26,7 @@ namespace
     MotionRequest request;
     request.motion = MotionRequest::stand;
     request.walkSpeed = Pose2f(1.f, 1.f, 1.f);
-    request.keepTargetRotation = true;
-
-    if(skill == "walkTo" || skill == "walk")
-    {
-      request.motion = MotionRequest::walkToPose;
-      request.walkTarget = Pose2f(tt, tx, ty);
-      return request;
-    }
-
-    if(skill == "block" || skill == "mark" || skill == "observe")
-    {
-      request.motion = MotionRequest::walkToPose;
-      request.walkTarget = Pose2f(tt, tx, ty);
-      return request;
-    }
-
-    if(skill == "dribble")
-    {
-      request.motion = MotionRequest::dribble;
-    }
-    else if(skill == "shoot" || skill == "pass")
-    {
-      request.motion = MotionRequest::walkToBallAndKick;
-      request.kickLength = skill == "pass" ? 2500.f : 6000.f;
-      request.alignPrecisely = KickPrecision::notPrecise;
-    }
-    else
-      return request;
+    request.keepTargetRotation = false;
 
     const Pose2f& ownPose = worldState.ownPose;
     Vector2f ballOnField = Vector2f::Zero();
@@ -65,10 +38,39 @@ namespace
     request.ballEstimateTimestamp = 0;
     request.ballTimeWhenLastSeen = 0;
 
-    const Vector2f goalCenterOnField(fieldDimensions.xPosOpponentGroundLine, 0.f);
-    const Vector2f goalInRobot = ownPose.inverse() * goalCenterOnField;
-    request.targetDirection = goalInRobot.angle();
-    request.kickType = request.ballEstimate.position.y() >= 0.f ? KickInfo::forwardFastLeft : KickInfo::forwardFastRight;
+    if(skill == "walkTo" || skill == "walk" || skill == "block" || skill == "mark" || skill == "observe")
+    {
+      const Pose2f targetOnField(tt, tx, ty);
+      const Pose2f targetRelative = ownPose.inverse() * targetOnField;
+      if(targetRelative.translation.norm() < 40.f && std::abs(static_cast<float>(targetRelative.rotation)) < 5_deg)
+        return request;
+
+      request.motion = MotionRequest::walkToPose;
+      request.walkTarget = targetRelative;
+      return request;
+    }
+
+    if(skill == "dribble")
+    {
+      request.motion = MotionRequest::dribble;
+      request.targetDirection = tt;
+      request.kickLength = 1000.f;
+      request.alignPrecisely = KickPrecision::notPrecise;
+      return request;
+    }
+
+    if(skill == "shoot" || skill == "pass")
+    {
+      const Vector2f goalCenterOnField(fieldDimensions.xPosOpponentGroundLine, 0.f);
+      const Vector2f goalInRobot = ownPose.inverse() * goalCenterOnField;
+      request.motion = MotionRequest::walkToBallAndKick;
+      request.targetDirection = goalInRobot.angle();
+      request.kickType = request.ballEstimate.position.y() >= 0.f ? KickInfo::forwardFastLeft : KickInfo::forwardFastRight;
+      request.kickLength = skill == "pass" ? 2500.f : 6000.f;
+      request.alignPrecisely = KickPrecision::notPrecise;
+      return request;
+    }
+
     return request;
   }
 }
@@ -90,6 +92,14 @@ void RLSkillProvider::update(MotionRequest& motionRequest)
   io.unlock();
 
   motionRequest = buildMotionRequest(skill, tx, ty, tt, theGroundTruthWorldState, theFieldDimensions);
+
+  io.lock();
+  io.debugProviderMotionRequest = static_cast<int>(motionRequest.motion);
+  ++io.debugProviderCallCount;
+  io.debugProviderTargetX = motionRequest.walkTarget.translation.x();
+  io.debugProviderTargetY = motionRequest.walkTarget.translation.y();
+  io.debugProviderTargetTheta = static_cast<float>(motionRequest.walkTarget.rotation);
+  io.unlock();
 }
 
 void RLSkillProvider::update(SkillRequest& skillRequest)
@@ -127,6 +137,14 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   else
     skillRequest = SkillRequest::Builder::stand();
 
+  {
+    io.lock();
+    const bool sim2DActive = io.sim2D.enabled && io.sim2D.initialized;
+    io.unlock();
+    if(sim2DActive)
+      return;
+  }
+
   float bx = 0.f;
   float by = 0.f;
   float rx = 0.f;
@@ -135,27 +153,15 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
 
   {
     io.lock();
-    if(io.sim2D.enabled && io.sim2D.initialized)
+    if(!theGroundTruthWorldState.balls.empty())
     {
-      RLSim2D::stepFromSkill(io.sim2D, skill, skillRequest);
-      bx = io.sim2D.ballX;
-      by = io.sim2D.ballY;
-      rx = io.sim2D.robotX;
-      ry = io.sim2D.robotY;
-      rt = io.sim2D.robotTheta;
+      bx = theGroundTruthWorldState.balls[0].position.x();
+      by = theGroundTruthWorldState.balls[0].position.y();
     }
-    else
-    {
-      if(!theGroundTruthWorldState.balls.empty())
-      {
-        bx = theGroundTruthWorldState.balls[0].position.x();
-        by = theGroundTruthWorldState.balls[0].position.y();
-      }
-      const Pose2f& rp = theGroundTruthWorldState.ownPose;
-      rx = rp.translation.x();
-      ry = rp.translation.y();
-      rt = static_cast<float>(rp.rotation);
-    }
+    const Pose2f& rp = theGroundTruthWorldState.ownPose;
+    rx = rp.translation.x();
+    ry = rp.translation.y();
+    rt = static_cast<float>(rp.rotation);
 
     io.ballX      = bx;
     io.ballY      = by;

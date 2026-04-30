@@ -10,6 +10,7 @@
 #include "WalkToPoseEngine.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Math/BHMath.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Tools/Motion/WalkUtilities.h"
 #include "Tools/Motion/Transformation.h"
 
@@ -192,6 +193,19 @@ std::unique_ptr<MotionPhase> WalkToPoseEngine::createPhase(const Pose2f& targetI
      (targetInSCS.translation - step.translation).x() / useReferenceMaxForwardStep < reduceForwardStepLowerThreshold)
   {
     step.translation.x() *= reduceForwardStepUpperThreshold;
+  }
+
+  {
+    RLPlayerIO& io = RLSharedState::instance().player(1);
+    io.lock();
+    ++io.debugWalkToPoseCallCount;
+    io.debugWalkToPoseTargetX = targetInSCS.translation.x();
+    io.debugWalkToPoseTargetY = targetInSCS.translation.y();
+    io.debugWalkToPoseTargetTheta = static_cast<float>(targetInSCS.rotation);
+    io.debugWalkToPoseStepX = step.translation.x();
+    io.debugWalkToPoseStepY = step.translation.y();
+    io.debugWalkToPoseStepTheta = static_cast<float>(step.rotation);
+    io.unlock();
   }
 
   return theWalkGenerator.createPhase(step, lastPhase, 0.f);

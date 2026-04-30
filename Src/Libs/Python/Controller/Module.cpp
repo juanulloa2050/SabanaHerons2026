@@ -215,6 +215,30 @@ Args:
     "Enable or disable the headless 2D simulator for a player.",
     py::arg("player_number"), py::arg("enabled"));
 
+  m.def("rl_reset_world",
+    [](int player_number,
+       float ball_x, float ball_y,
+       float robot_x, float robot_y, float robot_theta)
+    {
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      while(io.tryWaitObs()) {}
+      io.lock();
+      io.resetBallX = ball_x;
+      io.resetBallY = ball_y;
+      io.resetRobotX = robot_x;
+      io.resetRobotY = robot_y;
+      io.resetRobotTheta = robot_theta;
+      ++io.resetRequestId;
+      io.resetPending = true;
+      io.obsReady = false;
+      io.unlock();
+    },
+    "Request that a visible SimRobot instance reset the world state for a player.",
+    py::arg("player_number"),
+    py::arg("ball_x"), py::arg("ball_y"),
+    py::arg("robot_x"), py::arg("robot_y"),
+    py::arg("robot_theta") = 0.f);
+
   // RL API — direct in-memory bridge to RLSkillProvider (no subprocess, no JSON)
   m.def("rl_set_action",
     [](int player_number, const std::string& skill,
@@ -256,6 +280,43 @@ Args:
       d["sim_enabled"] = io.sim2D.enabled;
       d["requested_skill"] = io.getSkill();
       d["requested_pass_target"] = io.passTarget;
+      d["motion_request"] = io.debugMotionRequest;
+      d["provider_motion_request"] = io.debugProviderMotionRequest;
+      d["provider_call_count"] = io.debugProviderCallCount;
+      d["provider_target_x"] = io.debugProviderTargetX;
+      d["provider_target_y"] = io.debugProviderTargetY;
+      d["provider_target_theta"] = io.debugProviderTargetTheta;
+      d["skill_behavior_skill_request"] = io.debugSkillBehaviorSkillRequest;
+      d["skill_behavior_motion_request"] = io.debugSkillBehaviorMotionRequest;
+      d["skill_behavior_call_count"] = io.debugSkillBehaviorCallCount;
+      d["skill_behavior_walk_target_x"] = io.debugSkillBehaviorWalkTargetX;
+      d["skill_behavior_walk_target_y"] = io.debugSkillBehaviorWalkTargetY;
+      d["skill_behavior_walk_target_theta"] = io.debugSkillBehaviorWalkTargetTheta;
+      d["motion_engine_input_request"] = io.debugMotionEngineInputRequest;
+      d["motion_engine_effective_request"] = io.debugMotionEngineEffectiveRequest;
+      d["motion_engine_phase"] = io.debugMotionEnginePhase;
+      d["motion_engine_force_sit_down"] = io.debugMotionEngineForceSitDown;
+      d["motion_engine_gyro_offset_finished"] = io.debugMotionEngineGyroOffsetFinished;
+      d["motion_engine_gyro_bad"] = io.debugMotionEngineGyroBad;
+      d["motion_engine_inertial_angle_x"] = io.debugMotionEngineInertialAngleX;
+      d["motion_engine_inertial_angle_y"] = io.debugMotionEngineInertialAngleY;
+      d["motion_engine_fall_state"] = io.debugMotionEngineFallState;
+      d["walk_to_pose_call_count"] = io.debugWalkToPoseCallCount;
+      d["walk_to_pose_target_x"] = io.debugWalkToPoseTargetX;
+      d["walk_to_pose_target_y"] = io.debugWalkToPoseTargetY;
+      d["walk_to_pose_target_theta"] = io.debugWalkToPoseTargetTheta;
+      d["walk_to_pose_step_x"] = io.debugWalkToPoseStepX;
+      d["walk_to_pose_step_y"] = io.debugWalkToPoseStepY;
+      d["walk_to_pose_step_theta"] = io.debugWalkToPoseStepTheta;
+      d["motion_engine_ground_contact"] = io.debugMotionEngineGroundContact;
+      d["motion_phase"] = io.debugExecutedPhase;
+      d["motion_speed_x"] = io.debugMotionSpeedX;
+      d["motion_speed_y"] = io.debugMotionSpeedY;
+      d["motion_speed_rot"] = io.debugMotionSpeedRot;
+      d["joint_l_hip_pitch"] = io.debugLHipPitch;
+      d["joint_l_knee_pitch"] = io.debugLKneePitch;
+      d["joint_r_hip_pitch"] = io.debugRHipPitch;
+      d["joint_r_knee_pitch"] = io.debugRKneePitch;
       io.unlock();
       return d;
     },

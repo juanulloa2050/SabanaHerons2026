@@ -35,6 +35,55 @@ struct RLPlayerIO
   unsigned int frame = 0;
   bool obsReady = false;
 
+  float resetBallX = 0.f;
+  float resetBallY = 0.f;
+  float resetRobotX = 0.f;
+  float resetRobotY = 0.f;
+  float resetRobotTheta = 0.f;
+  unsigned int resetRequestId = 0;
+  unsigned int resetAppliedId = 0;
+  bool resetPending = false;
+
+  int debugMotionRequest = -1;
+  int debugProviderMotionRequest = -1;
+  int debugProviderCallCount = 0;
+  float debugProviderTargetX = 0.f;
+  float debugProviderTargetY = 0.f;
+  float debugProviderTargetTheta = 0.f;
+  int debugSkillBehaviorSkillRequest = -1;
+  int debugSkillBehaviorMotionRequest = -1;
+  int debugSkillBehaviorCallCount = 0;
+  float debugSkillBehaviorWalkTargetX = 0.f;
+  float debugSkillBehaviorWalkTargetY = 0.f;
+  float debugSkillBehaviorWalkTargetTheta = 0.f;
+  int debugMotionEngineInputRequest = -1;
+  int debugMotionEngineEffectiveRequest = -1;
+  int debugMotionEnginePhase = -1;
+  bool debugMotionEngineForceSitDown = false;
+  bool debugMotionEngineGyroOffsetFinished = false;
+  bool debugMotionEngineGyroBad = false;
+  float debugMotionEngineInertialAngleX = 0.f;
+  float debugMotionEngineInertialAngleY = 0.f;
+  int debugMotionEngineFallState = -1;
+  int debugWalkToPoseCallCount = 0;
+  float debugWalkToPoseTargetX = 0.f;
+  float debugWalkToPoseTargetY = 0.f;
+  float debugWalkToPoseTargetTheta = 0.f;
+  float debugWalkToPoseStepX = 0.f;
+  float debugWalkToPoseStepY = 0.f;
+  float debugWalkToPoseStepTheta = 0.f;
+  bool debugMotionEngineGroundContact = false;
+  int debugExecutedPhase = -1;
+  float debugMotionSpeedX = 0.f;
+  float debugMotionSpeedY = 0.f;
+  float debugMotionSpeedRot = 0.f;
+  bool motionJointRequestValid = false;
+  std::array<float, 32> motionJointAngles{};
+  float debugLHipPitch = 0.f;
+  float debugLKneePitch = 0.f;
+  float debugRHipPitch = 0.f;
+  float debugRKneePitch = 0.f;
+
   RLSim2DState sim2D;
 
   sem_t obsSignal;
