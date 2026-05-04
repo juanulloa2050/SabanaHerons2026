@@ -9,9 +9,55 @@
 #include "SkillBehaviorControl.h"
 #include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"
+#include <limits>
 #include <string>
 
 MAKE_MODULE(SkillBehaviorControl, SkillBehaviorControl::getExtModuleInfo);
+
+namespace
+{
+  struct ObstacleSummary
+  {
+    float nearestTeammate = std::numeric_limits<float>::max();
+    float nearestOpponent = std::numeric_limits<float>::max();
+    float nearestUncertain = std::numeric_limits<float>::max();
+    float nearestTeammateFront = std::numeric_limits<float>::max();
+    float nearestOpponentFront = std::numeric_limits<float>::max();
+    float nearestUncertainFront = std::numeric_limits<float>::max();
+  };
+
+  void updateNearest(float distance, bool isFront, float& nearest, float& nearestFront)
+  {
+    if(distance < nearest)
+      nearest = distance;
+    if(isFront && distance < nearestFront)
+      nearestFront = distance;
+  }
+
+  ObstacleSummary summarizeObstacles(const ObstacleModel& obstacleModel)
+  {
+    ObstacleSummary summary;
+    for(const Obstacle& obstacle : obstacleModel.obstacles)
+    {
+      const float distance = obstacle.center.norm();
+      const bool isFront = obstacle.center.x() > 0.f;
+      if(obstacle.isTeammate())
+        updateNearest(distance, isFront, summary.nearestTeammate, summary.nearestTeammateFront);
+      else if(obstacle.isOpponent())
+        updateNearest(distance, isFront, summary.nearestOpponent, summary.nearestOpponentFront);
+      else
+        updateNearest(distance, isFront, summary.nearestUncertain, summary.nearestUncertainFront);
+    }
+    return summary;
+  }
+
+  float boundedDistance(float value, const FieldDimensions& fieldDimensions)
+  {
+    if(value == std::numeric_limits<float>::max())
+      return fieldDimensions.xPosOpponentGroundLine * 2.f;
+    return value;
+  }
+}
 
 SkillBehaviorControl::SkillBehaviorControl() :
   Cabsl<SkillBehaviorControl>(const_cast<ActivationGraph*>(&theActivationGraph)),
@@ -111,6 +157,66 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.robotX = io.sim2D.robotX;
       io.robotY = io.sim2D.robotY;
       io.robotTheta = io.sim2D.robotTheta;
+      const Pose2f robotPose(io.sim2D.robotTheta, io.sim2D.robotX, io.sim2D.robotY);
+      const Vector2f ballOnField(io.sim2D.ballX, io.sim2D.ballY);
+      const Vector2f ballRelative = robotPose.inverse() * ballOnField;
+      io.ballRelX = ballRelative.x();
+      io.ballRelY = ballRelative.y();
+      io.ballEndRelX = ballRelative.x();
+      io.ballEndRelY = ballRelative.y();
+      io.ballVelX = 0.f;
+      io.ballVelY = 0.f;
+      io.timeSinceBallSeen = 0.f;
+      io.timeSinceBallDisappeared = 0.f;
+      io.ballSeenPercentage = 100.f;
+      io.ballConsistentWithGameState = true;
+      io.canScoreNow = false;
+      io.shotQualityNoObstacles = 0.f;
+      io.shotOpeningWithObstacles = 0.f;
+      io.passOptionsCount = 0.f;
+      io.nearestTeammateDist = 9000.f;
+      io.nearestOpponentDist = 9000.f;
+      io.nearestUncertainObstacleDist = 9000.f;
+      io.nearestTeammateFrontDist = 9000.f;
+      io.nearestOpponentFrontDist = 9000.f;
+      io.nearestUncertainFrontDist = 9000.f;
+      io.frame = theFrameInfo.time;
+      io.obsReady = true;
+      postObs = true;
+    }
+    else
+    {
+      const Vector2f ballOnField = theFieldBall.positionOnField;
+      const Vector2f ballRelative = theFieldBall.positionRelative;
+      const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
+      const Vector2f ballVelocity = theBallModel.estimate.velocity;
+      const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
+
+      io.ballX = ballOnField.x();
+      io.ballY = ballOnField.y();
+      io.robotX = theRobotPose.translation.x();
+      io.robotY = theRobotPose.translation.y();
+      io.robotTheta = static_cast<float>(theRobotPose.rotation);
+      io.ballRelX = ballRelative.x();
+      io.ballRelY = ballRelative.y();
+      io.ballEndRelX = ballEndRelative.x();
+      io.ballEndRelY = ballEndRelative.y();
+      io.ballVelX = ballVelocity.x();
+      io.ballVelY = ballVelocity.y();
+      io.timeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
+      io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
+      io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
+      io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
+      io.canScoreNow = false;
+      io.shotQualityNoObstacles = 0.f;
+      io.shotOpeningWithObstacles = 0.f;
+      io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
+      io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
+      io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
+      io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);
+      io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
+      io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
+      io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
       io.frame = theFrameInfo.time;
       io.obsReady = true;
       postObs = true;

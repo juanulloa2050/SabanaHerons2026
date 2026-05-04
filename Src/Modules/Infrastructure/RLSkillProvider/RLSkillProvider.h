@@ -9,10 +9,16 @@
 #pragma once
 
 #include "Representations/BehaviorControl/SkillRequest.h"
+#include "Representations/BehaviorControl/ExpectedGoals.h"
+#include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
+#include "Representations/Communication/TeamData.h"
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Infrastructure/GroundTruthWorldState.h"
+#include "Representations/Modeling/BallModel.h"
+#include "Representations/Modeling/ObstacleModel.h"
+#include "Representations/Modeling/RobotPose.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Framework/Module.h"
 
@@ -22,6 +28,12 @@ MODULE(RLSkillProvider,
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
   REQUIRES(FieldDimensions),
+  USES(RobotPose),
+  USES(BallModel),
+  USES(FieldBall),
+  USES(ObstacleModel),
+  USES(ExpectedGoals),
+  USES(TeamData),
   PROVIDES(MotionRequest),
   PROVIDES(SkillRequest),
   PROVIDES(StrategyStatus),
