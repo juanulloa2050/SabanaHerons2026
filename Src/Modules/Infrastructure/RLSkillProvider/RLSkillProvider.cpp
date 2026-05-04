@@ -14,10 +14,54 @@
 #include "RLSkillProvider.h"
 #include "Python/Controller/RLSharedState.h"
 
+#include <limits>
+
 MAKE_MODULE(RLSkillProvider);
 
 namespace
 {
+  struct ObstacleSummary
+  {
+    float nearestTeammate = std::numeric_limits<float>::max();
+    float nearestOpponent = std::numeric_limits<float>::max();
+    float nearestUncertain = std::numeric_limits<float>::max();
+    float nearestTeammateFront = std::numeric_limits<float>::max();
+    float nearestOpponentFront = std::numeric_limits<float>::max();
+    float nearestUncertainFront = std::numeric_limits<float>::max();
+  };
+
+  float boundedDistance(float value, const FieldDimensions& fieldDimensions)
+  {
+    if(value == std::numeric_limits<float>::max())
+      return fieldDimensions.xPosOpponentGroundLine * 2.f;
+    return value;
+  }
+
+  void updateNearest(float distance, bool isFront, float& nearest, float& nearestFront)
+  {
+    if(distance < nearest)
+      nearest = distance;
+    if(isFront && distance < nearestFront)
+      nearestFront = distance;
+  }
+
+  ObstacleSummary summarizeObstacles(const ObstacleModel& obstacleModel)
+  {
+    ObstacleSummary summary;
+    for(const Obstacle& obstacle : obstacleModel.obstacles)
+    {
+      const float distance = obstacle.center.norm();
+      const bool isFront = obstacle.center.x() > 0.f;
+      if(obstacle.isTeammate())
+        updateNearest(distance, isFront, summary.nearestTeammate, summary.nearestTeammateFront);
+      else if(obstacle.isOpponent())
+        updateNearest(distance, isFront, summary.nearestOpponent, summary.nearestOpponentFront);
+      else
+        updateNearest(distance, isFront, summary.nearestUncertain, summary.nearestUncertainFront);
+    }
+    return summary;
+  }
+
   MotionRequest buildMotionRequest(const std::string& skill,
                                    float tx, float ty, float tt,
                                    const GroundTruthWorldState& worldState,
@@ -150,15 +194,19 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   float rx = 0.f;
   float ry = 0.f;
   float rt = 0.f;
+  const Vector2f ballOnField = theFieldBall.positionOnField;
+  const Vector2f ballRelative = theFieldBall.positionRelative;
+  const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
+  const Vector2f ballVelocity = theBallModel.estimate.velocity;
+  const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
+  const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
+  const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
 
   {
     io.lock();
-    if(!theGroundTruthWorldState.balls.empty())
-    {
-      bx = theGroundTruthWorldState.balls[0].position.x();
-      by = theGroundTruthWorldState.balls[0].position.y();
-    }
-    const Pose2f& rp = theGroundTruthWorldState.ownPose;
+    bx = ballOnField.x();
+    by = ballOnField.y();
+    const Pose2f& rp = theRobotPose;
     rx = rp.translation.x();
     ry = rp.translation.y();
     rt = static_cast<float>(rp.rotation);
@@ -169,6 +217,26 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
     io.robotY     = ry;
     io.robotTheta = rt;
     io.frame      = theFrameInfo.time;
+    io.ballRelX = ballRelative.x();
+    io.ballRelY = ballRelative.y();
+    io.ballEndRelX = ballEndRelative.x();
+    io.ballEndRelY = ballEndRelative.y();
+    io.ballVelX = ballVelocity.x();
+    io.ballVelY = ballVelocity.y();
+    io.timeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
+    io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
+    io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
+    io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
+    io.canScoreNow = shotOpeningWithObstacles > 0.8f;
+    io.shotQualityNoObstacles = shotQualityNoObstacles;
+    io.shotOpeningWithObstacles = shotOpeningWithObstacles;
+    io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
+    io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
+    io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
+    io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);
+    io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
+    io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
+    io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
     io.obsReady   = true;
     io.unlock();
   }

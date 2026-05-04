@@ -24,6 +24,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <chrono>
+
 namespace py = pybind11;
 
 // Required to extract version info.
@@ -246,9 +248,6 @@ Args:
        int pass_target)
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      // Drain any stale posts from obsSignal so the next rl_get_obs only
-      // wakes up on the fresh observation triggered by this frame.
-      while(io.tryWaitObs()) {}
       io.lock();
       io.setSkill(skill);
       io.targetX     = target_x;
@@ -267,7 +266,35 @@ Args:
     [](int player_number, unsigned int timeout_ms) -> py::dict
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      io.waitForObs(timeout_ms);
+      if(timeout_ms == 0)
+      {
+        do
+        {
+          io.waitForObs(0);
+          io.lock();
+          const bool ready = io.obsReady;
+          io.unlock();
+          if(ready)
+            break;
+        }
+        while(true);
+      }
+      else
+      {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        while(std::chrono::steady_clock::now() < deadline)
+        {
+          const auto now = std::chrono::steady_clock::now();
+          const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+          if(!io.waitForObs(static_cast<unsigned int>(remaining > 0 ? remaining : 1)))
+            break;
+          io.lock();
+          const bool ready = io.obsReady;
+          io.unlock();
+          if(ready)
+            break;
+        }
+      }
       io.lock();
       py::dict d;
       d["ball_x"]      = io.ballX;
@@ -278,6 +305,26 @@ Args:
       d["frame"]       = io.frame;
       d["obs_ready"]   = io.obsReady;
       d["sim_enabled"] = io.sim2D.enabled;
+      d["ball_rel_x"] = io.ballRelX;
+      d["ball_rel_y"] = io.ballRelY;
+      d["ball_end_rel_x"] = io.ballEndRelX;
+      d["ball_end_rel_y"] = io.ballEndRelY;
+      d["ball_vel_x"] = io.ballVelX;
+      d["ball_vel_y"] = io.ballVelY;
+      d["time_since_ball_seen"] = io.timeSinceBallSeen;
+      d["time_since_ball_disappeared"] = io.timeSinceBallDisappeared;
+      d["ball_seen_percentage"] = io.ballSeenPercentage;
+      d["ball_consistent_with_game_state"] = io.ballConsistentWithGameState;
+      d["can_score_now"] = io.canScoreNow;
+      d["shot_quality_no_obstacles"] = io.shotQualityNoObstacles;
+      d["shot_opening_with_obstacles"] = io.shotOpeningWithObstacles;
+      d["pass_options_count"] = io.passOptionsCount;
+      d["nearest_teammate_dist"] = io.nearestTeammateDist;
+      d["nearest_opponent_dist"] = io.nearestOpponentDist;
+      d["nearest_uncertain_obstacle_dist"] = io.nearestUncertainObstacleDist;
+      d["nearest_teammate_front_dist"] = io.nearestTeammateFrontDist;
+      d["nearest_opponent_front_dist"] = io.nearestOpponentFrontDist;
+      d["nearest_uncertain_front_dist"] = io.nearestUncertainFrontDist;
       d["requested_skill"] = io.getSkill();
       d["requested_pass_target"] = io.passTarget;
       d["motion_request"] = io.debugMotionRequest;

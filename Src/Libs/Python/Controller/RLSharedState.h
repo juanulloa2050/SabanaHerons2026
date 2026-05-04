@@ -35,6 +35,27 @@ struct RLPlayerIO
   unsigned int frame = 0;
   bool obsReady = false;
 
+  float ballRelX = 0.f;
+  float ballRelY = 0.f;
+  float ballEndRelX = 0.f;
+  float ballEndRelY = 0.f;
+  float ballVelX = 0.f;
+  float ballVelY = 0.f;
+  float timeSinceBallSeen = 0.f;
+  float timeSinceBallDisappeared = 0.f;
+  float ballSeenPercentage = 0.f;
+  bool ballConsistentWithGameState = false;
+  bool canScoreNow = false;
+  float shotQualityNoObstacles = 0.f;
+  float shotOpeningWithObstacles = 0.f;
+  float passOptionsCount = 0.f;
+  float nearestTeammateDist = 0.f;
+  float nearestOpponentDist = 0.f;
+  float nearestUncertainObstacleDist = 0.f;
+  float nearestTeammateFrontDist = 0.f;
+  float nearestOpponentFrontDist = 0.f;
+  float nearestUncertainFrontDist = 0.f;
+
   float resetBallX = 0.f;
   float resetBallY = 0.f;
   float resetRobotX = 0.f;
