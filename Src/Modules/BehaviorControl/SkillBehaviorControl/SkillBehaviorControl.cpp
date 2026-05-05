@@ -217,6 +217,12 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
       io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
       io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
+      io.debugBallPerceptStatus = static_cast<int>(theBallPercept.status);
+      io.debugBallPerceptX = theBallPercept.positionOnField.x();
+      io.debugBallPerceptY = theBallPercept.positionOnField.y();
+      io.debugFilteredBallPercepts = static_cast<int>(theFilteredBallPercepts.percepts.size());
+      io.debugBallModelLastSeen = theBallModel.timeWhenLastSeen;
+      io.debugBallModelDisappeared = theBallModel.timeWhenDisappeared;
       io.frame = theFrameInfo.time;
       io.obsReady = true;
       postObs = true;

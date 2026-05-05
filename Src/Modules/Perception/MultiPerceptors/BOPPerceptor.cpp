@@ -11,6 +11,8 @@
 #include "Platform/BHAssert.h"
 #include "Platform/File.h"
 #include "Debugging/DebugImages.h"
+#include "Framework/Settings.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Streaming/Global.h"
 #include "ImageProcessing/Image.h"
 #include "Tools/Math/InImageSizeCalculations.h"
@@ -109,17 +111,29 @@ void BOPPerceptor::update(BallSpots& ballSpots)
   ballSpots.ballSpots.clear();
   ballSpots.firstSpotIsPredicted = false;
 
-  if(!apply())
+  const bool applyOk = apply();
+  const int n = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
+  RLPlayerIO& io = RLSharedState::instance().player(n);
+  bool& debugApplyOk = theCameraInfo.camera == CameraInfo::upper ? io.debugUpperBOPApplyOk : io.debugLowerBOPApplyOk;
+  float& debugMax = theCameraInfo.camera == CameraInfo::upper ? io.debugUpperBOPMax : io.debugLowerBOPMax;
+  int& debugSpots = theCameraInfo.camera == CameraInfo::upper ? io.debugUpperBallSpots : io.debugLowerBallSpots;
+  debugApplyOk = applyOk;
+  debugMax = -1.f;
+  debugSpots = 0;
+
+  if(!applyOk)
     return;
 
   const float* data = network.output(0).data();
 
   Vector2i maxPos;
+  float rawMax = 0.f;
   float max = ballThreshold;
   for(int y = 0; y < outputSize.y(); ++y)
     for(int x = 0; x < outputSize.x(); ++x)
     {
       const float f = *data;
+      rawMax = std::max(rawMax, f);
       if(f > max)
       {
         max = f;
@@ -128,8 +142,10 @@ void BOPPerceptor::update(BallSpots& ballSpots)
       }
       data += numOfChannels;
     }
+  debugMax = rawMax;
   if(max > ballThreshold)
     ballSpots.addBallSpot(maxPos.x() * scale.x() + scale.x() / 2, maxPos.y() * scale.y() + scale.y() / 2);
+  debugSpots = static_cast<int>(ballSpots.ballSpots.size());
 }
 
 void BOPPerceptor::update(PenaltyMarkRegions& penaltyMarkRegions)
