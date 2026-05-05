@@ -8,9 +8,6 @@
 #include "Debugging/Debugging.h"
 #include "Tools/Math/InImageSizeCalculations.h"
 #include "ImageProcessing/PixelTypes.h"
-#include "Framework/Settings.h"
-#include "Python/Controller/RLSharedState.h"
-#include "Streaming/Global.h"
 #include "Tools/Math/Transformation.h"
 
 #include <cmath>
@@ -39,13 +36,6 @@ void BallSpotsProvider::update(BallSpots& ballSpots)
   }
 
   searchScanLines(ballSpots);
-
-  const int n = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
-  RLPlayerIO& io = RLSharedState::instance().player(n);
-  if(theCameraInfo.camera == CameraInfo::upper)
-    io.debugUpperBallSpots = static_cast<int>(ballSpots.ballSpots.size());
-  else
-    io.debugLowerBallSpots = static_cast<int>(ballSpots.ballSpots.size());
 }
 
 void BallSpotsProvider::searchScanLines(BallSpots& ballSpots) const
