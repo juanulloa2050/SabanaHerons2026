@@ -31,7 +31,7 @@
     <Compound name="robots">
       <Body ref="Nao" name="robot1">
         <Set name="NaoColor" value="black"/>
-        <Translation x="0.9" z="320mm"/>
+        <Translation x="2.438" y="-1.875" z="320mm"/>
         <Rotation z="180degree"/>
       </Body>
     </Compound>
