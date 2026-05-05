@@ -13,8 +13,6 @@
 #include "Platform/SystemCall.h"
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/Stopwatch.h"
-#include "Framework/Settings.h"
-#include "Python/Controller/RLSharedState.h"
 #include "Streaming/Global.h"
 #include "Tools/Math/Projection.h"
 #include "Tools/Math/Transformation.h"
@@ -37,52 +35,15 @@ void BallPerceptor::update(BallPercept& theBallPercept)
     compile();
 
   theBallPercept.status = BallPercept::notSeen;
-  float bestProb = -1.f;
-  int rejectStage = -1;
-  Vector2f bestSpot = Vector2f::Zero();
-  auto publishDebug = [&]
-  {
-    const int n = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
-    RLPlayerIO& io = RLSharedState::instance().player(n);
-    if(theCameraInfo.camera == CameraInfo::upper)
-    {
-      io.debugUpperBallSpots = static_cast<int>(theBallSpots.ballSpots.size());
-      io.debugUpperBallPerceptStatus = static_cast<int>(theBallPercept.status);
-      io.debugUpperBallPerceptBestProb = bestProb;
-      io.debugUpperCameraMatrixValid = theCameraMatrix.isValid;
-      io.debugUpperBallRejectStage = rejectStage;
-      io.debugUpperBestSpotX = bestSpot.x();
-      io.debugUpperBestSpotY = bestSpot.y();
-    }
-    else
-    {
-      io.debugLowerBallSpots = static_cast<int>(theBallSpots.ballSpots.size());
-      io.debugLowerBallPerceptStatus = static_cast<int>(theBallPercept.status);
-      io.debugLowerBallPerceptBestProb = bestProb;
-      io.debugLowerCameraMatrixValid = theCameraMatrix.isValid;
-      io.debugLowerBallRejectStage = rejectStage;
-      io.debugLowerBestSpotX = bestSpot.x();
-      io.debugLowerBestSpotY = bestSpot.y();
-    }
-  };
 
   if(!encoder.valid() || !classifier.valid() || !corrector.valid())
-  {
-    rejectStage = 0;
-    publishDebug();
     return;
-  }
 
   const std::vector<Vector2i>& ballSpots = theBallSpots.ballSpots;
   if(ballSpots.empty())
-  {
-    rejectStage = 1;
-    publishDebug();
     return;
-  }
 
-  float prob;
-  bestProb = guessedThreshold;
+  float prob, bestProb = guessedThreshold;
   Vector2f ballPosition, bestBallPosition;
   float radius, bestRadius;
   for(std::size_t i = 0; i < ballSpots.size(); ++i)
@@ -99,7 +60,6 @@ void BallPerceptor::update(BallPercept& theBallPercept)
     if(prob > bestProb)
     {
       bestProb = prob;
-      bestSpot = ballSpots[i].cast<float>();
       bestBallPosition = ballPosition;
       bestRadius = radius;
       if(SystemCall::getMode() == SystemCall::physicalRobot && prob >= ensureThreshold)
@@ -109,7 +69,6 @@ void BallPerceptor::update(BallPercept& theBallPercept)
 
   if(bestProb > guessedThreshold)
   {
-    rejectStage = 2;
     theBallPercept.positionInImage = bestBallPosition;
     theBallPercept.radiusInImage = bestRadius;
 
@@ -118,15 +77,9 @@ void BallPerceptor::update(BallPercept& theBallPercept)
                                                        theBallPercept.positionOnField, theBallPercept.covarianceOnField))
     {
       theBallPercept.status = bestProb >= acceptThreshold ? BallPercept::seen : BallPercept::guessed;
-      rejectStage = 3;
-      publishDebug();
       return;
     }
-
-    rejectStage = 4;
   }
-  else
-    rejectStage = 5;
 
   // Special ball handling for penalty goal keeper
   if((theGameState.state == GameState::opponentPenaltyShot || theGameState.state == GameState::opponentPenaltyKick) &&
@@ -159,7 +112,6 @@ void BallPerceptor::update(BallPercept& theBallPercept)
     }
   }
 
-  publishDebug();
 }
 
 float BallPerceptor::apply(const Vector2i& ballSpot, Vector2f& ballPosition, float& predRadius)

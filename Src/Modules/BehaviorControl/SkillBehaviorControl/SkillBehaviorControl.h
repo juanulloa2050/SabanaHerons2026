@@ -35,7 +35,6 @@
 #include "Representations/Infrastructure/SensorData/JointSensorData.h"
 #include "Representations/Infrastructure/SensorData/KeyStates.h"
 #include "Representations/Modeling/BallModel.h"
-#include "Representations/Modeling/FilteredBallPercepts.h"
 #include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Modeling/TeammatesBallModel.h"
@@ -44,7 +43,6 @@
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Representations/MotionControl/OdometryData.h"
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
-#include "Representations/Perception/BallPercepts/BallPercept.h"
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
@@ -65,7 +63,6 @@ class SkillBehaviorControl;
 MODULE(SkillBehaviorControl,
 {,
   REQUIRES(BallModel),
-  REQUIRES(BallPercept),
   REQUIRES(BallSpecification),
   REQUIRES(BehaviorParameters),
   REQUIRES(CameraInfo),
@@ -76,7 +73,6 @@ MODULE(SkillBehaviorControl,
   REQUIRES(ExtendedGameState),
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
-  REQUIRES(FilteredBallPercepts),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
   REQUIRES(GoaliePose),
