@@ -160,6 +160,8 @@ void SkillBehaviorControl::update(ActivationGraph&)
       const Pose2f robotPose(io.sim2D.robotTheta, io.sim2D.robotX, io.sim2D.robotY);
       const Vector2f ballOnField(io.sim2D.ballX, io.sim2D.ballY);
       const Vector2f ballRelative = robotPose.inverse() * ballOnField;
+      const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
+      const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
       io.ballRelX = ballRelative.x();
       io.ballRelY = ballRelative.y();
       io.ballEndRelX = ballRelative.x();
@@ -170,9 +172,9 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.timeSinceBallDisappeared = 0.f;
       io.ballSeenPercentage = 100.f;
       io.ballConsistentWithGameState = true;
-      io.canScoreNow = false;
-      io.shotQualityNoObstacles = 0.f;
-      io.shotOpeningWithObstacles = 0.f;
+      io.canScoreNow = shotOpeningWithObstacles > 0.8f;
+      io.shotQualityNoObstacles = shotQualityNoObstacles;
+      io.shotOpeningWithObstacles = shotOpeningWithObstacles;
       io.passOptionsCount = 0.f;
       io.nearestTeammateDist = 9000.f;
       io.nearestOpponentDist = 9000.f;
@@ -190,6 +192,8 @@ void SkillBehaviorControl::update(ActivationGraph&)
       const Vector2f ballRelative = theFieldBall.positionRelative;
       const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
       const Vector2f ballVelocity = theBallModel.estimate.velocity;
+      const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
+      const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
       const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
 
       io.ballX = ballOnField.x();
@@ -207,9 +211,9 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
       io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
       io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
-      io.canScoreNow = false;
-      io.shotQualityNoObstacles = 0.f;
-      io.shotOpeningWithObstacles = 0.f;
+      io.canScoreNow = shotOpeningWithObstacles > 0.8f;
+      io.shotQualityNoObstacles = shotQualityNoObstacles;
+      io.shotOpeningWithObstacles = shotOpeningWithObstacles;
       io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
       io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
       io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);

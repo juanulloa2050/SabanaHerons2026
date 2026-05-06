@@ -11,6 +11,7 @@
 #include "Libs/Math/Random.h"
 #include "Representations/BehaviorControl/ActivationGraph.h"
 #include "Representations/BehaviorControl/BehaviorStatus.h"
+#include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/GoaliePose.h"
 #include "Representations/BehaviorControl/IllegalAreas.h"
@@ -71,6 +72,7 @@ MODULE(SkillBehaviorControl,
   REQUIRES(DamageConfigurationBody),
   REQUIRES(EnhancedKeyStates),
   REQUIRES(ExtendedGameState),
+  REQUIRES(ExpectedGoals),
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
   REQUIRES(FrameInfo),
