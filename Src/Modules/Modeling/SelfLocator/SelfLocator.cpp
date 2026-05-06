@@ -26,7 +26,6 @@ SelfLocator::SelfLocator() : lastTimeJumpSound(0),
   samples = new SampleSet<UKFRobotPoseHypothesis>(numberOfSamples);
   for(int i = 0; i < samples->size(); ++i)
     samples->at(i).init(getNewPoseAtWalkInPosition(), walkInPoseDeviation, nextSampleNumber++, 0.5f);
-  lastGroundTruthRobotPose = theGroundTruthRobotPose;
 
   // Initialize statistics:
   sumOfPerceivedLandmarks = sumOfPerceivedLines = 0;
@@ -50,11 +49,6 @@ void SelfLocator::update(RobotPose& robotPose)
    *  - ...
    */
   handleGameStateChanges();
-
-  DEBUG_RESPONSE("module:SelfLocator:activateSampleResettingToGroundTruth")
-    resetSamplesToGroundTruth();
-  // In any case, remember last ground truth robot pose
-  lastGroundTruthRobotPose = theGroundTruthRobotPose;
 
   /* Move all samples according to the current odometry.
    */
@@ -460,22 +454,6 @@ bool SelfLocator::sensorResetting(const RobotPose& robotPose)
     return true;
   }
   return false;
-}
-
-void SelfLocator::resetSamplesToGroundTruth()
-{
-  if(theGroundTruthRobotPose.timestamp != theFrameInfo.time)
-    return;
-  const float distanceDeviation = std::abs((theGroundTruthRobotPose.translation - lastGroundTruthRobotPose.translation).norm());
-  const float rotationDeviation = std::abs(Angle::normalize(theGroundTruthRobotPose.rotation - lastGroundTruthRobotPose.rotation));
-  // Numbers are guessed and hardcoded, but this is a debugging function anyway ...
-  if(distanceDeviation > 300.f || rotationDeviation > Angle::fromDegrees(30.f))
-  {
-    for(int i = 0; i < samples->size(); ++i)
-      samples->at(i).init(theGroundTruthRobotPose, penaltyShootoutPoseDeviation, nextSampleNumber++, 0.9f);
-    sampleSetHasBeenReset = true;
-    idOfLastBestSample = -1;
-  }
 }
 
 bool SelfLocator::alternativeRobotPoseIsCompatibleToPose(const Pose2f& robotPose)
