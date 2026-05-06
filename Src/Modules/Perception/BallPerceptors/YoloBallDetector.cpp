@@ -81,26 +81,22 @@ void YoloBallDetector::update(BallPercept& bp)
     const unsigned sz   = W * H * 4;              // 4 bytes per YUYVPixel
     frameBuf.resize(sz);
     std::memcpy(frameBuf.data(), theCameraImage[0], sz);
-    frameW            = W * 2;   // actual pixel width
-    frameH            = H;
-    frameCameraInfo   = theCameraInfo;
-    frameCameraMatrix = theCameraMatrix;
-    ++frameSequence;
-    frameReady        = true;
+    frameW      = W * 2;   // actual pixel width
+    frameH      = H;
+    frameCamera = theCameraInfo.camera;
+    frameReady  = true;
   }
   frameCV.notify_one();
 
   // Read latest detection
   Det det;
-  std::chrono::steady_clock::time_point detectionTime;
   {
     std::lock_guard<std::mutex> lk(detMtx);
-    det           = latestDet;
-    detectionTime = detTime;
+    det = latestDet;
   }
 
   const auto now   = std::chrono::steady_clock::now();
-  const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detectionTime).count();
+  const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detTime).count();
   if(!det.valid || ageMs > timeoutMs)
   {
     consecutiveSeen = 0;
@@ -113,34 +109,28 @@ void YoloBallDetector::update(BallPercept& bp)
 
   bool geomOk = Transformation::imageToRobotHorizontalPlane(
       imgPos, theBallSpecification.radius,
-      det.cameraMatrix, det.cameraInfo, fieldPos)
+      theCameraMatrix, theCameraInfo, fieldPos)
     && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
 
-  if(!geomOk && det.cameraInfo.camera == CameraInfo::upper)
+  if(!geomOk && theCameraInfo.camera == CameraInfo::upper)
     geomOk = Transformation::imageToRobotHorizontalPlane(
-        imgPos, 0.f, det.cameraMatrix, det.cameraInfo, fieldPos)
+        imgPos, 0.f, theCameraMatrix, theCameraInfo, fieldPos)
       && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
 
-  if(!geomOk && det.cameraInfo.camera == CameraInfo::upper && det.radius > 0.f)
+  if(!geomOk && theCameraInfo.camera == CameraInfo::upper && det.radius > 0.f)
   {
-    const float dist = det.cameraInfo.focalLength * theBallSpecification.radius / det.radius;
-    const float ang  = std::atan2(imgPos.x() - det.cameraInfo.width * 0.5f,
-                                  det.cameraInfo.focalLength);
+    const float dist = theCameraInfo.focalLength * theBallSpecification.radius / det.radius;
+    const float ang  = std::atan2(imgPos.x() - theCameraInfo.width * 0.5f,
+                                  theCameraInfo.focalLength);
     fieldPos = Vector2f(dist * std::cos(ang), dist * std::sin(ang));
     geomOk   = dist > 0.f && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
   }
 
   if(!geomOk) { consecutiveSeen = 0; return; }
 
-  if(det.sequence != lastProcessedSequence)
-  {
-    lastProcessedSequence = det.sequence;
-    ++consecutiveSeen;
-  }
-
-  const int minConsec = (det.cameraInfo.camera == CameraInfo::upper)
+  const int minConsec = (theCameraInfo.camera == CameraInfo::upper)
                         ? upperMinConsecutive : lowerMinConsecutive;
-  if(consecutiveSeen < minConsec) return;
+  if(++consecutiveSeen < minConsec) return;
 
   bp.status            = BallPercept::seen;
   bp.positionInImage   = imgPos;
@@ -163,9 +153,7 @@ void YoloBallDetector::inferenceLoop()
   std::vector<unsigned char> localBuf;
   unsigned                   localW      = 0;
   unsigned                   localH      = 0;
-  CameraInfo                 localCameraInfo;
-  CameraMatrix               localCameraMatrix;
-  unsigned                   localSequence = 0;
+  CameraInfo::Camera         localCamera = CameraInfo::lower;
   std::vector<float>         tensor(1 * 3 * MODEL_H * MODEL_W);
 
   while(bgRunning)
@@ -174,13 +162,11 @@ void YoloBallDetector::inferenceLoop()
       std::unique_lock<std::mutex> lk(frameMtx);
       frameCV.wait(lk, [this]{ return frameReady || !bgRunning; });
       if(!bgRunning) break;
-      localBuf          = frameBuf;
-      localW            = frameW;
-      localH            = frameH;
-      localCameraInfo   = frameCameraInfo;
-      localCameraMatrix = frameCameraMatrix;
-      localSequence     = frameSequence;
-      frameReady        = false;
+      localBuf    = frameBuf;
+      localW      = frameW;
+      localH      = frameH;
+      localCamera = frameCamera;
+      frameReady  = false;
     }
 
     if(!buildTensor(localBuf.data(), static_cast<int>(localW), static_cast<int>(localH),
@@ -208,7 +194,7 @@ void YoloBallDetector::inferenceLoop()
       if(shape.size() < 3) continue;
 
       const int64_t N          = shape[2];
-      const float   confThresh = (localCameraInfo.camera == CameraInfo::upper) ? upperConf : lowerConf;
+      const float   confThresh = (localCamera == CameraInfo::upper) ? upperConf : lowerConf;
 
       // Letterbox scale using actual camera dims (same as buildTensor)
       const float lbScale = std::min(static_cast<float>(MODEL_W) / localW,
@@ -225,9 +211,6 @@ void YoloBallDetector::inferenceLoop()
       }
 
       Det result;
-      result.sequence     = localSequence;
-      result.cameraInfo   = localCameraInfo;
-      result.cameraMatrix = localCameraMatrix;
       if(bestIdx >= 0)
       {
         const float cx_m = data[0 * N + bestIdx];
