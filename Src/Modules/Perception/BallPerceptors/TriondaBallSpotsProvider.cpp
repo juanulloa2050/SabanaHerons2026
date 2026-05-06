@@ -172,12 +172,8 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
       ballSpots.addBallSpot(b.cx(), b.cy());
   }
 
-  if(++logCounter >= 30)
-  {
-    logCounter = 0;
-    OUTPUT_TEXT("[TriondaBallSpotsProvider] cam="
-                << (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower")
-                << " blobs=" << static_cast<unsigned int>(blobs.size())
-                << " emitted=" << static_cast<unsigned int>(ballSpots.ballSpots.size()));
-  }
+  OUTPUT_TEXT("[TriondaBallSpotsProvider] cam="
+              << (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower")
+              << " blobs=" << static_cast<unsigned int>(blobs.size())
+              << " emitted=" << static_cast<unsigned int>(ballSpots.ballSpots.size()));
 }
