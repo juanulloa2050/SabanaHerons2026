@@ -9,6 +9,7 @@
 #include "SkillBehaviorControl.h"
 #include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"
+#include <cmath>
 #include <limits>
 #include <string>
 
@@ -18,12 +19,21 @@ namespace
 {
   struct ObstacleSummary
   {
+    int count = 0;
+    int teammateCount = 0;
+    int opponentCount = 0;
+    int uncertainCount = 0;
+    int frontCount = 0;
     float nearestTeammate = std::numeric_limits<float>::max();
     float nearestOpponent = std::numeric_limits<float>::max();
     float nearestUncertain = std::numeric_limits<float>::max();
     float nearestTeammateFront = std::numeric_limits<float>::max();
     float nearestOpponentFront = std::numeric_limits<float>::max();
     float nearestUncertainFront = std::numeric_limits<float>::max();
+    float nearestObstacle = std::numeric_limits<float>::max();
+    float nearestObstacleAngle = 0.f;
+    float nearestFrontObstacle = std::numeric_limits<float>::max();
+    float nearestOpponentAngle = 0.f;
   };
 
   void updateNearest(float distance, bool isFront, float& nearest, float& nearestFront)
@@ -39,14 +49,38 @@ namespace
     ObstacleSummary summary;
     for(const Obstacle& obstacle : obstacleModel.obstacles)
     {
+      ++summary.count;
       const float distance = obstacle.center.norm();
       const bool isFront = obstacle.center.x() > 0.f;
+      const float angle = std::atan2(obstacle.center.y(), obstacle.center.x());
+      if(distance < summary.nearestObstacle)
+      {
+        summary.nearestObstacle = distance;
+        summary.nearestObstacleAngle = angle;
+      }
+      if(isFront)
+      {
+        ++summary.frontCount;
+        if(distance < summary.nearestFrontObstacle)
+          summary.nearestFrontObstacle = distance;
+      }
       if(obstacle.isTeammate())
+      {
+        ++summary.teammateCount;
         updateNearest(distance, isFront, summary.nearestTeammate, summary.nearestTeammateFront);
+      }
       else if(obstacle.isOpponent())
+      {
+        ++summary.opponentCount;
+        if(distance < summary.nearestOpponent)
+          summary.nearestOpponentAngle = angle;
         updateNearest(distance, isFront, summary.nearestOpponent, summary.nearestOpponentFront);
+      }
       else
+      {
+        ++summary.uncertainCount;
         updateNearest(distance, isFront, summary.nearestUncertain, summary.nearestUncertainFront);
+      }
     }
     return summary;
   }
@@ -138,6 +172,7 @@ void SkillBehaviorControl::update(ActivationGraph&)
   endFrame();
   theSkillRegistry.postProcess();
 
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
   {
     const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
     RLPlayerIO& io = RLSharedState::instance().player(n);
@@ -149,6 +184,24 @@ void SkillBehaviorControl::update(ActivationGraph&)
     io.debugSkillBehaviorWalkTargetX = theMotionRequest.walkTarget.translation.x();
     io.debugSkillBehaviorWalkTargetY = theMotionRequest.walkTarget.translation.y();
     io.debugSkillBehaviorWalkTargetTheta = static_cast<float>(theMotionRequest.walkTarget.rotation);
+    io.debugMotionObstacleAvoidanceX = theMotionRequest.obstacleAvoidance.avoidance.x();
+    io.debugMotionObstacleAvoidanceY = theMotionRequest.obstacleAvoidance.avoidance.y();
+    io.debugMotionObstaclePathCount = static_cast<int>(theMotionRequest.obstacleAvoidance.path.size());
+    if(!theMotionRequest.obstacleAvoidance.path.empty())
+    {
+      const auto& firstSegment = theMotionRequest.obstacleAvoidance.path.front();
+      io.debugMotionObstacleFirstX = firstSegment.obstacle.center.x();
+      io.debugMotionObstacleFirstY = firstSegment.obstacle.center.y();
+      io.debugMotionObstacleFirstRadius = firstSegment.obstacle.radius;
+      io.debugMotionObstacleFirstClockwise = firstSegment.clockwise;
+    }
+    else
+    {
+      io.debugMotionObstacleFirstX = 0.f;
+      io.debugMotionObstacleFirstY = 0.f;
+      io.debugMotionObstacleFirstRadius = 0.f;
+      io.debugMotionObstacleFirstClockwise = false;
+    }
     if(io.sim2D.enabled && io.sim2D.initialized)
     {
       RLSim2D::stepFromMotionRequest(io.sim2D, theMotionRequest);
@@ -182,6 +235,21 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.nearestTeammateFrontDist = 9000.f;
       io.nearestOpponentFrontDist = 9000.f;
       io.nearestUncertainFrontDist = 9000.f;
+      io.debugObstacleCount = 0;
+      io.debugObstacleTeammateCount = 0;
+      io.debugObstacleOpponentCount = 0;
+      io.debugObstacleUncertainCount = 0;
+      io.debugObstacleFrontCount = 0;
+      io.debugNearestObstacleDist = 9000.f;
+      io.debugNearestObstacleAngle = 0.f;
+      io.debugNearestFrontObstacleDist = 9000.f;
+      io.debugNearestOpponentAngle = 0.f;
+      io.debugObstacleFieldPerceptCount = 0;
+      io.debugObstacleFieldPerceptOpponentCount = 0;
+      io.debugObstacleFieldPerceptTeammateCount = 0;
+      io.debugObstacleFieldPerceptUnknownCount = 0;
+      io.debugObstacleArmContact = false;
+      io.debugObstacleFootContact = false;
       io.frame = theFrameInfo.time;
       io.obsReady = true;
       postObs = true;
@@ -221,6 +289,15 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
       io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
       io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
+      io.debugObstacleCount = obstacleSummary.count;
+      io.debugObstacleTeammateCount = obstacleSummary.teammateCount;
+      io.debugObstacleOpponentCount = obstacleSummary.opponentCount;
+      io.debugObstacleUncertainCount = obstacleSummary.uncertainCount;
+      io.debugObstacleFrontCount = obstacleSummary.frontCount;
+      io.debugNearestObstacleDist = boundedDistance(obstacleSummary.nearestObstacle, theFieldDimensions);
+      io.debugNearestObstacleAngle = obstacleSummary.nearestObstacleAngle;
+      io.debugNearestFrontObstacleDist = boundedDistance(obstacleSummary.nearestFrontObstacle, theFieldDimensions);
+      io.debugNearestOpponentAngle = obstacleSummary.nearestOpponentAngle;
       io.frame = theFrameInfo.time;
       io.obsReady = true;
       postObs = true;

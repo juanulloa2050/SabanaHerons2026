@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Diagnostic variant: obstacle is a full Nao body in extras instead of robots,
+# keeping a fixed scene pose and low ObstacleModelProvider.minPercepts.
+gc playing

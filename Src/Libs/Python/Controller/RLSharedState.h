@@ -17,6 +17,16 @@
 #include <cstddef>
 #include <string>
 
+namespace RLSharedStateBridge
+{
+  constexpr int teamNumber = 24;
+
+  inline bool isEnabledForTeam(const int currentTeamNumber)
+  {
+    return currentTeamNumber == teamNumber;
+  }
+}
+
 struct RLPlayerIO
 {
   pthread_mutex_t mutex;
@@ -55,6 +65,28 @@ struct RLPlayerIO
   float nearestTeammateFrontDist = 0.f;
   float nearestOpponentFrontDist = 0.f;
   float nearestUncertainFrontDist = 0.f;
+  int debugObstacleCount = 0;
+  int debugObstacleTeammateCount = 0;
+  int debugObstacleOpponentCount = 0;
+  int debugObstacleUncertainCount = 0;
+  int debugObstacleFrontCount = 0;
+  float debugNearestObstacleDist = 0.f;
+  float debugNearestObstacleAngle = 0.f;
+  float debugNearestFrontObstacleDist = 0.f;
+  float debugNearestOpponentAngle = 0.f;
+  int debugObstacleFieldPerceptCount = 0;
+  int debugObstacleFieldPerceptOpponentCount = 0;
+  int debugObstacleFieldPerceptTeammateCount = 0;
+  int debugObstacleFieldPerceptUnknownCount = 0;
+  int debugObstacleAcceptedPerceptCount = 0;
+  int debugObstacleHypothesisCount = 0;
+  int debugObstaclePublishedCount = 0;
+  int debugObstacleMaxSeenCount = 0;
+  int debugObstacleMinPercepts = 0;
+  int debugObstacleCamera = -1;
+  unsigned int debugObstacleFrame = 0;
+  bool debugObstacleArmContact = false;
+  bool debugObstacleFootContact = false;
 
   float resetBallX = 0.f;
   float resetBallY = 0.f;
@@ -77,6 +109,13 @@ struct RLPlayerIO
   float debugSkillBehaviorWalkTargetX = 0.f;
   float debugSkillBehaviorWalkTargetY = 0.f;
   float debugSkillBehaviorWalkTargetTheta = 0.f;
+  float debugMotionObstacleAvoidanceX = 0.f;
+  float debugMotionObstacleAvoidanceY = 0.f;
+  int debugMotionObstaclePathCount = 0;
+  float debugMotionObstacleFirstX = 0.f;
+  float debugMotionObstacleFirstY = 0.f;
+  float debugMotionObstacleFirstRadius = 0.f;
+  bool debugMotionObstacleFirstClockwise = false;
   int debugMotionEngineInputRequest = -1;
   int debugMotionEngineEffectiveRequest = -1;
   int debugMotionEnginePhase = -1;
@@ -93,6 +132,13 @@ struct RLPlayerIO
   float debugWalkToPoseStepX = 0.f;
   float debugWalkToPoseStepY = 0.f;
   float debugWalkToPoseStepTheta = 0.f;
+  float debugWalkToPoseAvoidanceX = 0.f;
+  float debugWalkToPoseAvoidanceY = 0.f;
+  int debugWalkToPosePathCount = 0;
+  float debugWalkToPoseFirstObstacleX = 0.f;
+  float debugWalkToPoseFirstObstacleY = 0.f;
+  float debugWalkToPoseFirstObstacleRadius = 0.f;
+  bool debugWalkToPoseFirstObstacleClockwise = false;
   bool debugMotionEngineGroundContact = false;
   int debugExecutedPhase = -1;
   float debugMotionSpeedX = 0.f;
