@@ -13,6 +13,8 @@
 #include "Math/BHMath.h"
 #include "Math/Rotation.h"
 #include "Python/Controller/RLSharedState.h"
+#include "Framework/Settings.h"
+#include "Streaming/Global.h"
 #include "Tools/Motion/MotionUtilities.h"
 
 MAKE_MODULE(MotionEngine);
@@ -234,8 +236,10 @@ void MotionEngine::update(JointRequest& jointRequest)
   // Set this unused timestamp.
   jointRequest.timestamp = theFrameInfo.time;
 
+  if(RLSharedStateBridge::isEnabledForTeam(Global::getSettings().teamNumber))
   {
-    RLPlayerIO& io = RLSharedState::instance().player(1);
+    const int playerNumber = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
     io.lock();
     io.debugMotionEngineInputRequest = static_cast<int>(requestedMotion.motion);
     io.debugMotionEngineEffectiveRequest = static_cast<int>(motionRequest.motion);

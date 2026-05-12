@@ -11,6 +11,7 @@
 #include "ObstacleModelProvider.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Representations/Communication/TeamData.h"
 #include "Tools/Math/Transformation.h"
 
@@ -23,6 +24,24 @@ void ObstacleModelProvider::update(ObstacleModel& obstacleModel)
   DECLARE_DEBUG_DRAWING("module:ObstacleModelProvider:changeTeam", "drawingOnField");
   DECLARE_DEBUG_DRAWING("module:ObstacleModelProvider:cameraAngle", "drawingOnField");
   DECLARE_DEBUG_DRAWING("module:ObstacleModelProvider:obstacleNotSeen", "drawingOnImage");
+
+  int perceptCount = 0;
+  int perceptOpponentCount = 0;
+  int perceptTeammateCount = 0;
+  int perceptUnknownCount = 0;
+  acceptedPerceptCount = 0;
+  for(const ObstaclesFieldPercept::Obstacle& percept : theObstaclesFieldPercept.obstacles)
+  {
+    ++perceptCount;
+    if(percept.type == ObstaclesFieldPercept::opponentPlayer || percept.type == ObstaclesFieldPercept::opponentGoalkeeper)
+      ++perceptOpponentCount;
+    else if(percept.type == ObstaclesFieldPercept::ownPlayer || percept.type == ObstaclesFieldPercept::ownGoalkeeper)
+      ++perceptTeammateCount;
+    else
+      ++perceptUnknownCount;
+  }
+  const bool hasArmContact = theArmContactModel.status[Arms::left].contact || theArmContactModel.status[Arms::right].contact;
+  const bool hasFootContact = theFootBumperState.status[Legs::left].contact || theFootBumperState.status[Legs::right].contact;
 
   CIRCLE("module:ObstacleModelProvider:maxDistance", theRobotPose.translation.x(), theRobotPose.translation.y(), maxDistance, 6, Drawings::dottedPen,
          ColorRGBA::black, Drawings::noBrush, ColorRGBA::black);
@@ -54,6 +73,31 @@ void ObstacleModelProvider::update(ObstacleModel& obstacleModel)
   {
     if(isObstacle(ob))
       obstacleModel.obstacles.emplace_back(ob);
+  }
+
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    int maxSeenCount = 0;
+    for(const auto& obstacle : obstacleHypotheses)
+      maxSeenCount = std::max(maxSeenCount, static_cast<int>(obstacle.seenCount));
+
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    io.lock();
+    io.debugObstacleFieldPerceptCount = perceptCount;
+    io.debugObstacleFieldPerceptOpponentCount = perceptOpponentCount;
+    io.debugObstacleFieldPerceptTeammateCount = perceptTeammateCount;
+    io.debugObstacleFieldPerceptUnknownCount = perceptUnknownCount;
+    io.debugObstacleAcceptedPerceptCount = acceptedPerceptCount;
+    io.debugObstacleHypothesisCount = static_cast<int>(obstacleHypotheses.size());
+    io.debugObstaclePublishedCount = static_cast<int>(obstacleModel.obstacles.size());
+    io.debugObstacleMaxSeenCount = maxSeenCount;
+    io.debugObstacleMinPercepts = static_cast<int>(minPercepts);
+    io.debugObstacleCamera = static_cast<int>(theCameraInfo.camera);
+    io.debugObstacleFrame = theFrameInfo.time;
+    io.debugObstacleArmContact = hasArmContact;
+    io.debugObstacleFootContact = hasFootContact;
+    io.unlock();
   }
 }
 
@@ -189,6 +233,7 @@ void ObstacleModelProvider::addPlayerPercepts()
     // Too far away?
     if(percept.center.squaredNorm() >= sqr(maxDistance))
       continue;
+    ++acceptedPerceptCount;
 
     // TODO: Consider handling the goalkeepers in a different way.
     Obstacle::Type type = (percept.type == ObstaclesFieldPercept::opponentPlayer || percept.type == ObstaclesFieldPercept::opponentGoalkeeper)  ? (percept.fallen ? Obstacle::fallenOpponent : Obstacle::opponent)

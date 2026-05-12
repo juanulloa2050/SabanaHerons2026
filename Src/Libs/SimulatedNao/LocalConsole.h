@@ -52,6 +52,7 @@ private:
   Semaphore updateSignal; /**< A signal used for synchronizing main() and update(). */
   Semaphore updatedSignal; /**< A signal used for yielding processing time to main(). */
   int playerNumber = 1; /**< The player number used by the RL shared-state bridge. */
+  bool rlSharedStateEnabled = false; /**< Whether this robot is allowed to use the RL shared-state bridge. */
 
 public:
   /**

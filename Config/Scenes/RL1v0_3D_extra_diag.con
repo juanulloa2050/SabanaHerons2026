@@ -1,0 +1,6 @@
+call Includes/RLNatural
+
+# Diagnostic variant: same scene as RL1v0_3D_extra, but with a location that
+# lowers ObstacleModelProvider.minPercepts to test whether the obstacle is
+# being filtered before it reaches ObstacleModel.
+gc playing

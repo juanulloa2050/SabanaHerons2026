@@ -32,7 +32,8 @@ bool usePyBHRLRootAssist()
 LocalConsole::LocalConsole(const Settings& settings, const std::string& robotName, ConsoleRoboCupCtrl* ctrl, const std::string& logFile, Debug* debug) :
   RobotConsole(settings, robotName, ctrl, logFile.empty() ? SystemCall::simulatedRobot : SystemCall::logFileReplay, connectReceiverWithRobot(debug), connectSenderWithRobot(debug)),
   updatedSignal(1),
-  playerNumber(settings.playerNumber > 0 ? settings.playerNumber : 1)
+  playerNumber(settings.playerNumber > 0 ? settings.playerNumber : 1),
+  rlSharedStateEnabled(RLSharedStateBridge::isEnabledForTeam(settings.teamNumber))
 {
   addPerRobotViews();
 
@@ -225,6 +226,7 @@ void LocalConsole::update()
       simulatedRobot->getOdometryData(robotPose, odometryData);
       simulatedRobot->getSensorData(fsrSensorData, inertialSensorData);
       JointRequest requestForSimulation = jointRequest;
+      if(rlSharedStateEnabled)
       {
         RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
         io.lock();
@@ -277,6 +279,7 @@ void LocalConsole::update()
           appliedRootAssist = true;
         }
       }
+      if(rlSharedStateEnabled)
       {
         RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
         io.lock();
@@ -329,7 +332,7 @@ void LocalConsole::update()
 
 void LocalConsole::applyPendingRLReset()
 {
-  if(!simulatedRobot)
+  if(!simulatedRobot || !rlSharedStateEnabled)
     return;
 
   RLPlayerIO& io = RLSharedState::instance().player(playerNumber);

@@ -127,6 +127,7 @@ class ObstacleModelProvider : public ObstacleModelProviderBase
 
   // Used for writing annotations only once per contact.
   bool armContact[Arms::numOfArms] = { false, false }, footContact[Legs::numOfLegs] = { false, false };
+  int acceptedPerceptCount = 0; /**< Number of percepts that passed the max-distance gate in the current update. */
 
   std::vector<ObstacleHypothesis, Eigen::aligned_allocator<ObstacleHypothesis>> obstacleHypotheses; /**< List of obstacles. */
   std::vector<bool> merged; /**< This is to merge obstacles once for every "percept" per frame. */

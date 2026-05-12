@@ -15,7 +15,7 @@ namespace
 {
 constexpr const char* shmName = "/pybh_rl_shared_state_v3";
 constexpr unsigned int magic = 0x50594248u; // PYBH
-constexpr unsigned int version = 19u;
+constexpr unsigned int version = 21u;
 }
 
 void RLPlayerIO::lock()
