@@ -18,6 +18,37 @@
 
 SimRobot::Object* SimulatedRobot::ball = nullptr;
 
+namespace
+{
+void moveRobotObject(SimRobot::Object* robotObject, const Vector3f& pos, const Vector3f& rot, bool changeRotation)
+{
+  if(!robotObject)
+    return;
+
+  const Vector3f position = pos * 0.001f;
+  if(RoboCupCtrl::controller->is2D)
+  {
+    if(changeRotation)
+      static_cast<SimRobotCore2D::Body*>(robotObject)->move(position.data(), rot.z());
+    else
+      static_cast<SimRobotCore2D::Body*>(robotObject)->move(position.data());
+    return;
+  }
+
+  if(changeRotation)
+  {
+    Matrix3f rotation = RotationMatrix::fromEulerAngles(rot);
+    float rotation2[3][3];
+    for(int i = 0; i < 3; ++i)
+      for(int j = 0; j < 3; ++j)
+        rotation2[i][j] = rotation(j, i);
+    static_cast<SimRobotCore2::Body*>(robotObject)->move(&position.x(), rotation2);
+  }
+  else
+    static_cast<SimRobotCore2::Body*>(robotObject)->move(&position.x());
+}
+}
+
 SimulatedRobot::SimulatedRobot(SimRobot::Object* robot) :
   robot(robot)
 {
@@ -145,6 +176,49 @@ void SimulatedRobot::getOdometryData(const Pose2f& robotPose, OdometryData& odom
 void SimulatedRobot::moveRobotPerTeam(const Vector3f& pos, const Vector3f& rot, bool changeRotation)
 {
   moveRobot(firstTeam ? (Vector3f() << -pos.head<2>(), pos.z()).finished() : pos, firstTeam ? (Vector3f() << rot.head<2>(), Angle::normalize(rot.z() + pi)).finished() : rot, changeRotation);
+}
+
+bool SimulatedRobot::hasRobotByNumberPerTeam(int number, bool opponentTeam) const
+{
+  if(number < 1 || number > robotsPerTeam)
+    return false;
+
+  const auto& robots = opponentTeam ? (firstTeam ? secondTeamRobots : firstTeamRobots) : (firstTeam ? firstTeamRobots : secondTeamRobots);
+  for(SimRobot::Object* candidate : robots)
+  {
+    const int absoluteNumber = getNumber(candidate);
+    const int relativeNumber = absoluteNumber > robotsPerTeam ? absoluteNumber - robotsPerTeam : absoluteNumber;
+    if(relativeNumber == number)
+      return true;
+  }
+  return false;
+}
+
+bool SimulatedRobot::moveRobotByNumberPerTeam(int number, bool opponentTeam, const Vector3f& pos, const Vector3f& rot, bool changeRotation)
+{
+  if(number < 1 || number > robotsPerTeam)
+    return false;
+
+  const auto& robots = opponentTeam ? (firstTeam ? secondTeamRobots : firstTeamRobots) : (firstTeam ? firstTeamRobots : secondTeamRobots);
+  SimRobot::Object* targetRobot = nullptr;
+  for(SimRobot::Object* candidate : robots)
+  {
+    const int absoluteNumber = getNumber(candidate);
+    const int relativeNumber = absoluteNumber > robotsPerTeam ? absoluteNumber - robotsPerTeam : absoluteNumber;
+    if(relativeNumber == number)
+    {
+      targetRobot = candidate;
+      break;
+    }
+  }
+
+  if(!targetRobot)
+    return false;
+
+  const Vector3f transformedPos = firstTeam ? (Vector3f() << -pos.head<2>(), pos.z()).finished() : pos;
+  const Vector3f transformedRot = firstTeam ? (Vector3f() << rot.head<2>(), Angle::normalize(rot.z() + pi)).finished() : rot;
+  moveRobotObject(targetRobot, transformedPos, transformedRot, changeRotation);
+  return true;
 }
 
 void SimulatedRobot::moveBallPerTeam(const Vector3f& pos, bool resetDynamics)

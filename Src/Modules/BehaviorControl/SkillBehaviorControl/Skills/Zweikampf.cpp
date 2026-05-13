@@ -37,8 +37,10 @@
 #include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/MotionControl/WalkingEngineOutput.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Tools/BehaviorControl/Framework/Skill/Skill.h"
 #include "Tools/BehaviorControl/SectorWheel.h"
+#include "Streaming/Global.h"
 #include "Debugging/DebugDrawings.h"
 #include "MathBase/Approx.h"
 #include <cmath>
@@ -319,6 +321,16 @@ class ZweikampfImpl : public ZweikampfImplBase
 
   void execute(const Zweikampf&) override
   {
+    if(RLSharedStateBridge::isEnabledForTeam(Global::getSettings().teamNumber))
+    {
+      const int playerNumber = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
+      RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
+      io.lock();
+      io.debugZweikampfActive = true;
+      ++io.debugZweikampfCallCount;
+      io.unlock();
+    }
+
     STOPWATCH("skill:Zweikampf:duel")
     {
       calculateUseBallPosition();

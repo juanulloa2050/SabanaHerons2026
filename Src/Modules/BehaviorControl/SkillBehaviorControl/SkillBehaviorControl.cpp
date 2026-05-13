@@ -167,6 +167,15 @@ void SkillBehaviorControl::update(ActivationGraph&)
   theSkillRegistry.preProcess(theFrameInfo.time);
   beginFrame(theFrameInfo.time);
 
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    io.lock();
+    io.debugZweikampfActive = false;
+    io.unlock();
+  }
+
   PlaySoccer();
 
   endFrame();
@@ -202,106 +211,51 @@ void SkillBehaviorControl::update(ActivationGraph&)
       io.debugMotionObstacleFirstRadius = 0.f;
       io.debugMotionObstacleFirstClockwise = false;
     }
-    if(io.sim2D.enabled && io.sim2D.initialized)
-    {
-      RLSim2D::stepFromMotionRequest(io.sim2D, theMotionRequest);
-      io.ballX = io.sim2D.ballX;
-      io.ballY = io.sim2D.ballY;
-      io.robotX = io.sim2D.robotX;
-      io.robotY = io.sim2D.robotY;
-      io.robotTheta = io.sim2D.robotTheta;
-      const Pose2f robotPose(io.sim2D.robotTheta, io.sim2D.robotX, io.sim2D.robotY);
-      const Vector2f ballOnField(io.sim2D.ballX, io.sim2D.ballY);
-      const Vector2f ballRelative = robotPose.inverse() * ballOnField;
-      const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
-      const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
-      io.ballRelX = ballRelative.x();
-      io.ballRelY = ballRelative.y();
-      io.ballEndRelX = ballRelative.x();
-      io.ballEndRelY = ballRelative.y();
-      io.ballVelX = 0.f;
-      io.ballVelY = 0.f;
-      io.timeSinceBallSeen = 0.f;
-      io.timeSinceBallDisappeared = 0.f;
-      io.ballSeenPercentage = 100.f;
-      io.ballConsistentWithGameState = true;
-      io.canScoreNow = shotOpeningWithObstacles > 0.8f;
-      io.shotQualityNoObstacles = shotQualityNoObstacles;
-      io.shotOpeningWithObstacles = shotOpeningWithObstacles;
-      io.passOptionsCount = 0.f;
-      io.nearestTeammateDist = 9000.f;
-      io.nearestOpponentDist = 9000.f;
-      io.nearestUncertainObstacleDist = 9000.f;
-      io.nearestTeammateFrontDist = 9000.f;
-      io.nearestOpponentFrontDist = 9000.f;
-      io.nearestUncertainFrontDist = 9000.f;
-      io.debugObstacleCount = 0;
-      io.debugObstacleTeammateCount = 0;
-      io.debugObstacleOpponentCount = 0;
-      io.debugObstacleUncertainCount = 0;
-      io.debugObstacleFrontCount = 0;
-      io.debugNearestObstacleDist = 9000.f;
-      io.debugNearestObstacleAngle = 0.f;
-      io.debugNearestFrontObstacleDist = 9000.f;
-      io.debugNearestOpponentAngle = 0.f;
-      io.debugObstacleFieldPerceptCount = 0;
-      io.debugObstacleFieldPerceptOpponentCount = 0;
-      io.debugObstacleFieldPerceptTeammateCount = 0;
-      io.debugObstacleFieldPerceptUnknownCount = 0;
-      io.debugObstacleArmContact = false;
-      io.debugObstacleFootContact = false;
-      io.frame = theFrameInfo.time;
-      io.obsReady = true;
-      postObs = true;
-    }
-    else
-    {
-      const Vector2f ballOnField = theFieldBall.positionOnField;
-      const Vector2f ballRelative = theFieldBall.positionRelative;
-      const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
-      const Vector2f ballVelocity = theBallModel.estimate.velocity;
-      const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
-      const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
-      const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
+    const Vector2f ballOnField = theFieldBall.positionOnField;
+    const Vector2f ballRelative = theFieldBall.positionRelative;
+    const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
+    const Vector2f ballVelocity = theBallModel.estimate.velocity;
+    const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
+    const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
+    const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
 
-      io.ballX = ballOnField.x();
-      io.ballY = ballOnField.y();
-      io.robotX = theRobotPose.translation.x();
-      io.robotY = theRobotPose.translation.y();
-      io.robotTheta = static_cast<float>(theRobotPose.rotation);
-      io.ballRelX = ballRelative.x();
-      io.ballRelY = ballRelative.y();
-      io.ballEndRelX = ballEndRelative.x();
-      io.ballEndRelY = ballEndRelative.y();
-      io.ballVelX = ballVelocity.x();
-      io.ballVelY = ballVelocity.y();
-      io.timeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
-      io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
-      io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
-      io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
-      io.canScoreNow = shotOpeningWithObstacles > 0.8f;
-      io.shotQualityNoObstacles = shotQualityNoObstacles;
-      io.shotOpeningWithObstacles = shotOpeningWithObstacles;
-      io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
-      io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
-      io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
-      io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);
-      io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
-      io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
-      io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
-      io.debugObstacleCount = obstacleSummary.count;
-      io.debugObstacleTeammateCount = obstacleSummary.teammateCount;
-      io.debugObstacleOpponentCount = obstacleSummary.opponentCount;
-      io.debugObstacleUncertainCount = obstacleSummary.uncertainCount;
-      io.debugObstacleFrontCount = obstacleSummary.frontCount;
-      io.debugNearestObstacleDist = boundedDistance(obstacleSummary.nearestObstacle, theFieldDimensions);
-      io.debugNearestObstacleAngle = obstacleSummary.nearestObstacleAngle;
-      io.debugNearestFrontObstacleDist = boundedDistance(obstacleSummary.nearestFrontObstacle, theFieldDimensions);
-      io.debugNearestOpponentAngle = obstacleSummary.nearestOpponentAngle;
-      io.frame = theFrameInfo.time;
-      io.obsReady = true;
-      postObs = true;
-    }
+    io.ballX = ballOnField.x();
+    io.ballY = ballOnField.y();
+    io.robotX = theRobotPose.translation.x();
+    io.robotY = theRobotPose.translation.y();
+    io.robotTheta = static_cast<float>(theRobotPose.rotation);
+    io.ballRelX = ballRelative.x();
+    io.ballRelY = ballRelative.y();
+    io.ballEndRelX = ballEndRelative.x();
+    io.ballEndRelY = ballEndRelative.y();
+    io.ballVelX = ballVelocity.x();
+    io.ballVelY = ballVelocity.y();
+    io.timeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
+    io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
+    io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
+    io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
+    io.canScoreNow = shotOpeningWithObstacles > 0.8f;
+    io.shotQualityNoObstacles = shotQualityNoObstacles;
+    io.shotOpeningWithObstacles = shotOpeningWithObstacles;
+    io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
+    io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
+    io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
+    io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);
+    io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
+    io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
+    io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
+    io.debugObstacleCount = obstacleSummary.count;
+    io.debugObstacleTeammateCount = obstacleSummary.teammateCount;
+    io.debugObstacleOpponentCount = obstacleSummary.opponentCount;
+    io.debugObstacleUncertainCount = obstacleSummary.uncertainCount;
+    io.debugObstacleFrontCount = obstacleSummary.frontCount;
+    io.debugNearestObstacleDist = boundedDistance(obstacleSummary.nearestObstacle, theFieldDimensions);
+    io.debugNearestObstacleAngle = obstacleSummary.nearestObstacleAngle;
+    io.debugNearestFrontObstacleDist = boundedDistance(obstacleSummary.nearestFrontObstacle, theFieldDimensions);
+    io.debugNearestOpponentAngle = obstacleSummary.nearestOpponentAngle;
+    io.frame = theFrameInfo.time;
+    io.obsReady = true;
+    postObs = true;
     io.unlock();
     if(postObs)
       io.postObs();
