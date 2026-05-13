@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "RLSim2D.h"
-
 #include <pthread.h>
 #include <semaphore.h>
 
@@ -20,12 +18,22 @@
 namespace RLSharedStateBridge
 {
   constexpr int teamNumber = 24;
+  constexpr int maxWorldPlayersPerTeam = 20;
 
   inline bool isEnabledForTeam(const int currentTeamNumber)
   {
     return currentTeamNumber == teamNumber;
   }
 }
+
+struct RLWorldPlayer
+{
+  int number = 0;
+  float x = 0.f;
+  float y = 0.f;
+  float theta = 0.f;
+  bool upright = true;
+};
 
 struct RLPlayerIO
 {
@@ -42,6 +50,9 @@ struct RLPlayerIO
   float robotX = 0.f;
   float robotY = 0.f;
   float robotTheta = 0.f;
+  float simRobotX = 0.f;
+  float simRobotY = 0.f;
+  float simRobotTheta = 0.f;
   unsigned int frame = 0;
   bool obsReady = false;
 
@@ -93,9 +104,35 @@ struct RLPlayerIO
   float resetRobotX = 0.f;
   float resetRobotY = 0.f;
   float resetRobotTheta = 0.f;
+  int resetTeammateCount = 0;
+  std::array<RLWorldPlayer, RLSharedStateBridge::maxWorldPlayersPerTeam> resetTeammates{};
+  int resetOpponentCount = 0;
+  std::array<RLWorldPlayer, RLSharedStateBridge::maxWorldPlayersPerTeam> resetOpponents{};
   unsigned int resetRequestId = 0;
   unsigned int resetAppliedId = 0;
   bool resetPending = false;
+
+  float dynamicBallX = 0.f;
+  float dynamicBallY = 0.f;
+  bool dynamicHasBall = false;
+  float dynamicRobotX = 0.f;
+  float dynamicRobotY = 0.f;
+  float dynamicRobotTheta = 0.f;
+  bool dynamicHasRobotPose = false;
+  int dynamicTeammateCount = 0;
+  std::array<RLWorldPlayer, RLSharedStateBridge::maxWorldPlayersPerTeam> dynamicTeammates{};
+  bool dynamicApplyTeammates = false;
+  int dynamicOpponentCount = 0;
+  std::array<RLWorldPlayer, RLSharedStateBridge::maxWorldPlayersPerTeam> dynamicOpponents{};
+  bool dynamicApplyOpponents = false;
+  unsigned int dynamicRequestId = 0;
+  unsigned int dynamicAppliedId = 0;
+  bool dynamicPending = false;
+
+  unsigned int worldRequestSerial = 0;
+  unsigned int worldResultRequestId = 0;
+  bool worldResultOk = true;
+  char worldResultError[160]{};
 
   int debugMotionRequest = -1;
   int debugProviderMotionRequest = -1;
@@ -109,6 +146,8 @@ struct RLPlayerIO
   float debugSkillBehaviorWalkTargetX = 0.f;
   float debugSkillBehaviorWalkTargetY = 0.f;
   float debugSkillBehaviorWalkTargetTheta = 0.f;
+  bool debugZweikampfActive = false;
+  int debugZweikampfCallCount = 0;
   float debugMotionObstacleAvoidanceX = 0.f;
   float debugMotionObstacleAvoidanceY = 0.f;
   int debugMotionObstaclePathCount = 0;
@@ -160,7 +199,6 @@ struct RLPlayerIO
   float debugRHipPitch = 0.f;
   float debugRKneePitch = 0.f;
 
-  RLSim2DState sim2D;
 
   sem_t obsSignal;
 

@@ -25,8 +25,84 @@
 #include <pybind11/stl.h>
 
 #include <chrono>
+#include <stdexcept>
+#include <unordered_set>
+#include <vector>
 
 namespace py = pybind11;
+
+namespace
+{
+struct BoundWorldPlayer
+{
+  int number;
+  float x;
+  float y;
+  float theta;
+  bool upright;
+};
+
+std::vector<BoundWorldPlayer> parseWorldPlayers(const py::iterable& players, const char* label, bool allowNonUpright)
+{
+  std::vector<BoundWorldPlayer> parsed;
+  std::unordered_set<int> seenNumbers;
+  for(py::handle item : players)
+  {
+    const py::sequence values = py::reinterpret_borrow<py::sequence>(item);
+    if(values.size() != 5)
+      throw std::runtime_error(std::string(label) + " entries must have 5 values: (number, x, y, theta, upright)");
+
+    BoundWorldPlayer player{
+      values[0].cast<int>(),
+      values[1].cast<float>(),
+      values[2].cast<float>(),
+      values[3].cast<float>(),
+      values[4].cast<bool>(),
+    };
+
+    if(player.number < 1 || player.number > RLSharedStateBridge::maxWorldPlayersPerTeam)
+      throw std::runtime_error(std::string(label) + " player number must be within 1..20");
+    if(!seenNumbers.insert(player.number).second)
+      throw std::runtime_error(std::string(label) + " contains duplicate player number " + std::to_string(player.number));
+    if(!allowNonUpright && !player.upright)
+      throw std::runtime_error(std::string(label) + " does not support upright=false in this backend");
+
+    parsed.push_back(player);
+  }
+
+  if(parsed.size() > RLSharedStateBridge::maxWorldPlayersPerTeam)
+    throw std::runtime_error(std::string(label) + " supports at most 20 players");
+  return parsed;
+}
+
+void appendWorldPlayers(std::vector<GroundTruthWorldState::GroundTruthPlayer>& destination, const std::vector<BoundWorldPlayer>& players)
+{
+  for(const BoundWorldPlayer& player : players)
+  {
+    GroundTruthWorldState::GroundTruthPlayer converted;
+    converted.number = player.number;
+    converted.pose = Pose2f(player.theta, player.x, player.y);
+    converted.upright = player.upright;
+    destination.push_back(converted);
+  }
+}
+
+template<typename T, std::size_t N>
+void copyWorldPlayers(std::array<T, N>& destination, int& count, const std::vector<BoundWorldPlayer>& players)
+{
+  count = static_cast<int>(players.size());
+  for(std::size_t i = 0; i < destination.size(); ++i)
+    destination[i] = T{};
+  for(std::size_t i = 0; i < players.size(); ++i)
+  {
+    destination[i].number = players[i].number;
+    destination[i].x = players[i].x;
+    destination[i].y = players[i].y;
+    destination[i].theta = players[i].theta;
+    destination[i].upright = players[i].upright;
+  }
+}
+}
 
 // Required to extract version info.
 #define STRINGIFY(x) #x
@@ -182,45 +258,34 @@ Args:
     py::arg("robot_x"), py::arg("robot_y"),
     py::arg("robot_theta") = 0.f);
 
-  m.def("rl_sim_reset",
-    [](int player_number,
+  m.def("set_world_state_extended",
+    [](Controller& ctrl, int robot_index,
        float ball_x, float ball_y,
-       float robot_x, float robot_y, float robot_theta)
+       float robot_x, float robot_y, float robot_theta,
+       py::iterable teammates, py::iterable opponents)
     {
-      RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      io.lock();
-      RLSim2D::reset(io.sim2D, ball_x, ball_y, robot_x, robot_y, robot_theta);
-      io.ballX = ball_x;
-      io.ballY = ball_y;
-      io.robotX = robot_x;
-      io.robotY = robot_y;
-      io.robotTheta = robot_theta;
-      io.obsReady = false;
-      io.unlock();
+      GroundTruthWorldState ws;
+      GroundTruthWorldState::GroundTruthBall ball;
+      ball.position = Vector3f(ball_x, ball_y, 50.f);
+      ball.velocity = Vector3f::Zero();
+      ws.balls.push_back(ball);
+      ws.ownPose = Pose2f(robot_theta, robot_x, robot_y);
+      appendWorldPlayers(ws.ownTeamPlayers, parseWorldPlayers(teammates, "teammates", true));
+      appendWorldPlayers(ws.opponentTeamPlayers, parseWorldPlayers(opponents, "opponents", true));
+      ctrl.setWorldState(robot_index, ws);
     },
-    "Reset the headless 2D simulator for a player.",
-    py::arg("player_number"),
+    "Inject world state, teammates, and opponents into a robot before controller.update().",
+    py::arg("controller"), py::arg("robot_index"),
     py::arg("ball_x"), py::arg("ball_y"),
     py::arg("robot_x"), py::arg("robot_y"),
-    py::arg("robot_theta") = 0.f);
-
-  m.def("rl_sim_set_enabled",
-    [](int player_number, bool enabled)
-    {
-      RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      io.lock();
-      io.sim2D.enabled = enabled;
-      if(!enabled)
-        io.sim2D.initialized = false;
-      io.unlock();
-    },
-    "Enable or disable the headless 2D simulator for a player.",
-    py::arg("player_number"), py::arg("enabled"));
+    py::arg("robot_theta") = 0.f,
+    py::arg("teammates") = py::tuple(),
+    py::arg("opponents") = py::tuple());
 
   m.def("rl_reset_world",
     [](int player_number,
        float ball_x, float ball_y,
-       float robot_x, float robot_y, float robot_theta)
+       float robot_x, float robot_y, float robot_theta) -> unsigned int
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
       while(io.tryWaitObs()) {}
@@ -230,16 +295,152 @@ Args:
       io.resetRobotX = robot_x;
       io.resetRobotY = robot_y;
       io.resetRobotTheta = robot_theta;
-      ++io.resetRequestId;
+      io.resetTeammateCount = 0;
+      io.resetOpponentCount = 0;
+      const unsigned int requestId = ++io.worldRequestSerial;
+      io.resetRequestId = requestId;
       io.resetPending = true;
       io.obsReady = false;
       io.unlock();
+      return requestId;
     },
     "Request that a visible SimRobot instance reset the world state for a player.",
     py::arg("player_number"),
     py::arg("ball_x"), py::arg("ball_y"),
     py::arg("robot_x"), py::arg("robot_y"),
     py::arg("robot_theta") = 0.f);
+
+  m.def("rl_reset_world_extended",
+    [](int player_number,
+       float ball_x, float ball_y,
+       float robot_x, float robot_y, float robot_theta,
+       py::iterable teammates, py::iterable opponents) -> unsigned int
+    {
+      const std::vector<BoundWorldPlayer> parsedTeammates = parseWorldPlayers(teammates, "teammates", false);
+      const std::vector<BoundWorldPlayer> parsedOpponents = parseWorldPlayers(opponents, "opponents", false);
+
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      while(io.tryWaitObs()) {}
+      io.lock();
+      io.resetBallX = ball_x;
+      io.resetBallY = ball_y;
+      io.resetRobotX = robot_x;
+      io.resetRobotY = robot_y;
+      io.resetRobotTheta = robot_theta;
+      copyWorldPlayers(io.resetTeammates, io.resetTeammateCount, parsedTeammates);
+      copyWorldPlayers(io.resetOpponents, io.resetOpponentCount, parsedOpponents);
+      const unsigned int requestId = ++io.worldRequestSerial;
+      io.resetRequestId = requestId;
+      io.resetPending = true;
+      io.obsReady = false;
+      io.unlock();
+      return requestId;
+    },
+    "Request that a visible SimRobot instance reset the world state for a player, teammates, and opponents.",
+    py::arg("player_number"),
+    py::arg("ball_x"), py::arg("ball_y"),
+    py::arg("robot_x"), py::arg("robot_y"),
+    py::arg("robot_theta") = 0.f,
+    py::arg("teammates") = py::tuple(),
+    py::arg("opponents") = py::tuple());
+
+  m.def("rl_set_dynamic_world",
+    [](int player_number,
+       py::object ball,
+       py::object own_pose,
+       py::object teammates,
+       py::object opponents) -> unsigned int
+    {
+      const bool hasBall = !ball.is_none();
+      const bool hasOwnPose = !own_pose.is_none();
+      const bool hasTeammates = !teammates.is_none();
+      const bool hasOpponents = !opponents.is_none();
+      std::vector<BoundWorldPlayer> parsedTeammates;
+      std::vector<BoundWorldPlayer> parsedOpponents;
+      float ballX = 0.f;
+      float ballY = 0.f;
+      float robotX = 0.f;
+      float robotY = 0.f;
+      float robotTheta = 0.f;
+
+      if(hasBall)
+      {
+        const py::sequence values = py::reinterpret_borrow<py::sequence>(ball);
+        if(values.size() != 2)
+          throw std::runtime_error("ball must have 2 values: (x, y)");
+        ballX = values[0].cast<float>();
+        ballY = values[1].cast<float>();
+      }
+
+      if(hasOwnPose)
+      {
+        const py::sequence values = py::reinterpret_borrow<py::sequence>(own_pose);
+        if(values.size() != 3)
+          throw std::runtime_error("own_pose must have 3 values: (x, y, theta)");
+        robotX = values[0].cast<float>();
+        robotY = values[1].cast<float>();
+        robotTheta = values[2].cast<float>();
+      }
+
+      if(hasTeammates)
+        parsedTeammates = parseWorldPlayers(py::reinterpret_borrow<py::iterable>(teammates), "teammates", false);
+      if(hasOpponents)
+        parsedOpponents = parseWorldPlayers(py::reinterpret_borrow<py::iterable>(opponents), "opponents", false);
+
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      while(io.tryWaitObs()) {}
+      io.lock();
+      io.dynamicHasBall = hasBall;
+      io.dynamicBallX = ballX;
+      io.dynamicBallY = ballY;
+      io.dynamicHasRobotPose = hasOwnPose;
+      io.dynamicRobotX = robotX;
+      io.dynamicRobotY = robotY;
+      io.dynamicRobotTheta = robotTheta;
+      io.dynamicApplyTeammates = hasTeammates;
+      io.dynamicApplyOpponents = hasOpponents;
+      if(hasTeammates)
+        copyWorldPlayers(io.dynamicTeammates, io.dynamicTeammateCount, parsedTeammates);
+      else
+        copyWorldPlayers(io.dynamicTeammates, io.dynamicTeammateCount, std::vector<BoundWorldPlayer>{});
+      if(hasOpponents)
+        copyWorldPlayers(io.dynamicOpponents, io.dynamicOpponentCount, parsedOpponents);
+      else
+        copyWorldPlayers(io.dynamicOpponents, io.dynamicOpponentCount, std::vector<BoundWorldPlayer>{});
+      const unsigned int requestId = ++io.worldRequestSerial;
+      io.dynamicRequestId = requestId;
+      io.dynamicPending = true;
+      io.obsReady = false;
+      io.unlock();
+      return requestId;
+    },
+    "Apply an intra-episode visible SimRobot world update for a player.",
+    py::arg("player_number"),
+    py::arg("ball") = py::none(),
+    py::arg("own_pose") = py::none(),
+    py::arg("teammates") = py::none(),
+    py::arg("opponents") = py::none());
+
+  m.def("rl_get_world_status",
+    [](int player_number) -> py::dict
+    {
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      io.lock();
+      py::dict d;
+      d["result_request_id"] = io.worldResultRequestId;
+      d["result_ok"] = io.worldResultOk;
+      d["result_error"] = std::string(io.worldResultError);
+      d["reset_request_id"] = io.resetRequestId;
+      d["reset_applied_id"] = io.resetAppliedId;
+      d["reset_pending"] = io.resetPending;
+      d["dynamic_request_id"] = io.dynamicRequestId;
+      d["dynamic_applied_id"] = io.dynamicAppliedId;
+      d["dynamic_pending"] = io.dynamicPending;
+      io.unlock();
+      return d;
+    },
+    "Return the latest visible SimRobot world-request status for a player.",
+    py::arg("player_number"));
 
   // RL API — direct in-memory bridge to RLSkillProvider (no subprocess, no JSON)
   m.def("rl_set_action",
@@ -302,9 +503,11 @@ Args:
       d["robot_x"]     = io.robotX;
       d["robot_y"]     = io.robotY;
       d["robot_theta"] = io.robotTheta;
+      d["simrobot_robot_x"] = io.simRobotX;
+      d["simrobot_robot_y"] = io.simRobotY;
+      d["simrobot_robot_theta"] = io.simRobotTheta;
       d["frame"]       = io.frame;
       d["obs_ready"]   = io.obsReady;
-      d["sim_enabled"] = io.sim2D.enabled;
       d["ball_rel_x"] = io.ballRelX;
       d["ball_rel_y"] = io.ballRelY;
       d["ball_end_rel_x"] = io.ballEndRelX;
@@ -361,6 +564,8 @@ Args:
       d["skill_behavior_walk_target_x"] = io.debugSkillBehaviorWalkTargetX;
       d["skill_behavior_walk_target_y"] = io.debugSkillBehaviorWalkTargetY;
       d["skill_behavior_walk_target_theta"] = io.debugSkillBehaviorWalkTargetTheta;
+      d["zweikampf_active"] = io.debugZweikampfActive;
+      d["zweikampf_call_count"] = io.debugZweikampfCallCount;
       d["motion_obstacle_avoidance_x"] = io.debugMotionObstacleAvoidanceX;
       d["motion_obstacle_avoidance_y"] = io.debugMotionObstacleAvoidanceY;
       d["motion_obstacle_path_count"] = io.debugMotionObstaclePathCount;
