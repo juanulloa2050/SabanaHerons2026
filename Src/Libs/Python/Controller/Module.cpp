@@ -391,6 +391,15 @@ Args:
       d["walk_to_pose_first_obstacle_y"] = io.debugWalkToPoseFirstObstacleY;
       d["walk_to_pose_first_obstacle_radius"] = io.debugWalkToPoseFirstObstacleRadius;
       d["walk_to_pose_first_obstacle_clockwise"] = io.debugWalkToPoseFirstObstacleClockwise;
+      d["libwalk_target_angle"] = io.debugLibWalkTargetAngle;
+      d["libwalk_angle_left"] = io.debugLibWalkAngleLeft;
+      d["libwalk_angle_right"] = io.debugLibWalkAngleRight;
+      d["libwalk_angle_offset_left"] = io.debugLibWalkAngleOffsetLeft;
+      d["libwalk_angle_offset_right"] = io.debugLibWalkAngleOffsetRight;
+      d["libwalk_selected_offset"] = io.debugLibWalkSelectedOffset;
+      d["libwalk_obstacle_count"] = io.debugLibWalkObstacleCount;
+      d["libwalk_active_obstacle_count"] = io.debugLibWalkActiveObstacleCount;
+      d["libwalk_disable_obstacle_avoidance"] = io.debugLibWalkDisableObstacleAvoidance;
       d["motion_engine_ground_contact"] = io.debugMotionEngineGroundContact;
       d["motion_phase"] = io.debugExecutedPhase;
       d["motion_speed_x"] = io.debugMotionSpeedX;

@@ -139,6 +139,15 @@ struct RLPlayerIO
   float debugWalkToPoseFirstObstacleY = 0.f;
   float debugWalkToPoseFirstObstacleRadius = 0.f;
   bool debugWalkToPoseFirstObstacleClockwise = false;
+  float debugLibWalkTargetAngle = 0.f;
+  float debugLibWalkAngleLeft = 0.f;
+  float debugLibWalkAngleRight = 0.f;
+  float debugLibWalkAngleOffsetLeft = 0.f;
+  float debugLibWalkAngleOffsetRight = 0.f;
+  float debugLibWalkSelectedOffset = 0.f;
+  int debugLibWalkObstacleCount = 0;
+  int debugLibWalkActiveObstacleCount = 0;
+  bool debugLibWalkDisableObstacleAvoidance = false;
   bool debugMotionEngineGroundContact = false;
   int debugExecutedPhase = -1;
   float debugMotionSpeedX = 0.f;

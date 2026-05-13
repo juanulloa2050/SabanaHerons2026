@@ -348,11 +348,13 @@ void SkillBehaviorControl::executeRequest()
       case SkillRequest::walk:
       {
         const Pose2f targetPose = theRobotPose.inverse() * theSkillRequest.target;
+        const bool rlTeamUsesObstacleAvoidance = RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number);
+        const bool goalkeeperMode = theGameState.isGoalkeeper() && !rlTeamUsesObstacleAvoidance;
         if((theFieldBall.ballWasSeen(7000) || theTeammatesBallModel.isValid) && theFieldBall.isBallPositionConsistentWithGameState())
         {
           theWalkToPointObstacleSkill({.target = theRobotPose.inverse() * theSkillRequest.target,
-                                       .rough = theGameState.isGoalkeeper(),
-                                       .disableObstacleAvoidance = theGameState.isGoalkeeper(),
+                                       .rough = goalkeeperMode,
+                                       .disableObstacleAvoidance = goalkeeperMode,
                                        .targetOfInterest = theFieldBall.recentBallPositionRelative()}); // TODO: set the right parameters and occasionally use WalkPotentialField
           if(theMotionInfo.isMotion(MotionPhase::stand))
             theLookActiveSkill({.withBall = true});
@@ -364,8 +366,8 @@ void SkillBehaviorControl::executeRequest()
         else
         {
           theWalkToPointObstacleSkill({.target = theRobotPose.inverse() * theSkillRequest.target,
-                                       .rough = theGameState.isGoalkeeper(),
-                                       .disableObstacleAvoidance = theGameState.isGoalkeeper()}); // TODO: set the right parameters and occasionally use WalkPotentialField
+                                       .rough = goalkeeperMode,
+                                       .disableObstacleAvoidance = goalkeeperMode}); // TODO: set the right parameters and occasionally use WalkPotentialField
           theLookActiveSkill({.withBall = true});
         }
         break;
