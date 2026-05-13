@@ -5,6 +5,7 @@
  */
 
 #include "LibWalkProvider.h"
+#include "Python/Controller/RLSharedState.h"
 
 MAKE_MODULE(LibWalkProvider);
 
@@ -44,6 +45,10 @@ MotionRequest::ObstacleAvoidance LibWalkProvider::calcObstacleAvoidance(const Po
 
   // Calculate avoidance as normal
   const Angle targetAngle = target.translation.angle();
+  const Angle angleLeft = getNextFreeAngle(targetAngle, true);
+  const Angle angleRight = getNextFreeAngle(targetAngle, false);
+  const Angle angleOffsetLeft = Angle::normalize(angleLeft - targetAngle);
+  const Angle angleOffsetRight = Angle::normalize(angleRight - targetAngle);
   Angle newAvoidanceAngleOffset = lastAvoidanceAngleOffset;
   calculateAvoidanceAngleOffset(newAvoidanceAngleOffset, targetAngle, targetOnField);
 
@@ -86,12 +91,29 @@ MotionRequest::ObstacleAvoidance LibWalkProvider::calcObstacleAvoidance(const Po
     obstacleAvoidance.path.back().clockwise = lastAvoidanceAngleOffset > 0.f;
   }
 
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    int activeObstacleCount = 0;
+    for(const Obstacle& obstacle : obstacles)
+      if(obstacle.active)
+        ++activeObstacleCount;
+    io.lock();
+    io.debugLibWalkTargetAngle = static_cast<float>(targetAngle);
+    io.debugLibWalkAngleLeft = static_cast<float>(angleLeft);
+    io.debugLibWalkAngleRight = static_cast<float>(angleRight);
+    io.debugLibWalkAngleOffsetLeft = static_cast<float>(angleOffsetLeft);
+    io.debugLibWalkAngleOffsetRight = static_cast<float>(angleOffsetRight);
+    io.debugLibWalkSelectedOffset = static_cast<float>(lastAvoidanceAngleOffset);
+    io.debugLibWalkObstacleCount = static_cast<int>(obstacles.size());
+    io.debugLibWalkActiveObstacleCount = activeObstacleCount;
+    io.debugLibWalkDisableObstacleAvoidance = disableObstacleAvoidance;
+    io.unlock();
+  }
+
   COMPLEX_DRAWING("behavior:LibWalkProvider:angles")
   {
-    const Angle angleLeft = getNextFreeAngle(targetAngle, true);
-    const Angle angleRight = getNextFreeAngle(targetAngle, false);
-    const Angle angleOffsetLeft = Angle::normalize(angleLeft - targetAngle);
-    const Angle angleOffsetRight = Angle::normalize(angleRight - targetAngle);
     const float ratingLeft = std::abs(angleOffsetLeft) + (sgn(lastAvoidanceAngleOffset) == sgn(angleOffsetLeft) ? -pi_2 : 0.f);
     const float ratingRight = std::abs(angleOffsetRight) + (sgn(lastAvoidanceAngleOffset) == sgn(angleOffsetRight) ? -pi_2 : 0.f);
     Vector2f left(2000.f, 0.f);
