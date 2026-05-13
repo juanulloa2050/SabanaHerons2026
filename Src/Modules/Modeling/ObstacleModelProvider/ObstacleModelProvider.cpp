@@ -106,13 +106,14 @@ bool ObstacleModelProvider::clearAndFinish(ObstacleModel& obstacleModel)
   DEBUG_RESPONSE_ONCE("module:ObstacleModelProvider:clear")
     obstacleHypotheses.clear();
 
-  if(theGameState.isPenalized()
-     || theGameState.isInitial()
+  const bool rlMode = RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number);
+  if((theGameState.isPenalized() && !rlMode)
+     || (theGameState.isInitial() && !rlMode)
      // While falling down / getting up / the obstacles might be invalid, better clean up
      || theFallDownState.state == FallDownState::falling
      || theFallDownState.state == FallDownState::fallen
      || theMotionInfo.executedPhase == MotionPhase::getUp
-     || theGameState.isPenaltyShootout()) // Penalty shootout -> obstacles will be ignored
+     || (theGameState.isPenaltyShootout() && !rlMode)) // Penalty shootout -> obstacles will be ignored
   {
     if(!theGameState.isFinished()) // If the GameController operator fails epically and resets from finished to playing
     {
