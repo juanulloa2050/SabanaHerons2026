@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Two real robots start around the center ball, one per team, to make it
+# easier to observe if PlayBall enters Zweikampf. Use together with --no-reset.
+gc playing

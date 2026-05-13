@@ -60,7 +60,6 @@ private:
   std::mutex            worldStateMutex;
   unsigned int          frameCounter = 0;
   std::atomic<bool>     updateRequested{false};
-  int                   playerNumber = 1;
 
   Semaphore updatedSignal;  ///< robot thread → main thread: "frame injected"
 };

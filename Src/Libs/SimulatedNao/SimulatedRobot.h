@@ -152,6 +152,22 @@ public:
   void moveRobotPerTeam(const Vector3f& pos, const Vector3f& rot, bool changeRotation);
 
   /**
+   * Moves another robot identified by relative team number using this robot's team coordinate system.
+   * @param number The 1-based relative number within the teammate/opponent list.
+   * @param opponentTeam Whether the target robot belongs to the opponent team.
+   * @param pos The target position in the RL team's field coordinates.
+   * @param rot The target rotation in the RL team's field coordinates.
+   * @param changeRotation Whether the rotation of the robot should be changed or not.
+   * @return Whether the target robot exists in the loaded scene.
+   */
+  bool moveRobotByNumberPerTeam(int number, bool opponentTeam, const Vector3f& pos, const Vector3f& rot, bool changeRotation);
+
+  /**
+   * Checks whether another robot identified by relative team number exists in the loaded scene.
+   */
+  bool hasRobotByNumberPerTeam(int number, bool opponentTeam) const;
+
+  /**
    * Moves the ball to the given position within the coordinate system of the robot's team
    * @param pos The position to move the ball to
    * @param resetDynamics Reset dynamics of object after moving.

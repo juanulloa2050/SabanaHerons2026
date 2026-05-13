@@ -7,14 +7,13 @@
  */
 
 #include "PythonConsole.h"
-#include "RLSharedState.h"
 #include "Framework/Communication.h"
 #include "Framework/Debug.h"
 
 PythonConsole::PythonConsole(const Settings& settings, const std::string& robotName, Debug* debug, int playerNumber) :
-  ThreadFrame(settings, robotName, connectReceiverWithRobot(debug), connectSenderWithRobot(debug)),
-  playerNumber(playerNumber)
+  ThreadFrame(settings, robotName, connectReceiverWithRobot(debug), connectSenderWithRobot(debug))
 {
+  static_cast<void>(playerNumber);
 }
 
 PythonConsole::~PythonConsole()
@@ -49,19 +48,6 @@ bool PythonConsole::main()
 void PythonConsole::injectFrame()
 {
   GroundTruthWorldState ws;
-  RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
-  bool useSim2D = false;
-  {
-    io.lock();
-    if(io.sim2D.enabled && io.sim2D.initialized)
-    {
-      ws = RLSim2D::toWorldState(io.sim2D);
-      useSim2D = true;
-    }
-    io.unlock();
-  }
-
-  if(!useSim2D)
   {
     std::lock_guard<std::mutex> lock(worldStateMutex);
     ws = worldState;

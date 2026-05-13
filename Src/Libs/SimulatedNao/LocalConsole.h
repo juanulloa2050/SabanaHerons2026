@@ -84,6 +84,7 @@ public:
 
 private:
   void applyPendingRLReset();
+  void applyPendingRLDynamicWorld();
 
   /**
    * The function connects the robot to the returned receiver.
