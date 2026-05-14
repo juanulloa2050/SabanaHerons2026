@@ -12,9 +12,11 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QLibrary>
+#include <QLocale>
 #include <QSettings>
 #include <QVector>
 
+#include <clocale>
 #include <memory>
 #include <cmath>
 #include <vector>
@@ -50,6 +52,15 @@ float extractYaw(const float (&rotation)[3][3])
   return normalizeAngle(std::atan2(rotation[1][0], rotation[0][0]));
 }
 
+void forceSimRobotNumericLocale()
+{
+  // SimRobot scene files use programming-language floats with '.' decimals.
+  // The embedded Python process can inherit locales such as es_CO.UTF-8 where
+  // strtof stops at '.', producing parser errors like unexpected unit ".438m".
+  std::setlocale(LC_NUMERIC, "C");
+  QLocale::setDefault(QLocale::C);
+}
+
 void makeYawRotation(float theta, float (&rotation)[3][3])
 {
   const float c = std::cos(theta);
@@ -71,6 +82,7 @@ class HeadlessSimRobotApplication : public SimRobot::Application
 public:
   HeadlessSimRobotApplication()
   {
+    forceSimRobotNumericLocale();
     ensureQtApplication();
     appPath = QCoreApplication::applicationFilePath();
     if(appPath.isEmpty())
@@ -83,10 +95,14 @@ public:
   ~HeadlessSimRobotApplication() override
   {
     unloadScene();
+    // Qt/OpenGL shutdown from Python interpreter teardown is not reliable for
+    // the 3-D core. Keep the process-wide QApplication alive until process exit.
+    ownedApplication.release();
   }
 
   bool loadScene(const QString& sceneFile)
   {
+    forceSimRobotNumericLocale();
     unloadScene();
 
     const QFileInfo fileInfo(sceneFile);
@@ -196,6 +212,7 @@ private:
 
   void ensureQtApplication()
   {
+    forceSimRobotNumericLocale();
     if(QApplication::instance())
       return;
 

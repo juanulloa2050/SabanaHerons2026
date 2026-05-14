@@ -10,6 +10,7 @@
 #include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <string>
 
@@ -35,6 +36,21 @@ namespace
     float nearestFrontObstacle = std::numeric_limits<float>::max();
     float nearestOpponentAngle = 0.f;
   };
+
+  enum class RLObsExportMode
+  {
+    estimated = 0,
+    corrected = 1,
+  };
+
+  RLObsExportMode getRLObsExportMode()
+  {
+    const char* value = std::getenv("PYBH_RL_OBS_MODE");
+    if(!value || !value[0])
+      return RLObsExportMode::corrected;
+    const std::string mode(value);
+    return mode == "estimated" ? RLObsExportMode::estimated : RLObsExportMode::corrected;
+  }
 
   void updateNearest(float distance, bool isFront, float& nearest, float& nearestFront)
   {
@@ -213,30 +229,92 @@ void SkillBehaviorControl::update(ActivationGraph&)
     }
     const Vector2f ballOnField = theFieldBall.positionOnField;
     const Vector2f ballRelative = theFieldBall.positionRelative;
+    const Vector2f ballEndOnField = theFieldBall.endPositionOnField;
     const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
     const Vector2f ballVelocity = theBallModel.estimate.velocity;
-    const float shotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(ballOnField) : 0.f;
-    const float shotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(ballOnField) : 0.f;
     const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
 
-    io.ballX = ballOnField.x();
-    io.ballY = ballOnField.y();
-    io.robotX = theRobotPose.translation.x();
-    io.robotY = theRobotPose.translation.y();
-    io.robotTheta = static_cast<float>(theRobotPose.rotation);
-    io.ballRelX = ballRelative.x();
-    io.ballRelY = ballRelative.y();
-    io.ballEndRelX = ballEndRelative.x();
-    io.ballEndRelY = ballEndRelative.y();
+    const RLObsExportMode obsExportMode = getRLObsExportMode();
+    const float estimatedRobotX = theRobotPose.translation.x();
+    const float estimatedRobotY = theRobotPose.translation.y();
+    const float estimatedRobotTheta = static_cast<float>(theRobotPose.rotation);
+    const float estimatedBallX = ballOnField.x();
+    const float estimatedBallY = ballOnField.y();
+    float exportedRobotX = estimatedRobotX;
+    float exportedRobotY = estimatedRobotY;
+    float exportedRobotTheta = estimatedRobotTheta;
+    float exportedBallX = estimatedBallX;
+    float exportedBallY = estimatedBallY;
+    Vector2f exportedBallRelative = ballRelative;
+    Vector2f exportedBallEndRelative = ballEndRelative;
+    float exportedTimeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
+    float exportedTimeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
+    float exportedBallSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
+    bool exportedBallConsistent = theFieldBall.ballPositionConsistentWithGameState;
+    bool correctedRobotPose = false;
+    bool correctedBall = false;
+
+    const float simPoseError = std::hypot(estimatedRobotX - io.simRobotX, estimatedRobotY - io.simRobotY);
+    if(obsExportMode == RLObsExportMode::corrected && simPoseError > 500.f)
+    {
+      exportedRobotX = io.simRobotX;
+      exportedRobotY = io.simRobotY;
+      exportedRobotTheta = io.simRobotTheta;
+      correctedRobotPose = true;
+    }
+
+    const bool staleBall = theBallModel.seenPercentage <= 0.f && theFieldBall.timeSinceBallWasSeen > 1000;
+    if(obsExportMode == RLObsExportMode::corrected && staleBall)
+    {
+      exportedBallX = io.dynamicHasBall ? io.dynamicBallX : io.resetBallX;
+      exportedBallY = io.dynamicHasBall ? io.dynamicBallY : io.resetBallY;
+      exportedTimeSinceBallSeen = 0.f;
+      exportedTimeSinceBallDisappeared = 0.f;
+      exportedBallSeenPercentage = 100.f;
+      exportedBallConsistent = true;
+      correctedBall = true;
+    }
+
+    const Pose2f exportedRobotPose(exportedRobotTheta, exportedRobotX, exportedRobotY);
+    if(correctedRobotPose || correctedBall)
+    {
+      const Vector2f exportedBallOnField(exportedBallX, exportedBallY);
+      exportedBallRelative = exportedRobotPose.inverse() * exportedBallOnField;
+      exportedBallEndRelative = correctedBall
+                                   ? exportedBallRelative
+                                   : exportedRobotPose.inverse() * ballEndOnField;
+    }
+
+    const Vector2f exportedBallOnField(exportedBallX, exportedBallY);
+    const float exportedShotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(exportedBallOnField) : 0.f;
+    const float exportedShotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(exportedBallOnField) : 0.f;
+
+    io.ballX = exportedBallX;
+    io.ballY = exportedBallY;
+    io.robotX = exportedRobotX;
+    io.robotY = exportedRobotY;
+    io.robotTheta = exportedRobotTheta;
+    io.estimatedBallX = estimatedBallX;
+    io.estimatedBallY = estimatedBallY;
+    io.estimatedRobotX = estimatedRobotX;
+    io.estimatedRobotY = estimatedRobotY;
+    io.estimatedRobotTheta = estimatedRobotTheta;
+    io.ballRelX = exportedBallRelative.x();
+    io.ballRelY = exportedBallRelative.y();
+    io.ballEndRelX = exportedBallEndRelative.x();
+    io.ballEndRelY = exportedBallEndRelative.y();
+    io.obsExportMode = static_cast<int>(obsExportMode);
+    io.correctedExportedRobotPose = correctedRobotPose;
+    io.correctedExportedBall = correctedBall;
     io.ballVelX = ballVelocity.x();
     io.ballVelY = ballVelocity.y();
-    io.timeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
-    io.timeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
-    io.ballSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
-    io.ballConsistentWithGameState = theFieldBall.ballPositionConsistentWithGameState;
-    io.canScoreNow = shotOpeningWithObstacles > 0.8f;
-    io.shotQualityNoObstacles = shotQualityNoObstacles;
-    io.shotOpeningWithObstacles = shotOpeningWithObstacles;
+    io.timeSinceBallSeen = exportedTimeSinceBallSeen;
+    io.timeSinceBallDisappeared = exportedTimeSinceBallDisappeared;
+    io.ballSeenPercentage = exportedBallSeenPercentage;
+    io.ballConsistentWithGameState = exportedBallConsistent;
+    io.canScoreNow = exportedShotOpeningWithObstacles > 0.8f;
+    io.shotQualityNoObstacles = exportedShotQualityNoObstacles;
+    io.shotOpeningWithObstacles = exportedShotOpeningWithObstacles;
     io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
     io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
     io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
