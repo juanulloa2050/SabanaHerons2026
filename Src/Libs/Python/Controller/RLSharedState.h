@@ -50,11 +50,19 @@ struct RLPlayerIO
   float robotX = 0.f;
   float robotY = 0.f;
   float robotTheta = 0.f;
+  float estimatedBallX = 0.f;
+  float estimatedBallY = 0.f;
+  float estimatedRobotX = 0.f;
+  float estimatedRobotY = 0.f;
+  float estimatedRobotTheta = 0.f;
   float simRobotX = 0.f;
   float simRobotY = 0.f;
   float simRobotTheta = 0.f;
   unsigned int frame = 0;
   bool obsReady = false;
+  int obsExportMode = 0;
+  bool correctedExportedRobotPose = false;
+  bool correctedExportedBall = false;
 
   float ballRelX = 0.f;
   float ballRelY = 0.f;
