@@ -14,6 +14,7 @@
 #include <QLibrary>
 #include <QLocale>
 #include <QSettings>
+#include <QSurfaceFormat>
 #include <QVector>
 
 #include <clocale>
@@ -23,6 +24,10 @@
 
 namespace
 {
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+extern void qt_registerDefaultPlatformBackingStoreOpenGLSupport();
+#endif
+
 QString detectBHDir()
 {
   QString bhDir;
@@ -59,6 +64,31 @@ void forceSimRobotNumericLocale()
   // strtof stops at '.', producing parser errors like unexpected unit ".438m".
   std::setlocale(LC_NUMERIC, "C");
   QLocale::setDefault(QLocale::C);
+}
+
+void configureHeadlessOpenGLDefaults()
+{
+  QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+
+  QSurfaceFormat format;
+  format.setVersion(3, 3);
+  format.setProfile(QSurfaceFormat::CoreProfile);
+  format.setSamples(1);
+  format.setStencilBufferSize(0);
+  QSurfaceFormat::setDefaultFormat(format);
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+  qt_registerDefaultPlatformBackingStoreOpenGLSupport();
+#endif
+}
+
+QByteArray defaultQtPlatformPlugin()
+{
+  // On Linux desktops, the embedded 3-D core is stable through X11/XWayland
+  // but crashes during scene loading when forced through offscreen.
+  if(!qEnvironmentVariableIsEmpty("DISPLAY"))
+    return QByteArray("xcb");
+  return QByteArray("offscreen");
 }
 
 void makeYawRotation(float theta, float (&rotation)[3][3])
@@ -216,9 +246,10 @@ private:
     if(QApplication::instance())
       return;
 
+    configureHeadlessOpenGLDefaults();
     qputenv("PYBH_SIMROBOT_HEADLESS", QByteArray("1"));
     if(qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
-      qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+      qputenv("QT_QPA_PLATFORM", defaultQtPlatformPlugin());
 
     static int argc = 1;
     static char programName[] = "pybh-simrobot";
