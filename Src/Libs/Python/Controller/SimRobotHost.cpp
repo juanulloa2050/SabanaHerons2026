@@ -247,7 +247,10 @@ private:
       return;
 
     configureHeadlessOpenGLDefaults();
-    qputenv("PYBH_SIMROBOT_HEADLESS", QByteArray("1"));
+    if(qEnvironmentVariableIsEmpty("PYBH_SIMROBOT_ENABLE_IMAGE"))
+      qputenv("PYBH_SIMROBOT_HEADLESS", QByteArray("1"));
+    else
+      qunsetenv("PYBH_SIMROBOT_HEADLESS");
     if(qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
       qputenv("QT_QPA_PLATFORM", defaultQtPlatformPlugin());
 

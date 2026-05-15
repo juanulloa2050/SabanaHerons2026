@@ -8,6 +8,7 @@
 
 #include "SelfLocator.h"
 #include "Debugging/Annotation.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Debugging/Plot.h"
 #include "Framework/Settings.h"
 #include "Math/Eigen.h"
@@ -575,6 +576,24 @@ void SelfLocator::handleGameStateChanges()
     for(int i = 0; i < samples->size(); ++i)
       samples->at(i).init(theStaticInitialPose.staticPoseOnField, manualPlacementPoseDeviation, nextSampleNumber++, 0.5f);
     sampleSetHasBeenReset = true;
+  }
+  /* RL episode reset: reinitialize particles at the known teleport pose */
+  else if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    io.lock();
+    const bool doReset = io.selfLocatorResetPending;
+    const Pose2f resetPose(io.resetRobotTheta, io.resetRobotX, io.resetRobotY);
+    if(doReset)
+      io.selfLocatorResetPending = false;
+    io.unlock();
+    if(doReset)
+    {
+      for(int i = 0; i < samples->size(); ++i)
+        samples->at(i).init(resetPose, penaltyShootoutPoseDeviation, nextSampleNumber++, 1.f);
+      sampleSetHasBeenReset = true;
+    }
   }
   if(sampleSetHasBeenReset)
   {

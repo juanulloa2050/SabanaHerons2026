@@ -63,6 +63,11 @@ struct RLPlayerIO
   int obsExportMode = 0;
   bool correctedExportedRobotPose = false;
   bool correctedExportedBall = false;
+  int ballExportSource = 0;
+  bool ballExportFresh = true;
+  float naturalTimeSinceBallSeen = 0.f;
+  float naturalBallSeenPercentage = 0.f;
+  bool naturalBallConsistentWithGameState = false;
 
   float ballRelX = 0.f;
   float ballRelY = 0.f;
@@ -118,7 +123,9 @@ struct RLPlayerIO
   std::array<RLWorldPlayer, RLSharedStateBridge::maxWorldPlayersPerTeam> resetOpponents{};
   unsigned int resetRequestId = 0;
   unsigned int resetAppliedId = 0;
+  unsigned int resetAppliedFrame = 0;
   bool resetPending = false;
+  bool selfLocatorResetPending = false;
 
   float dynamicBallX = 0.f;
   float dynamicBallY = 0.f;
@@ -135,6 +142,7 @@ struct RLPlayerIO
   bool dynamicApplyOpponents = false;
   unsigned int dynamicRequestId = 0;
   unsigned int dynamicAppliedId = 0;
+  unsigned int dynamicAppliedFrame = 0;
   bool dynamicPending = false;
 
   unsigned int worldRequestSerial = 0;

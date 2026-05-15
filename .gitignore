@@ -40,3 +40,19 @@ Thumbs.db
 /Util/Buildchain/macOS/include
 /Util/Buildchain/macOS/lib
 /Util/WSL
+
+# ── Python extension modules (pybh) ─────────────────────────────────────────
+# The release .so binaries ARE tracked (committed after a stripped release
+# build).  Debug builds (e.g. cmake-build-develop) are 10-20× larger and
+# must NOT be committed.
+#
+# These paths are NOT listed here because .gitignore cannot ignore already-
+# tracked files.  Instead, skip-worktree is set on each binary so that local
+# debug rebuilds never appear in `git status` or get picked up by `git add .`:
+#
+#   git update-index --skip-worktree \
+#     Make/Python/pybh/controller.cpython-312-x86_64-linux-gnu.so \
+#     Make/Python/pybh/logs.cpython-312-x86_64-linux-gnu.so
+#
+# To re-enable staging (e.g. after a release rebuild):
+#   git update-index --no-skip-worktree Make/Python/pybh/controller.*.so

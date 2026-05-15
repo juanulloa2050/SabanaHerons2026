@@ -1,8 +1,10 @@
 #include "RLSharedState.h"
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 #include <fcntl.h>
 #include <semaphore.h>
@@ -15,7 +17,19 @@ namespace
 {
 constexpr const char* shmName = "/pybh_rl_shared_state_v3";
 constexpr unsigned int magic = 0x50594248u; // PYBH
-constexpr unsigned int version = 28u;
+constexpr unsigned int version = 29u;
+
+std::string resolveShmName()
+{
+  const char* overrideName = std::getenv("PYBH_RL_SHM_NAME");
+  if(!overrideName || !overrideName[0])
+    return shmName;
+
+  std::string name = overrideName;
+  if(name.front() != '/')
+    name.insert(name.begin(), '/');
+  return name;
+}
 }
 
 void RLPlayerIO::lock()
@@ -85,7 +99,8 @@ RLSharedState& RLSharedState::instance()
 
 RLSharedState::RLSharedState()
 {
-  fd = shm_open(shmName, O_CREAT | O_RDWR, 0600);
+  const std::string resolvedShmName = resolveShmName();
+  fd = shm_open(resolvedShmName.c_str(), O_CREAT | O_RDWR, 0600);
   if(fd < 0)
     throw std::runtime_error("shm_open failed for RLSharedState");
 
