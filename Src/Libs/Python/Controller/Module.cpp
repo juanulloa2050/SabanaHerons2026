@@ -13,6 +13,7 @@
 #include "Math/Eigen.h"
 #include "Math/Pose2f.h"
 #include "Platform/File.h"
+#include "Platform/Time.h"
 #include "Representations/Infrastructure/GroundTruthWorldState.h"
 #include "Streaming/Enum.h"
 #include "Streaming/FunctionList.h"
@@ -332,6 +333,7 @@ Args:
       const unsigned int requestId = ++io.worldRequestSerial;
       io.resetRequestId = requestId;
       io.resetPending = true;
+      io.selfLocatorResetPending = true;
       io.obsReady = false;
       io.unlock();
       return requestId;
@@ -442,6 +444,43 @@ Args:
     "Return the latest visible SimRobot world-request status for a player.",
     py::arg("player_number"));
 
+  m.def("rl_mark_embedded_reset_context",
+    [](int player_number, float ball_x, float ball_y)
+    {
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      io.lock();
+      io.resetBallX = ball_x;
+      io.resetBallY = ball_y;
+      io.resetAppliedFrame = Time::getCurrentSystemTime();
+      io.unlock();
+    },
+    "Seed reset-ball context for embedded SimRobot resets.",
+    py::arg("player_number"), py::arg("ball_x"), py::arg("ball_y"));
+
+  m.def("rl_mark_embedded_dynamic_context",
+    [](int player_number, py::object ball)
+    {
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      io.lock();
+      if(ball.is_none())
+      {
+        io.dynamicHasBall = false;
+      }
+      else
+      {
+        const py::sequence values = py::reinterpret_borrow<py::sequence>(ball);
+        if(values.size() != 2)
+          throw std::runtime_error("ball must have 2 values: (x, y)");
+        io.dynamicHasBall = true;
+        io.dynamicBallX = values[0].cast<float>();
+        io.dynamicBallY = values[1].cast<float>();
+      }
+      io.dynamicAppliedFrame = Time::getCurrentSystemTime();
+      io.unlock();
+    },
+    "Seed dynamic-ball context for embedded SimRobot updates.",
+    py::arg("player_number"), py::arg("ball") = py::none());
+
   // RL API — direct in-memory bridge to RLSkillProvider (no subprocess, no JSON)
   m.def("rl_set_action",
     [](int player_number, const std::string& skill,
@@ -512,10 +551,17 @@ Args:
       d["simrobot_robot_y"] = io.simRobotY;
       d["simrobot_robot_theta"] = io.simRobotTheta;
       d["frame"]       = io.frame;
+      d["reset_applied_frame"] = io.resetAppliedFrame;
+      d["dynamic_applied_frame"] = io.dynamicAppliedFrame;
       d["obs_ready"]   = io.obsReady;
       d["obs_export_mode"] = io.obsExportMode;
       d["corrected_exported_robot_pose"] = io.correctedExportedRobotPose;
       d["corrected_exported_ball"] = io.correctedExportedBall;
+      d["ball_export_source"] = io.ballExportSource;
+      d["ball_export_fresh"] = io.ballExportFresh;
+      d["natural_time_since_ball_seen"] = io.naturalTimeSinceBallSeen;
+      d["natural_ball_seen_percentage"] = io.naturalBallSeenPercentage;
+      d["natural_ball_consistent_with_game_state"] = io.naturalBallConsistentWithGameState;
       d["ball_rel_x"] = io.ballRelX;
       d["ball_rel_y"] = io.ballRelY;
       d["ball_end_rel_x"] = io.ballEndRelX;

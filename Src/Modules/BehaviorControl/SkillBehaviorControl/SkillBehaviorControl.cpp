@@ -306,6 +306,7 @@ void SkillBehaviorControl::update(ActivationGraph&)
     io.obsExportMode = static_cast<int>(obsExportMode);
     io.correctedExportedRobotPose = correctedRobotPose;
     io.correctedExportedBall = correctedBall;
+    io.ballExportFresh = !correctedBall;
     io.ballVelX = ballVelocity.x();
     io.ballVelY = ballVelocity.y();
     io.timeSinceBallSeen = exportedTimeSinceBallSeen;
