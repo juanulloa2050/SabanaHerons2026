@@ -251,8 +251,12 @@ void SkillBehaviorControl::update(ActivationGraph&)
     float exportedTimeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
     float exportedBallSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
     bool exportedBallConsistent = theFieldBall.ballPositionConsistentWithGameState;
+    const float naturalTimeSinceBallSeen = exportedTimeSinceBallSeen;
+    const float naturalBallSeenPercentage = exportedBallSeenPercentage;
+    const bool naturalBallConsistent = exportedBallConsistent;
     bool correctedRobotPose = false;
     bool correctedBall = false;
+    int ballExportSource = 0; // 0=estimated, 1=reset fallback, 2=dynamic fallback
 
     const float simPoseError = std::hypot(estimatedRobotX - io.simRobotX, estimatedRobotY - io.simRobotY);
     if(obsExportMode == RLObsExportMode::corrected && simPoseError > 500.f)
@@ -273,6 +277,7 @@ void SkillBehaviorControl::update(ActivationGraph&)
       exportedBallSeenPercentage = 100.f;
       exportedBallConsistent = true;
       correctedBall = true;
+      ballExportSource = io.dynamicHasBall ? 2 : 1;
     }
 
     const Pose2f exportedRobotPose(exportedRobotTheta, exportedRobotX, exportedRobotY);
@@ -306,7 +311,11 @@ void SkillBehaviorControl::update(ActivationGraph&)
     io.obsExportMode = static_cast<int>(obsExportMode);
     io.correctedExportedRobotPose = correctedRobotPose;
     io.correctedExportedBall = correctedBall;
+    io.ballExportSource = ballExportSource;
     io.ballExportFresh = !correctedBall;
+    io.naturalTimeSinceBallSeen = naturalTimeSinceBallSeen;
+    io.naturalBallSeenPercentage = naturalBallSeenPercentage;
+    io.naturalBallConsistentWithGameState = naturalBallConsistent;
     io.ballVelX = ballVelocity.x();
     io.ballVelY = ballVelocity.y();
     io.timeSinceBallSeen = exportedTimeSinceBallSeen;
