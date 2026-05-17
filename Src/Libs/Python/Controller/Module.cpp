@@ -506,35 +506,41 @@ Args:
     [](int player_number, unsigned int timeout_ms) -> py::dict
     {
       RLPlayerIO& io = RLSharedState::instance().player(player_number);
-      if(timeout_ms == 0)
+      // Release the GIL during the blocking semaphore wait so that Python
+      // threads for different player slots can overlap their waits concurrently.
+      // pthread_mutex_lock/unlock inside the loop are pure C calls — safe without GIL.
       {
-        do
+        py::gil_scoped_release release;
+        if(timeout_ms == 0)
         {
-          io.waitForObs(0);
-          io.lock();
-          const bool ready = io.obsReady;
-          io.unlock();
-          if(ready)
-            break;
+          do
+          {
+            io.waitForObs(0);
+            io.lock();
+            const bool ready = io.obsReady;
+            io.unlock();
+            if(ready)
+              break;
+          }
+          while(true);
         }
-        while(true);
-      }
-      else
-      {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-        while(std::chrono::steady_clock::now() < deadline)
+        else
         {
-          const auto now = std::chrono::steady_clock::now();
-          const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
-          if(!io.waitForObs(static_cast<unsigned int>(remaining > 0 ? remaining : 1)))
-            break;
-          io.lock();
-          const bool ready = io.obsReady;
-          io.unlock();
-          if(ready)
-            break;
+          const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+          while(std::chrono::steady_clock::now() < deadline)
+          {
+            const auto now = std::chrono::steady_clock::now();
+            const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+            if(!io.waitForObs(static_cast<unsigned int>(remaining > 0 ? remaining : 1)))
+              break;
+            io.lock();
+            const bool ready = io.obsReady;
+            io.unlock();
+            if(ready)
+              break;
+          }
         }
-      }
+      } // GIL re-acquired here before py::dict construction
       io.lock();
       py::dict d;
       d["ball_x"]      = io.ballX;
