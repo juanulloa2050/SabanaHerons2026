@@ -1,0 +1,10 @@
+call Includes/Normal
+call Includes/Views
+call Drawings/Zweikampf
+
+# Start directly in play so the hybrid RL override can drive players 2 and 3
+# while player 1 and the full opponent team keep normal B-Human behavior.
+gc playing
+ar kickOffDelay off
+ar penalizeIllegalPosition off
+ar penalizeIllegalPositionInSet off

@@ -7,12 +7,80 @@
  */
 
 #include "StrategyBehaviorControl.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Representations/Communication/TeamData.h"
 #include "Tools/BehaviorControl/Strategy/BehaviorBase.h"
 #include "Tools/Modeling/BallPhysics.h"
 #include "Debugging/DebugDrawings.h"
+#include <array>
+#include <cstdlib>
+#include <cstring>
 
 MAKE_MODULE(StrategyBehaviorControl, StrategyBehaviorControl::getExtModuleInfo);
+
+namespace
+{
+constexpr const char* rlOverrideTeamEnv = "PYBH_RL_OVERRIDE_TEAM";
+constexpr const char* rlOverridePlayersEnv = "PYBH_RL_ACTIVE_PLAYERS";
+
+int parseEnvInt(const char* envName, int fallback)
+{
+  const char* value = std::getenv(envName);
+  if(!value || !*value)
+    return fallback;
+
+  char* end = nullptr;
+  const long parsed = std::strtol(value, &end, 10);
+  return end != value ? static_cast<int>(parsed) : fallback;
+}
+
+const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>& rlOverridePlayers()
+{
+  static const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> players = []()
+  {
+    std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> enabled{};
+    const char* raw = std::getenv(rlOverridePlayersEnv);
+    if(!raw || !*raw)
+      return enabled;
+
+    char buffer[128];
+    std::snprintf(buffer, sizeof(buffer), "%s", raw);
+    for(char* token = std::strtok(buffer, ", "); token; token = std::strtok(nullptr, ", "))
+    {
+      char* end = nullptr;
+      const long parsed = std::strtol(token, &end, 10);
+      if(end != token && parsed >= 1 && parsed <= RLSharedStateBridge::maxWorldPlayersPerTeam)
+        enabled[static_cast<std::size_t>(parsed)] = true;
+    }
+    return enabled;
+  }();
+
+  return players;
+}
+
+bool usesExternalRLOverride(const GameState& gameState)
+{
+  const int teamNumber = parseEnvInt(rlOverrideTeamEnv, -1);
+  if(teamNumber < 0 || gameState.ownTeam.number != teamNumber)
+    return false;
+
+  const int playerNumber = gameState.playerNumber;
+  return playerNumber >= 1 &&
+         playerNumber <= RLSharedStateBridge::maxWorldPlayersPerTeam &&
+         rlOverridePlayers()[static_cast<std::size_t>(playerNumber)];
+}
+
+void setProviderDebug(RLPlayerIO& io, const float tx, const float ty, const float tt, const int motionRequest)
+{
+  io.lock();
+  ++io.debugProviderCallCount;
+  io.debugProviderTargetX = tx;
+  io.debugProviderTargetY = ty;
+  io.debugProviderTargetTheta = tt;
+  io.debugProviderMotionRequest = motionRequest;
+  io.unlock();
+}
+}
 
 StrategyBehaviorControl::StrategyBehaviorControl() :
   theBehavior(theBallDropInModel, theExtendedGameState, theFieldBall, theFieldDimensions, theFrameInfo,
@@ -28,6 +96,76 @@ std::vector<ModuleBase::Info> StrategyBehaviorControl::getExtModuleInfo()
 
 void StrategyBehaviorControl::update(SkillRequest& skillRequest)
 {
+  if(usesExternalRLOverride(theGameState))
+  {
+    theStrategyStatus = StrategyStatus();
+
+    if(theGameState.playerState != GameState::active ||
+       theGameState.isPenaltyShootout() || theGameState.isInitial() || theGameState.isFinished())
+    {
+      skillRequest = SkillRequest::Builder::empty();
+      return;
+    }
+
+    RLPlayerIO& io = RLSharedState::instance().player(theGameState.playerNumber);
+    std::string skill;
+    float tx = 0.f;
+    float ty = 0.f;
+    float tt = 0.f;
+    int passTarget = -1;
+    {
+      io.lock();
+      skill = io.getSkill();
+      tx = io.targetX;
+      ty = io.targetY;
+      tt = io.targetTheta;
+      passTarget = io.passTarget;
+      io.unlock();
+    }
+
+    if(skill == "walkTo" || skill == "walk")
+    {
+      skillRequest = SkillRequest::Builder::walkTo(Pose2f(tt, tx, ty));
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToPose));
+    }
+    else if(skill == "shoot")
+    {
+      skillRequest = SkillRequest::Builder::shoot();
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToBallAndKick));
+    }
+    else if(skill == "pass")
+    {
+      skillRequest = SkillRequest::Builder::passTo(passTarget);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToBallAndKick));
+    }
+    else if(skill == "dribble")
+    {
+      skillRequest = SkillRequest::Builder::dribbleTo(tt);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::dribble));
+    }
+    else if(skill == "block")
+    {
+      skillRequest = SkillRequest::Builder::block(Vector2f(tx, ty));
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToPose));
+    }
+    else if(skill == "mark")
+    {
+      skillRequest = SkillRequest::Builder::mark(Vector2f(tx, ty));
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToPose));
+    }
+    else if(skill == "observe")
+    {
+      skillRequest = SkillRequest::Builder::observe(Vector2f(tx, ty));
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::stand));
+    }
+    else
+    {
+      skillRequest = SkillRequest::Builder::stand();
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::stand));
+    }
+    return;
+  }
+
   auto* self = updateAgents();
 
   theBehavior.preProcess();
@@ -65,6 +203,11 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
   }
 
   theBehavior.postProcess();
+}
+
+void StrategyBehaviorControl::update(StrategyStatus& strategyStatus)
+{
+  strategyStatus = usesExternalRLOverride(theGameState) ? StrategyStatus() : theStrategyStatus;
 }
 
 Agent* StrategyBehaviorControl::updateAgents()

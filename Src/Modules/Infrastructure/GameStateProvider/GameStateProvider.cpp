@@ -11,6 +11,7 @@
 #include "Debugging/DebugDrawings.h"
 #include "Platform/BHAssert.h"
 #include "Platform/SystemCall.h"
+#include "Python/Controller/RLSharedState.h"
 #include <algorithm>
 #include <iostream>
 
@@ -71,6 +72,11 @@ static const char* playerStateToString(GameState::PlayerState state)
     case GameState::substitute: return "substitute";
     default: return "unknown";
   }
+}
+
+static bool usesRLStandbyFlow()
+{
+  return RLSharedStateBridge::isEnabledForTeam(Global::getSettings().teamNumber);
 }
 
 MAKE_MODULE(GameStateProvider);
@@ -339,7 +345,7 @@ void GameStateProvider::update(GameState& gameState)
   }
 
   // Transition from Initial to Ready
-  if(gameState.state == GameState::standby && theInitialToReady.isTransition())
+  if(gameState.state == GameState::standby && (theInitialToReady.isTransition() || !usesRLStandbyFlow()))
   {
     const bool isKickingTeam = theGameControllerData.kickingTeam == Global::getSettings().teamNumber;
     gameState.state = isKickingTeam ? GameState::setupOwnKickOff : GameState::setupOpponentKickOff;
