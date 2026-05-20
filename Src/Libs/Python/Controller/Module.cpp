@@ -502,6 +502,32 @@ Args:
     py::arg("target_x") = 0.f, py::arg("target_y") = 0.f,
     py::arg("target_theta") = 0.f, py::arg("pass_target") = -1);
 
+  // Visible-SimRobot variant: posts the action WITHOUT clearing obsReady.
+  // In visible mode the semaphore in rl_get_obs guarantees frame freshness,
+  // so clearing obsReady here only creates a race: if frame N+1 already
+  // posted (obsReady=true, sem+1) before this call, the clear causes
+  // rl_get_obs to discard the posted semaphore count and wait an extra frame,
+  // doubling step latency from 33ms to 66ms.
+  m.def("rl_set_visible_action",
+    [](int player_number, const std::string& skill,
+       float target_x, float target_y, float target_theta,
+       int pass_target)
+    {
+      RLPlayerIO& io = RLSharedState::instance().player(player_number);
+      io.lock();
+      io.setSkill(skill);
+      io.targetX     = target_x;
+      io.targetY     = target_y;
+      io.targetTheta = target_theta;
+      io.passTarget  = pass_target;
+      // obsReady is intentionally NOT cleared here — see comment above.
+      io.unlock();
+    },
+    "Set RL action for a visible SimRobot slot (does not clear obsReady).",
+    py::arg("player_number"), py::arg("skill"),
+    py::arg("target_x") = 0.f, py::arg("target_y") = 0.f,
+    py::arg("target_theta") = 0.f, py::arg("pass_target") = -1);
+
   m.def("rl_get_obs",
     [](int player_number, unsigned int timeout_ms) -> py::dict
     {
