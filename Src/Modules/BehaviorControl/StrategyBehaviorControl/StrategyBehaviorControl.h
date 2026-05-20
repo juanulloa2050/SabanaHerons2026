@@ -80,7 +80,7 @@ private:
    * Updates the strategy status.
    * @param strategyStatus The provided strategy status.
    */
-  void update(StrategyStatus& strategyStatus) override { strategyStatus = theStrategyStatus; }
+  void update(StrategyStatus& strategyStatus) override;
 
   /**
    * Updates the list of agents to represent the most recent data.

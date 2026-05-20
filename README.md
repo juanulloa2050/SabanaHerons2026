@@ -15,3 +15,57 @@ Nonetheless, we have added our own improvements to the code, and behaviors that 
 ## Run this code
 
 As we said, this code is heavily based in B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/), therefore and so far, you can just follow their documentation to build and run the code.
+
+## RL and common SimRobot scenes
+
+This repository also contains the C++ side of the RL bridge used by the sibling
+`RL` repo.
+
+The recent SimRobot work here was mainly about keeping common scenes from
+freezing. The safe debugging order is:
+
+1. compare against `master`
+2. confirm the scene really leaves `standby` and reaches `playing`
+3. only then inspect higher-level RL code
+
+The core invariant that must stay intact is:
+
+```text
+Python -> RLSharedState -> SkillRequest -> SkillBehaviorControl ->
+MotionRequest -> MotionEngine / WalkingEngine -> JointRequest -> SimRobot
+```
+
+Practical guardrails:
+
+- do not assume manual `F5` for visible RL scenes
+- do not break common scenario game-state flow when enabling RL
+- do not fix freezes by bypassing the normal B-Human motion path
+
+## Hybrid RL vs B-Human test
+
+Selective RL override is available through:
+
+- `PYBH_RL_OVERRIDE_TEAM`
+- `PYBH_RL_ACTIVE_PLAYERS`
+
+That override lives in `StrategyBehaviorControl`, so only the requested jersey
+numbers are replaced by RL while the rest of the team keeps normal B-Human
+behavior.
+
+There is also a dedicated mixed scene for observing duels and `Zweikampf`:
+
+```text
+Config/Scenes/RLvsBH3v3_3D.ros2
+Config/Scenes/RLvsBH3v3_3D.con
+```
+
+Layout:
+
+- own team `24`
+- `robot1`: B-Human goalkeeper
+- `robot2` and `robot3`: RL-controlled field players
+- opponent team: three B-Human players
+
+The console enables `Drawings/Zweikampf` so the scene can be used together with
+the Python runner from the `RL` repo to inspect when the duel skill gets
+entered.
