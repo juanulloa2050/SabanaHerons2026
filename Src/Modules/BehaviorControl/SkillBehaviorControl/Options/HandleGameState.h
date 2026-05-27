@@ -2,10 +2,8 @@ option(HandleGameState)
 {
   common_transition
   {
-    if(theGameState.isInitial(false))  // false = exclude standby
+    if(theGameState.isInitial())
       goto initial;
-    else if(theGameState.state == GameState::standby)
-      goto standby;
     else if(theGameState.isReady())
       goto ready;
     else if(theGameState.isSet())
@@ -36,19 +34,6 @@ option(HandleGameState)
     {
       theLookAtAnglesSkill({.pan = 0_deg,
                             .tilt = 0_deg,
-                            .speed = 150_deg});
-      theStandSkill({.high = true});
-    }
-  }
-
-  state(standby)
-  {
-    action
-    {
-      // In standby, the robot stands and looks at the referee (handled by HandleRefereeSignal)
-      // If the robot is not looking at the referee, it looks slightly upward to search for referee
-      theLookAtAnglesSkill({.pan = 0_deg,
-                            .tilt = -15_deg,  // Look slightly upward to search for referee
                             .speed = 150_deg});
       theStandSkill({.high = true});
     }
