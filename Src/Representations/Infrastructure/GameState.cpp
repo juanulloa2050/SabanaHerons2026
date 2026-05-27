@@ -129,9 +129,7 @@ void GameState::draw() const
     yPosLeftSideline += 500;
 
     std::string gameState = "INITIAL";
-    if(state == standby)
-      gameState = "STANDBY";
-    else if(isReady())
+    if(isReady())
       gameState = "READY";
     else if(isSet())
       gameState = "SET";

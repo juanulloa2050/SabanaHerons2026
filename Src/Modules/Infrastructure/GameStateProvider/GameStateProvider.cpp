@@ -24,7 +24,6 @@ static const char* gcStateToString(uint8_t state)
     case STATE_SET: return "SET";
     case STATE_PLAYING: return "PLAYING";
     case STATE_FINISHED: return "FINISHED";
-    case STATE_STANDBY: return "STANDBY";
     default: return "UNKNOWN";
   }
 }
@@ -36,7 +35,6 @@ static const char* gameStateToString(GameState::State state)
   {
     case GameState::beforeHalf: return "beforeHalf";
     case GameState::afterHalf: return "afterHalf";
-    case GameState::standby: return "standby";
     case GameState::setupOwnKickOff: return "setupOwnKickOff";
     case GameState::setupOpponentKickOff: return "setupOpponentKickOff";
     case GameState::waitForOwnKickOff: return "waitForOwnKickOff";
@@ -67,7 +65,6 @@ static const char* playerStateToString(GameState::PlayerState state)
     case GameState::penalizedLocalGameStuck: return "penalizedLocalGameStuck";
     case GameState::penalizedIllegalPositionInSet: return "penalizedIllegalPositionInSet";
     case GameState::penalizedPlayerStance: return "penalizedPlayerStance";
-    case GameState::penalizedIllegalMotionInStandby: return "penalizedIllegalMotionInStandby";
     case GameState::substitute: return "substitute";
     default: return "unknown";
   }
@@ -338,18 +335,6 @@ void GameStateProvider::update(GameState& gameState)
     }
   }
 
-  // Transition from Initial to Ready
-  if(gameState.state == GameState::standby && theInitialToReady.isTransition())
-  {
-    const bool isKickingTeam = theGameControllerData.kickingTeam == Global::getSettings().teamNumber;
-    gameState.state = isKickingTeam ? GameState::setupOwnKickOff : GameState::setupOpponentKickOff;
-    gameState.timeWhenStateStarted = theFrameInfo.time;
-    gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffSetupDuration;
-    gameState.kickOffSetupFromSidelines = true;
-    gameStateOverridden = true;
-  }
-
-
   if(useGameControllerData)
   {
     gameState.competitionPhase = static_cast<GameState::CompetitionPhase>(theGameControllerData.competitionPhase);
@@ -368,8 +353,8 @@ void GameStateProvider::update(GameState& gameState)
     auto gameControllerState = convertGameControllerDataToState(theGameControllerData);
     // When the guessed state and the state from the GameController match, we can trust the GameController again.
     gameStateOverridden &= gameState.state != gameControllerState;
-    // States other than SET, PLAYING or STANDBY are always true.
-    gameStateOverridden &= GameState::isSet(gameControllerState) || GameState::isPlaying(gameControllerState) || gameControllerState == GameState::standby;
+    // States other than SET or PLAYING are always true.
+    gameStateOverridden &= GameState::isSet(gameControllerState) || GameState::isPlaying(gameControllerState);
     // SET is true when switching there from READY.
     gameStateOverridden &= !GameState::isSet(gameControllerState) || !gameState.isReady();
     // Free Kicks are mostly true, but not if we guess READY (because it might be that the GameController still sends a free kick when a goal is scored).
@@ -850,7 +835,7 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   else if(gameControllerData.state == STATE_STANDBY)
   {
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
-    return GameState::standby;
+    return GameState::beforeHalf;
   }
   else if(gameControllerData.state == STATE_READY)
   {
@@ -933,10 +918,9 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
       return GameState::penalizedLocalGameStuck;
     case PENALTY_SPL_ILLEGAL_POSITION_IN_SET:
       return GameState::penalizedIllegalPositionInSet;
+    case PENALTY_SPL_ILLEGAL_MOTION_IN_STANDBY:
     case PENALTY_SPL_PLAYER_STANCE:
       return GameState::penalizedPlayerStance;
-    case PENALTY_SPL_ILLEGAL_MOTION_IN_STANDBY:
-      return GameState::penalizedIllegalMotionInStandby;
     case PENALTY_SUBSTITUTE:
       return GameState::substitute;
     case PENALTY_NONE:

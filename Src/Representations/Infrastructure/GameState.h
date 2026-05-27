@@ -19,7 +19,6 @@ STREAMABLE(GameState,
   ENUM(State,
   {,
     beforeHalf, /**< The half hasn't started yet. */
-    standby, /**< Wait for the signal to walk in from the touchlines. */
     afterHalf, /**< The half is over. */
     timeout, /**< A team or the referee has taken a timeout. */
 
@@ -78,7 +77,6 @@ STREAMABLE(GameState,
     penalizedRequestForPickup, /**< The robot is picked up. */
     penalizedLocalGameStuck, /**< The robot is penalized for causing a local game stuck (at the sideline, 45s). */
     penalizedIllegalPositionInSet, /**< The robot is penalized for an illegal position in set (at the sideline, 15s). */
-    penalizedIllegalMotionInStandby, /**< The robot is penalized for illegal motion in standby (in place, 15s). */
     penalizedPlayerStance, /**< The robot is penalized for an illegal stance (at the sideline, at least 45s). */
     substitute, /**< The robot is a substitute. */
     active, /**< The robot is playing according to the global game state. */
@@ -129,19 +127,18 @@ STREAMABLE(GameState,
   /** Draw the representation. */
   void draw() const;
 
-
-  static bool isInitial(State state, bool orStandby = true)
+  static bool isInitial(State state)
   {
     return state == beforeHalf ||
-           (orStandby && state == standby) ||
            state == timeout ||
            state == beforePenaltyShootout;
   }
 
-  bool isInitial(bool orStandby = true) const
+  bool isInitial() const
   {
-    return isInitial(state, orStandby);
+    return isInitial(state);
   }
+
   static bool isReady(State state)
   {
     return state == setupOwnKickOff ||
@@ -209,7 +206,6 @@ STREAMABLE(GameState,
   static bool isStopped(State state)
   {
     return state == beforeHalf ||
-           state == standby ||
            state == afterHalf ||
            state == timeout ||
            state == beforePenaltyShootout ||
@@ -385,7 +381,6 @@ STREAMABLE(GameState,
            state == penalizedRequestForPickup ||
            state == penalizedLocalGameStuck ||
            state == penalizedIllegalPositionInSet ||
-           state == penalizedIllegalMotionInStandby ||
            state == penalizedPlayerStance ||
            state == substitute;
   }
@@ -424,9 +419,9 @@ STREAMABLE(GameState,
 
 STREAMABLE(ExtendedGameState,
 {
-  bool wasInitial(bool orStandby = true) const
+  bool wasInitial() const
   {
-    return GameState::isInitial(stateLastFrame, orStandby);
+    return GameState::isInitial(stateLastFrame);
   }
 
   bool wasReady() const
