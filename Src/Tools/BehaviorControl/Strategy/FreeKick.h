@@ -49,6 +49,8 @@ STREAMABLE_WITH_BASE(OwnFreeKick, FreeKick,
     ownGoalKick,
     ownCornerKick_scaled,
     ownGoalKick_scaled,
+    ownCornerKick_full,
+    ownGoalKick_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)
@@ -63,6 +65,7 @@ STREAMABLE_WITH_BASE(OpponentFreeKick, FreeKick,
   {,
     opponentCornerKick,
     opponentCornerKick_scaled,
+    opponentCornerKick_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)

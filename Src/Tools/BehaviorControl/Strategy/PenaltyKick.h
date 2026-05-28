@@ -25,6 +25,7 @@ STREAMABLE_WITH_BASE(OwnPenaltyKick, PenaltyKick,
   {,
     theOneTrueOwnPenaltyKick,
     theOneTrueOwnPenaltyKick_scaled,
+    theOneTrueOwnPenaltyKick_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)
@@ -39,6 +40,7 @@ STREAMABLE_WITH_BASE(OpponentPenaltyKick, PenaltyKick,
   {,
     theOneTrueOpponentPenaltyKick,
     theOneTrueOpponentPenaltyKick_scaled,
+    theOneTrueOpponentPenaltyKick_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)

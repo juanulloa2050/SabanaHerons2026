@@ -27,6 +27,7 @@ STREAMABLE_WITH_BASE(OwnKickOff, KickOff,
     attackKickOff,
     attackKickOff_scaled,
     directKickOff_scaled,
+    attackKickOff_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)
@@ -42,6 +43,7 @@ STREAMABLE_WITH_BASE(OpponentKickOff, KickOff,
     kiteKickOff,
     defenseKickOff,
     kiteKickOff_scaled,
+    kiteKickOff_full,
 
   });
 
