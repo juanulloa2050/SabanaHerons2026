@@ -43,6 +43,12 @@ static const char* gameStateToString(GameState::State state)
     case GameState::waitForDroppedBall: return "waitForDroppedBall";
     case GameState::ownKickOff: return "ownKickOff";
     case GameState::opponentKickOff: return "opponentKickOff";
+    case GameState::ownDirectFreeKick: return "ownDirectFreeKick";
+    case GameState::opponentDirectFreeKick: return "opponentDirectFreeKick";
+    case GameState::ownIndirectFreeKick: return "ownIndirectFreeKick";
+    case GameState::opponentIndirectFreeKick: return "opponentIndirectFreeKick";
+    case GameState::ownThrowIn: return "ownThrowIn";
+    case GameState::opponentThrowIn: return "opponentThrowIn";
     case GameState::playing: return "playing";
     default: return "other";
   }
@@ -60,6 +66,7 @@ static const char* playerStateToString(GameState::PlayerState state)
     case GameState::penalizedIllegalBallContact: return "penalizedIllegalBallContact";
     case GameState::penalizedPlayerPushing: return "penalizedPlayerPushing";
     case GameState::penalizedIllegalMotionInSet: return "penalizedIllegalMotionInSet";
+    case GameState::penalizedIllegalMotionInStop: return "penalizedIllegalMotionInStop";
     case GameState::penalizedInactivePlayer: return "penalizedInactivePlayer";
     case GameState::penalizedIllegalPosition: return "penalizedIllegalPosition";
     case GameState::penalizedLeavingTheField: return "penalizedLeavingTheField";
@@ -67,6 +74,7 @@ static const char* playerStateToString(GameState::PlayerState state)
     case GameState::penalizedLocalGameStuck: return "penalizedLocalGameStuck";
     case GameState::penalizedIllegalPositionInSet: return "penalizedIllegalPositionInSet";
     case GameState::penalizedPlayerStance: return "penalizedPlayerStance";
+    case GameState::sentOff: return "sentOff";
     case GameState::substitute: return "substitute";
     default: return "unknown";
   }
@@ -255,10 +263,16 @@ void GameStateProvider::update(GameState& gameState)
   {
     switch(gameState.state)
     {
+      case GameState::opponentDirectFreeKick:
+      case GameState::opponentIndirectFreeKick:
+      case GameState::opponentThrowIn:
       case GameState::opponentKickIn:
       case GameState::opponentCornerKick:
       case GameState::opponentPushingFreeKick:
       case GameState::opponentGoalKick:
+      case GameState::ownDirectFreeKick:
+      case GameState::ownIndirectFreeKick:
+      case GameState::ownThrowIn:
       case GameState::ownPushingFreeKick:
       case GameState::ownKickIn:
       case GameState::ownGoalKick:
@@ -419,6 +433,12 @@ void GameStateProvider::update(GameState& gameState)
             gameState.timeWhenStateStarted -= playingSignalDelay;
           gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + penaltyKickDuration;
           break;
+        case GameState::ownDirectFreeKick:
+        case GameState::opponentDirectFreeKick:
+        case GameState::ownIndirectFreeKick:
+        case GameState::opponentIndirectFreeKick:
+        case GameState::ownThrowIn:
+        case GameState::opponentThrowIn:
         case GameState::ownPushingFreeKick:
         case GameState::opponentPushingFreeKick:
         case GameState::ownKickIn:
@@ -440,7 +460,10 @@ void GameStateProvider::update(GameState& gameState)
     {
       static_assert(std::tuple_size<decltype(team.playerStates)>::value == MAX_NUM_PLAYERS);
       for(std::size_t i = 0; i < team.playerStates.size(); ++i)
+      {
         team.playerStates[i] = convertPenaltyToPlayerState(teamInfo.players[i].penalty);
+        team.cautions[i] = teamInfo.players[i].cautions;
+      }
       team.number = teamInfo.teamNumber;
       team.fieldPlayerColor = static_cast<GameState::Team::Color>(teamInfo.fieldPlayerColor);
       team.goalkeeperColor = static_cast<GameState::Team::Color>(teamInfo.goalkeeperColor);
@@ -881,9 +904,11 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
       return isKickingTeam ? GameState::ownPenaltyKick : GameState::opponentPenaltyKick;
     else if(gameControllerData.setPlay == SET_PLAY_DIRECT_FREE_KICK ||
             gameControllerData.setPlay == SET_PLAY_INDIRECT_FREE_KICK)
-      return isKickingTeam ? GameState::ownPushingFreeKick : GameState::opponentPushingFreeKick;
+      return gameControllerData.setPlay == SET_PLAY_DIRECT_FREE_KICK ?
+             (isKickingTeam ? GameState::ownDirectFreeKick : GameState::opponentDirectFreeKick) :
+             (isKickingTeam ? GameState::ownIndirectFreeKick : GameState::opponentIndirectFreeKick);
     else if(gameControllerData.setPlay == SET_PLAY_THROW_IN)
-      return isKickingTeam ? GameState::ownKickIn : GameState::opponentKickIn;
+      return isKickingTeam ? GameState::ownThrowIn : GameState::opponentThrowIn;
     else if(gameControllerData.setPlay == SET_PLAY_GOAL_KICK)
       return isKickingTeam ? GameState::ownGoalKick : GameState::opponentGoalKick;
     else if(gameControllerData.setPlay == SET_PLAY_CORNER_KICK)
@@ -925,8 +950,9 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
     case PENALTY_PUSHING:
       return GameState::penalizedPlayerPushing;
     case PENALTY_MOTION_IN_SET:
-    case PENALTY_MOTION_IN_STOP:
       return GameState::penalizedIllegalMotionInSet;
+    case PENALTY_MOTION_IN_STOP:
+      return GameState::penalizedIllegalMotionInStop;
     case PENALTY_INCAPABLE_ROBOT:
       return GameState::penalizedInactivePlayer;
     case PENALTY_ILLEGAL_POSITIONING:
@@ -940,7 +966,7 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
     case PENALTY_CAUTIONED:
       return GameState::penalizedPlayerStance;
     case PENALTY_SENT_OFF:
-      return GameState::penalizedManual;
+      return GameState::sentOff;
     case PENALTY_SUBSTITUTE:
       return GameState::substitute;
     case PENALTY_NONE:

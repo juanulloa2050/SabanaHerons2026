@@ -41,14 +41,20 @@ STREAMABLE(GameState,
     ownPenaltyKick, /**< The phase of an own penalty kick in which the goalkeeper must stay on its line and nobody is allowed to enter the penalty area. */
     opponentPenaltyKick, /**< The phase of an opponent penalty kick in which the goalkeeper must stay on its line and nobody is allowed to enter the penalty area. */
 
-    ownPushingFreeKick, /**< A pushing free kick for the own team. */
-    opponentPushingFreeKick, /**< A pushing free kick for the opponent team. */
-    ownKickIn, /**< A kick-in for the own team. */
-    opponentKickIn, /**< A kick-in for the opponent team. */
+    ownDirectFreeKick, /**< A direct free kick for the own team. */
+    opponentDirectFreeKick, /**< A direct free kick for the opponent team. */
+    ownIndirectFreeKick, /**< An indirect free kick for the own team. */
+    opponentIndirectFreeKick, /**< An indirect free kick for the opponent team. */
+    ownThrowIn, /**< A throw-in / kick-in for the own team. */
+    opponentThrowIn, /**< A throw-in / kick-in for the opponent team. */
     ownGoalKick, /**< A goal kick for the own team. */
     opponentGoalKick, /**< A goal kick for the opponent team. */
     ownCornerKick, /**< A corner kick for the own team. */
     opponentCornerKick, /**< A corner kick for the opponent team. */
+    ownPushingFreeKick, /**< Compatibility alias state for old logs/scripts. */
+    opponentPushingFreeKick, /**< Compatibility alias state for old logs/scripts. */
+    ownKickIn, /**< Compatibility alias state for old logs/scripts. */
+    opponentKickIn, /**< Compatibility alias state for old logs/scripts. */
 
     beforePenaltyShootout, /**< A penalty shootout will begin. */
     waitForOwnPenaltyShot, /**< The set phase before an own penalty kick in a penalty shootout. */
@@ -76,6 +82,7 @@ STREAMABLE(GameState,
     penalizedIllegalBallContact, /**< The robot is penalized for an illegal ball contact (at the sideline, at least 45s). */
     penalizedPlayerPushing, /**< The robot is penalized for pushing (at the sideline, at least 45s). */
     penalizedIllegalMotionInSet, /**< The robot is penalized for illegal motion in set (in place, 15s). */
+    penalizedIllegalMotionInStop, /**< The robot is penalized for illegal motion during a brief stop. */
     penalizedInactivePlayer, /**< The robot is penalized for being inactive / fallen (at the sideline, 45s). */
     penalizedIllegalPosition, /**< The robot is penalized for being in an illegal position (at the sideline, at least 45s). */
     penalizedLeavingTheField, /**< The robot is penalized for leaving the field (at the sideline, at least 45s). */
@@ -83,6 +90,7 @@ STREAMABLE(GameState,
     penalizedLocalGameStuck, /**< The robot is penalized for causing a local game stuck (at the sideline, 45s). */
     penalizedIllegalPositionInSet, /**< The robot is penalized for an illegal position in set (at the sideline, 15s). */
     penalizedPlayerStance, /**< The robot is penalized for an illegal stance (at the sideline, at least 45s). */
+    sentOff, /**< The robot has been permanently removed from the game. */
     substitute, /**< The robot is a substitute. */
     active, /**< The robot is playing according to the global game state. */
   });
@@ -118,6 +126,7 @@ STREAMABLE(GameState,
     },
 
     (std::array<PlayerState, Settings::highestValidPlayerNumber - Settings::lowestValidPlayerNumber + 1>)({}) playerStates, /**< The states of the players, indexed by jersey number - Settings::lowestValidPlayerNumber. */
+    (std::array<unsigned char, Settings::highestValidPlayerNumber - Settings::lowestValidPlayerNumber + 1>)({}) cautions, /**< Number of cautions per player, indexed by jersey number - Settings::lowestValidPlayerNumber. */
     (int)(0) number, /**< The team number in the GameController. */
     (Color)(Color::black) fieldPlayerColor, /**< The jersey color of field players. */
     (Color)(Color::blue) goalkeeperColor, /**< The jersey color of the goalkeeper. */
@@ -181,6 +190,12 @@ STREAMABLE(GameState,
            state == opponentKickOff ||
            state == ownPenaltyKick ||
            state == opponentPenaltyKick ||
+           state == ownDirectFreeKick ||
+           state == opponentDirectFreeKick ||
+           state == ownIndirectFreeKick ||
+           state == opponentIndirectFreeKick ||
+           state == ownThrowIn ||
+           state == opponentThrowIn ||
            state == ownPushingFreeKick ||
            state == opponentPushingFreeKick ||
            state == ownKickIn ||
@@ -269,7 +284,13 @@ STREAMABLE(GameState,
 
   static bool isFreeKick(State state)
   {
-    return state == ownPushingFreeKick ||
+    return state == ownDirectFreeKick ||
+           state == opponentDirectFreeKick ||
+           state == ownIndirectFreeKick ||
+           state == opponentIndirectFreeKick ||
+           state == ownThrowIn ||
+           state == opponentThrowIn ||
+           state == ownPushingFreeKick ||
            state == opponentPushingFreeKick ||
            state == ownKickIn ||
            state == opponentKickIn ||
@@ -284,9 +305,43 @@ STREAMABLE(GameState,
     return isFreeKick(state);
   }
 
+  static bool isDirectFreeKick(State state)
+  {
+    return state == ownDirectFreeKick ||
+           state == opponentDirectFreeKick ||
+           state == ownGoalKick ||
+           state == opponentGoalKick ||
+           state == ownCornerKick ||
+           state == opponentCornerKick ||
+           state == ownPushingFreeKick ||
+           state == opponentPushingFreeKick;
+  }
+
+  bool isDirectFreeKick() const
+  {
+    return isDirectFreeKick(state);
+  }
+
+  static bool isIndirectFreeKick(State state)
+  {
+    return state == ownIndirectFreeKick ||
+           state == opponentIndirectFreeKick ||
+           state == ownThrowIn ||
+           state == opponentThrowIn ||
+           state == ownKickIn ||
+           state == opponentKickIn;
+  }
+
+  bool isIndirectFreeKick() const
+  {
+    return isIndirectFreeKick(state);
+  }
+
   static bool isPushingFreeKick(State state)
   {
-    return state == ownPushingFreeKick ||
+    return state == ownDirectFreeKick ||
+           state == opponentDirectFreeKick ||
+           state == ownPushingFreeKick ||
            state == opponentPushingFreeKick;
   }
 
@@ -297,7 +352,9 @@ STREAMABLE(GameState,
 
   static bool isKickIn(State state)
   {
-    return state == ownKickIn ||
+    return state == ownThrowIn ||
+           state == opponentThrowIn ||
+           state == ownKickIn ||
            state == opponentKickIn;
   }
 
@@ -352,6 +409,9 @@ STREAMABLE(GameState,
            state == setupOwnPenaltyKick ||
            state == waitForOwnPenaltyKick ||
            state == ownPenaltyKick ||
+           state == ownDirectFreeKick ||
+           state == ownIndirectFreeKick ||
+           state == ownThrowIn ||
            state == ownPushingFreeKick ||
            state == ownKickIn ||
            state == ownGoalKick ||
@@ -374,6 +434,9 @@ STREAMABLE(GameState,
            state == setupOpponentPenaltyKick ||
            state == waitForOpponentPenaltyKick ||
            state == opponentPenaltyKick ||
+           state == opponentDirectFreeKick ||
+           state == opponentIndirectFreeKick ||
+           state == opponentThrowIn ||
            state == opponentPushingFreeKick ||
            state == opponentKickIn ||
            state == opponentGoalKick ||
@@ -394,6 +457,7 @@ STREAMABLE(GameState,
            state == penalizedIllegalBallContact ||
            state == penalizedPlayerPushing ||
            state == penalizedIllegalMotionInSet ||
+           state == penalizedIllegalMotionInStop ||
            state == penalizedInactivePlayer ||
            state == penalizedIllegalPosition ||
            state == penalizedLeavingTheField ||
@@ -401,6 +465,7 @@ STREAMABLE(GameState,
            state == penalizedLocalGameStuck ||
            state == penalizedIllegalPositionInSet ||
            state == penalizedPlayerStance ||
+           state == sentOff ||
            state == substitute;
   }
 

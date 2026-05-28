@@ -19,10 +19,10 @@ Sources checked:
 - [x] Map HSL penalties to internal `GameState::PlayerState`.
 - [x] Handle GameController `stopped` as internal `GameState::stopped`.
 - [x] Keep compatibility aliases for old simulator/internal code while preserving v20 wire format.
-- [ ] Rework simulator GameController commands to expose HSL names directly instead of old SPL aliases.
-- [ ] Use `RobotInfo::cautions` explicitly in behavior/debug output.
-- [ ] Model `PENALTY_SENT_OFF` as a permanent player removal instead of only treating it as manual penalized.
-- [ ] Separate `PENALTY_MOTION_IN_STOP` from `PENALTY_MOTION_IN_SET` in internal player states.
+- [x] Rework simulator GameController commands to expose HSL names directly instead of old SPL aliases.
+- [x] Use `RobotInfo::cautions` explicitly in behavior/debug output.
+- [x] Model `PENALTY_SENT_OFF` as a permanent player removal instead of only treating it as manual penalized.
+- [x] Separate `PENALTY_MOTION_IN_STOP` from `PENALTY_MOTION_IN_SET` in internal player states.
 
 ## HSL 2026 Rules
 
@@ -31,16 +31,17 @@ Sources checked:
 - [x] Treat dropped ball setup as no set play, no kicking team.
 - [x] Enforce dropped ball positioning through illegal areas: own half plus center circle exclusion for SET.
 - [x] Update `Default` field dimensions to HSL 2026 Small baseline.
-- [x] Update current Sabana `4v4_Scaled` location dimensions to HSL 2026 Small baseline.
-- [x] Update `Default` and `4v4_Scaled` ball radius to an approximate FIFA Mini Ball radius.
+- [x] Update current Sabana `4v4_Full` location dimensions to HSL 2026 Small baseline.
+- [x] Update current Sabana `3v3_Full` location dimensions to HSL 2026 Small baseline.
+- [ ] Update `Default`, `4v4_Full`, and `3v3_Full` ball radius when the competition FIFA Mini Ball is in use.
 - [ ] Confirm the exact competition FIFA Mini Ball diameter, weight, friction, and kick distance parameters.
-- [ ] Decide whether `3v3_Scaled` and other legacy locations should remain scaled test fields or be migrated to HSL Small.
+- [ ] Decide whether other legacy locations should remain scaled test fields or be migrated to HSL Small.
 - [ ] Update SimRobot field assets to visually match HSL 2026 Small dimensions.
-- [ ] Implement direct vs indirect free kick semantics instead of collapsing both to pushing free kick behavior.
-- [ ] Add explicit internal states or metadata for throw-in vs kick-in if behavior must distinguish hand throw from ground kick.
-- [ ] Implement HSL goal-kick avoidance area: opponents must stay outside the entire penalty area.
+- [x] Implement direct vs indirect free kick semantics instead of collapsing both to pushing free kick behavior.
+- [x] Add explicit internal states or metadata for throw-in vs kick-in if behavior must distinguish hand throw from ground kick.
+- [x] Implement HSL goal-kick avoidance area: opponents must stay outside the entire penalty area.
 - [ ] Add dropped ball tests/simulation scripts.
-- [ ] Update global game stuck restart to dropped ball in simulator/referee scripts.
+- [x] Update global game stuck restart to dropped ball in simulator/referee scripts.
 - [ ] Rework kick-off plays to avoid direct goals and enforce the two-touch rule for 3+ robots.
 - [ ] Add own/opponent free kick strategies for direct free kick, indirect free kick, throw-in, and opponent goal kick.
 - [ ] Review ball holding timing: goalkeeper 10 s in own penalty area, all others 5 s.

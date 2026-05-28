@@ -130,7 +130,9 @@ void IllegalAreaProvider::update(IllegalAreas& illegalAreas)
     }
     else if(theGameState.isFreeKick())
     {
-      if(theGameState.isForOpponentTeam())
+      if(theGameState.state == GameState::opponentGoalKick)
+        illegalAreas.illegal |= bit(IllegalAreas::opponentPenaltyArea);
+      else if(theGameState.isForOpponentTeam())
         illegalAreas.illegal |= bit(IllegalAreas::ballArea);
     }
     else if(theGameState.isKickOff())
