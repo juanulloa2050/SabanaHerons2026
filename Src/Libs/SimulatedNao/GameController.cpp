@@ -32,7 +32,7 @@ GameController::GameController() :
   gameControllerData.kickingTeam = 0; // is initialized in setTeamInfos.
   gameControllerData.secsRemaining = halfTime;
   gameControllerData.secondaryTime = 0;
-  competitionTypeChampionsCup();
+  competitionTypeSmallAdvanced();
   for(std::size_t i = 0; i < 2; ++i)
     for(std::size_t j = 0; j < MAX_NUM_PLAYERS; ++j)
       robots[i * MAX_NUM_PLAYERS + j].info = &gameControllerData.teams[i].players[j];
@@ -176,32 +176,79 @@ bool GameController::competitionPhaseRoundrobin()
   return true;
 }
 
-bool GameController::competitionTypeChampionsCup()
+bool GameController::competitionTypeSmallFoundation()
 {
   if(gameControllerData.state != STATE_INITIAL)
     return false;
-  gameControllerData.competitionType = COMPETITION_TYPE_NORMAL;
+  gameControllerData.competitionType = COMPETITION_TYPE_SMALL;
+  initTeams(4, 1200);
+  return true;
+}
+
+bool GameController::competitionTypeSmallAdvanced()
+{
+  if(gameControllerData.state != STATE_INITIAL)
+    return false;
+  gameControllerData.competitionType = COMPETITION_TYPE_SMALL;
   initTeams(7, 1200);
   return true;
 }
 
-bool GameController::competitionTypeChallengeShield()
+bool GameController::competitionTypeMiddleFoundation()
 {
   if(gameControllerData.state != STATE_INITIAL)
     return false;
-  gameControllerData.competitionType = COMPETITION_TYPE_NORMAL;
+  gameControllerData.competitionType = COMPETITION_TYPE_MIDDLE;
+  initTeams(3, 1200);
+  return true;
+}
+
+bool GameController::competitionTypeMiddleAdvanced()
+{
+  if(gameControllerData.state != STATE_INITIAL)
+    return false;
+  gameControllerData.competitionType = COMPETITION_TYPE_MIDDLE;
   initTeams(5, 1200);
   return true;
 }
 
+bool GameController::competitionTypeLargeFoundation()
+{
+  if(gameControllerData.state != STATE_INITIAL)
+    return false;
+  gameControllerData.competitionType = COMPETITION_TYPE_LARGE;
+  initTeams(3, 1200);
+  return true;
+}
+
+bool GameController::competitionTypeLargeAdvanced()
+{
+  if(gameControllerData.state != STATE_INITIAL)
+    return false;
+  gameControllerData.competitionType = COMPETITION_TYPE_LARGE;
+  initTeams(5, 1200);
+  return true;
+}
+
+bool GameController::competitionTypeChampionsCup()
+{
+  return competitionTypeSmallAdvanced();
+}
+
+bool GameController::competitionTypeChallengeShield()
+{
+  return competitionTypeMiddleAdvanced();
+}
+
 bool GameController::globalGameStuck(int side)
 {
+  static_cast<void>(side);
   if(gameControllerData.gamePhase != GAME_PHASE_NORMAL)
     return false;
   if(!(gameControllerData.state == STATE_PLAYING && gameControllerData.setPlay == SET_PLAY_NONE))
     return false;
   kickingTeamBeforeGoal = gameControllerData.kickingTeam;
-  gameControllerData.kickingTeam = gameControllerData.teams[1 - side].teamNumber;
+  gameControllerData.kickingTeam = KICKING_TEAM_NONE;
   kickOffReason = kickOffReasonGlobalGameStuck;
   VERIFY(ready());
   return true;
@@ -243,14 +290,31 @@ bool GameController::goalKick(int side)
   return true;
 }
 
-bool GameController::pushingFreeKick(int side)
+bool GameController::directFreeKick(int side)
 {
   if(!(gameControllerData.state == STATE_PLAYING && gameControllerData.setPlay == SET_PLAY_NONE && gameControllerData.gamePhase != GAME_PHASE_PENALTYSHOOT))
     return false;
   timeWhenSetPlayBegan = Time::getCurrentSystemTime();
-  gameControllerData.setPlay = SET_PLAY_PUSHING_FREE_KICK;
+  gameControllerData.setPlay = SET_PLAY_DIRECT_FREE_KICK;
   gameControllerData.kickingTeam = gameControllerData.teams[side].teamNumber;
   return true;
+}
+
+bool GameController::indirectFreeKick(int side)
+{
+  if(!(gameControllerData.state == STATE_PLAYING && gameControllerData.setPlay == SET_PLAY_NONE && gameControllerData.gamePhase != GAME_PHASE_PENALTYSHOOT))
+    return false;
+  timeWhenSetPlayBegan = Time::getCurrentSystemTime();
+  indirectSetPlayFirstTouchRobot = 0;
+  indirectSetPlaySecondTouch = false;
+  gameControllerData.setPlay = SET_PLAY_INDIRECT_FREE_KICK;
+  gameControllerData.kickingTeam = gameControllerData.teams[side].teamNumber;
+  return true;
+}
+
+bool GameController::pushingFreeKick(int side)
+{
+  return directFreeKick(side);
 }
 
 bool GameController::cornerKick(int side)
@@ -263,14 +327,21 @@ bool GameController::cornerKick(int side)
   return true;
 }
 
-bool GameController::kickIn(int side)
+bool GameController::throwIn(int side)
 {
   if(!(gameControllerData.state == STATE_PLAYING && gameControllerData.setPlay == SET_PLAY_NONE && gameControllerData.gamePhase != GAME_PHASE_PENALTYSHOOT))
     return false;
   timeWhenSetPlayBegan = Time::getCurrentSystemTime();
-  gameControllerData.setPlay = SET_PLAY_KICK_IN;
+  indirectSetPlayFirstTouchRobot = 0;
+  indirectSetPlaySecondTouch = false;
+  gameControllerData.setPlay = SET_PLAY_THROW_IN;
   gameControllerData.kickingTeam = gameControllerData.teams[side].teamNumber;
   return true;
+}
+
+bool GameController::kickIn(int side)
+{
+  return throwIn(side);
 }
 
 bool GameController::penaltyKick(int side)
@@ -344,6 +415,9 @@ bool GameController::penalty(int robot, Penalty penalty)
     case illegalMotionInSet:
       r.info->penalty = PENALTY_MOTION_IN_SET;
       break;
+    case illegalMotionInStop:
+      r.info->penalty = PENALTY_MOTION_IN_STOP;
+      break;
     case inactivePlayer:
       r.info->penalty = PENALTY_INCAPABLE_ROBOT;
       break;
@@ -362,6 +436,10 @@ bool GameController::penalty(int robot, Penalty penalty)
       break;
     case playerStance:
       r.info->penalty = PENALTY_CAUTIONED;
+      ++r.info->cautions;
+      break;
+    case sentOff:
+      r.info->penalty = PENALTY_SENT_OFF;
       break;
     case substitute:
       r.info->penalty = PENALTY_SUBSTITUTE;
@@ -573,6 +651,17 @@ void GameController::update()
            gameControllerData.kickingTeam == gameControllerData.teams[isFirstTeam ? 0 : 1].teamNumber)
           return false;
 
+        if(gameControllerData.setPlay == SET_PLAY_GOAL_KICK)
+        {
+          const bool isKickingFirstTeam = gameControllerData.kickingTeam == gameControllerData.teams[0].teamNumber;
+          const bool inKickingTeamPenaltyArea = r.lastPose.translation.y() > fieldDimensions.yPosRightPenaltyArea - footLength &&
+                                                r.lastPose.translation.y() < fieldDimensions.yPosLeftPenaltyArea + footLength &&
+                                                (isKickingFirstTeam ?
+                                                 r.lastPose.translation.x() > fieldDimensions.xPosOpponentPenaltyArea - footLength :
+                                                 r.lastPose.translation.x() < fieldDimensions.xPosOwnPenaltyArea + footLength);
+          return inKickingTeamPenaltyArea;
+        }
+
         // For now, just penalize anyone who is within 75cm after 10s.
         // TODO: This does not consider:
         //   - Players that clearly violate the rule by walking to or playing the ball before 10s
@@ -598,7 +687,7 @@ void GameController::update()
     {
       r.info->secsTillUnpenalised = static_cast<uint8_t>(std::max<int>((r.info->penalty == PENALTY_SPL_ILLEGAL_POSITION_IN_SET ? 15 : 45) - Time::getTimeSince(r.timeWhenPenalized) / 1000, 0));
 
-      if(automatic & bit(unpenalize) && r.info->secsTillUnpenalised <= 0 && r.info->penalty != PENALTY_SPL_REQUEST_FOR_PICKUP && r.info->penalty != PENALTY_MANUAL && r.info->penalty != PENALTY_SUBSTITUTE)
+      if(automatic & bit(unpenalize) && r.info->secsTillUnpenalised <= 0 && r.info->penalty != PENALTY_SPL_REQUEST_FOR_PICKUP && r.info->penalty != PENALTY_MANUAL && r.info->penalty != PENALTY_SENT_OFF && r.info->penalty != PENALTY_SUBSTITUTE)
         r.info->penalty = PENALTY_NONE;
     }
     else
@@ -675,20 +764,35 @@ void GameController::update()
           // It is possible that setPlay is not NONE here because the autoreferee may
           // not have detected a completed free kick or an opponent (which actually is
           // not allowed to do so) touched the ball.
+          const bool indirectSetPlayWithoutSecondTouch = (gameControllerData.setPlay == SET_PLAY_INDIRECT_FREE_KICK ||
+                                                          gameControllerData.setPlay == SET_PLAY_THROW_IN) &&
+                                                         !indirectSetPlaySecondTouch;
+          const bool firstTeamKicking = gameControllerData.kickingTeam == gameControllerData.teams[0].teamNumber;
+          const bool secondTeamKicking = gameControllerData.kickingTeam == gameControllerData.teams[1].teamNumber;
           gameControllerData.setPlay = SET_PLAY_NONE;
           switch(ballOutType)
           {
             case goalByFirstTeam:
-              VERIFY(goal(0));
+              if(indirectSetPlayWithoutSecondTouch && firstTeamKicking)
+                VERIFY(goalKick(1));
+              else if(indirectSetPlayWithoutSecondTouch && secondTeamKicking)
+                VERIFY(cornerKick(0));
+              else
+                VERIFY(goal(0));
               break;
             case goalBySecondTeam:
-              VERIFY(goal(1));
+              if(indirectSetPlayWithoutSecondTouch && secondTeamKicking)
+                VERIFY(goalKick(0));
+              else if(indirectSetPlayWithoutSecondTouch && firstTeamKicking)
+                VERIFY(cornerKick(1));
+              else
+                VERIFY(goal(1));
               break;
             case outByFirstTeam:
-              VERIFY(kickIn(1));
+              VERIFY(throwIn(1));
               break;
             case outBySecondTeam:
-              VERIFY(kickIn(0));
+              VERIFY(throwIn(0));
               break;
             case ownGoalOutByFirstTeam:
               VERIFY(cornerKick(1));
@@ -839,6 +943,16 @@ void GameController::setLastBallContactRobot(SimRobot::Object* robot)
 {
   lastBallContactPose = Pose2f(SimulatedRobot::isFirstTeam(robot) ? pi : 0.f, SimulatedRobot::getPosition(robot));
   lastBallContactTime = Time::getCurrentSystemTime();
+  lastBallContactRobot = SimulatedRobot::getNumber(robot);
+  if(gameControllerData.state == STATE_PLAYING &&
+     (gameControllerData.setPlay == SET_PLAY_INDIRECT_FREE_KICK || gameControllerData.setPlay == SET_PLAY_THROW_IN) &&
+     lastBallContactTime > timeWhenSetPlayBegan + 500)
+  {
+    if(!indirectSetPlayFirstTouchRobot)
+      indirectSetPlayFirstTouchRobot = lastBallContactRobot;
+    else if(lastBallContactRobot != indirectSetPlayFirstTouchRobot)
+      indirectSetPlaySecondTouch = true;
+  }
 }
 
 void GameController::getGameControllerData(GameControllerData& gameControllerData)
@@ -874,7 +988,10 @@ void GameController::initTeams(const uint8_t robotsPlaying, const uint16_t messa
     teamInfo.goalkeeper = 1;
     teamInfo.messageBudget = messageBudget;
     for(int j = 0; j < MAX_NUM_PLAYERS; ++j)
+    {
       teamInfo.players[j].penalty = j >= robotsPlaying ? PENALTY_SUBSTITUTE
                                     : robots[j].simulatedRobot ? PENALTY_NONE : PENALTY_SPL_REQUEST_FOR_PICKUP;
+      teamInfo.players[j].cautions = 0;
+    }
   }
 }
