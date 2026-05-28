@@ -35,6 +35,12 @@ STREAMABLE(Tactic,
     t13_3v3_scaled,
     t22_3v3_scaled,
     t13_4v4_scaled,
+    t22_full,
+    t112_full,
+    t121_4v4_full,
+    t13_3v3_full,
+    t22_3v3_full,
+    t13_4v4_full,
   });
 
   STREAMABLE(Position,

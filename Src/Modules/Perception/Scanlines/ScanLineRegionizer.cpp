@@ -127,7 +127,7 @@ void ScanLineRegionizer::update(ColorScanLineRegionsVerticalClipped& colorScanLi
   for(std::size_t i = 0; i < theScanGrid.lines.size(); ++i)
   {
     xPerScanLine[i] = static_cast<unsigned short>(theScanGrid.lines[i].x);
-    const int top = std::max(theFieldBoundary.getBoundaryY(theScanGrid.lines[i].x), theScanGrid.fieldLimit) + 1;
+    const int top = std::max(0, std::max(theFieldBoundary.getBoundaryY(theScanGrid.lines[i].x), theScanGrid.fieldLimit) + 1);
 
     // 2. Detect edges and create temporary regions in between including a representative YHS triple.
     scanVertical(theScanGrid.lines[i], middle, top, regionsPerScanLine[i]);
@@ -439,6 +439,7 @@ unsigned int ScanLineRegionizer::horizontalScanStop(int usedY) const
 
 void ScanLineRegionizer::scanVertical(const ScanGrid::Line& line, int middle, int top, std::vector<InternalRegion>& regions) const
 {
+  top = std::max(top, 0);
   if(line.x < 1 || static_cast<unsigned int>(line.x + 1) >= theECImage.grayscaled.width || line.yMax <= std::max(2, top))
     return;
   // initialize variables shared between 5x5 and 3x3
