@@ -137,10 +137,14 @@ void GameState::draw() const
       gameState = "PLAYING";
     else if(isFinished())
       gameState = "FINISHED";
+    else if(state == stopped)
+      gameState = "STOPPED";
     print(gameState, Vector3f(static_cast<float>((gameState.size()) * -135.f + 35.f) / 2.f + 100.f, yPosLeftSideline, 500), 100, ColorRGBA::blue);
 
     std::string setPlay;
-    if(isPushingFreeKick())
+    if(isDroppedBall())
+      setPlay = "DROP";
+    else if(isPushingFreeKick())
       setPlay = "PUSHING";
     else if(isGoalKick())
       setPlay = "GOAL";
