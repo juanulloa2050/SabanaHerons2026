@@ -243,6 +243,14 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
   const bool isKickingTeam = theGameState.isForOwnTeam();
   if(theGameState.isReady())
   {
+    if(theGameState.isDroppedBall())
+    {
+      self.proposedSetPlay = SetPlay::none;
+      self.acceptedSetPlay = SetPlay::none;
+      self.setPlayStep = -1;
+    }
+    else
+    {
     // Always force selection of a new set play when entering the ready state.
     // Otherwise, when scoring/conceding a goal, the same kick-off will be used again without deliberate selection.
     if(!theExtendedGameState.wasReady())
@@ -278,9 +286,18 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
     // Note that the accepted set play can still be none (e.g. if there is no available set play for the current game state in the strategy).
     self.acceptedSetPlay = self.proposedSetPlay;
     self.setPlayStep = -1;
+    }
   }
   else if(theGameState.isSet())
   {
+    if(theGameState.isDroppedBall())
+    {
+      self.proposedSetPlay = SetPlay::none;
+      self.acceptedSetPlay = SetPlay::none;
+      self.setPlayStep = -1;
+    }
+    else
+    {
     // During the set state, the selected set play cannot change anymore (even if its start conditions do not hold anymore).
     // However, agents which aren't proposing a valid set play (e.g. because they are being unpenalized now) continue to do so because
     // they will not usefully participate in the set play anyway (because they are far from the position where they should be).
@@ -291,6 +308,7 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
       self.proposedSetPlay = SetPlay::none;
     self.acceptedSetPlay = self.proposedSetPlay;
     self.setPlayStep = self.proposedSetPlay == SetPlay::none ? -1 : 0;
+    }
   }
   else
   {
@@ -692,11 +710,6 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
     }
     else if(!dontChangePositions)
       proposedMirror = std::lexicographical_compare(bestAssignmentCost[true].begin(), bestAssignmentCost[true].end(), bestAssignmentCost[false].begin(), bestAssignmentCost[false].end());
-
-    // A hack for the Visual Referee Challenge in the preliminary games of RoboCup 2023. The offensive and defensive kick-offs both have a player on the right side. Mirror the positions in the plan for the kick-off so that these players are next to the GameController table and therefore have sufficient distance to the Referee on the other side.
-    if(theGameState.isKickOff() &&
-       theGameState.competitionPhase == GameState::CompetitionPhase::roundRobin)
-      proposedMirror = !theGameState.leftHandTeam;
 
     if(theGameState.isReady() || theGameState.isSet())
       acceptedMirror = proposedMirror;

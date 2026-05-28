@@ -330,7 +330,46 @@ bool GameController::gamePhaseNormal()
 bool GameController::penalty(int robot, Penalty penalty)
 {
   Robot& r = robots[robot];
-  r.info->penalty = penalty == manual ? PENALTY_MANUAL : (penalty == substitute ? PENALTY_SUBSTITUTE : static_cast<uint8_t>(penalty));
+  switch(penalty)
+  {
+    case none:
+      r.info->penalty = PENALTY_NONE;
+      break;
+    case illegalBallContact:
+      r.info->penalty = PENALTY_BALL_HOLDING;
+      break;
+    case playerPushing:
+      r.info->penalty = PENALTY_PUSHING;
+      break;
+    case illegalMotionInSet:
+      r.info->penalty = PENALTY_MOTION_IN_SET;
+      break;
+    case inactivePlayer:
+      r.info->penalty = PENALTY_INCAPABLE_ROBOT;
+      break;
+    case illegalPosition:
+    case illegalPositionInSet:
+      r.info->penalty = PENALTY_ILLEGAL_POSITIONING;
+      break;
+    case leavingTheField:
+      r.info->penalty = PENALTY_LEAVING_THE_FIELD;
+      break;
+    case requestForPickup:
+      r.info->penalty = PENALTY_PICK_UP;
+      break;
+    case localGameStuck:
+      r.info->penalty = PENALTY_LOCAL_GAME_STUCK;
+      break;
+    case playerStance:
+      r.info->penalty = PENALTY_CAUTIONED;
+      break;
+    case substitute:
+      r.info->penalty = PENALTY_SUBSTITUTE;
+      break;
+    case manual:
+      r.info->penalty = PENALTY_MANUAL;
+      break;
+  }
   if(penalty != none)
     r.timeWhenPenalized = Time::getCurrentSystemTime();
   return true;

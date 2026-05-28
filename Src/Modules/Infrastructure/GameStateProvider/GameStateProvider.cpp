@@ -37,8 +37,10 @@ static const char* gameStateToString(GameState::State state)
     case GameState::afterHalf: return "afterHalf";
     case GameState::setupOwnKickOff: return "setupOwnKickOff";
     case GameState::setupOpponentKickOff: return "setupOpponentKickOff";
+    case GameState::setupDroppedBall: return "setupDroppedBall";
     case GameState::waitForOwnKickOff: return "waitForOwnKickOff";
     case GameState::waitForOpponentKickOff: return "waitForOpponentKickOff";
+    case GameState::waitForDroppedBall: return "waitForDroppedBall";
     case GameState::ownKickOff: return "ownKickOff";
     case GameState::opponentKickOff: return "opponentKickOff";
     case GameState::playing: return "playing";
@@ -177,6 +179,7 @@ void GameStateProvider::update(GameState& gameState)
     {
       case GameState::setupOwnKickOff:
       case GameState::setupOpponentKickOff:
+      case GameState::setupDroppedBall:
         // A guessed READY state (after a goal) is reverted if
         // - sufficient time has elapsed without the GameController state actually changing to READY or
         // - the GameController continues to announce a set play.
@@ -295,6 +298,7 @@ void GameStateProvider::update(GameState& gameState)
         break;
       case GameState::waitForOwnKickOff:
       case GameState::waitForOpponentKickOff:
+      case GameState::waitForDroppedBall:
       case GameState::waitForOwnPenaltyKick:
       case GameState::waitForOpponentPenaltyKick:
       case GameState::waitForOwnPenaltyShot:
@@ -314,6 +318,9 @@ void GameStateProvider::update(GameState& gameState)
             case GameState::waitForOpponentKickOff:
               gameState.state = GameState::opponentKickOff;
               break;
+            case GameState::waitForDroppedBall:
+              gameState.state = GameState::playing;
+              break;
             case GameState::waitForOwnPenaltyKick:
               gameState.state = GameState::ownPenaltyKick;
               break;
@@ -328,7 +335,11 @@ void GameStateProvider::update(GameState& gameState)
               break;
           }
           gameState.timeWhenStateStarted = theFrameInfo.time;
-          gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + (gameState.isKickOff() ? kickOffDuration : penaltyKickDuration);
+          gameState.timeWhenStateEnds = 0;
+          if(gameState.isKickOff())
+            gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffDuration;
+          else if(gameState.isPenaltyKick() || gameState.isPenaltyShootout())
+            gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + penaltyKickDuration;
           gameState.whistled = true;
         }
         break;
@@ -367,7 +378,7 @@ void GameStateProvider::update(GameState& gameState)
         minWhistleTimestamp = theFrameInfo.time;
 
       // kickOffSetupFromSidelines: We are switching from some INITIAL state to READY and we already integrated a GameController packet recently.
-      if((gameControllerState == GameState::setupOwnKickOff || gameControllerState == GameState::setupOpponentKickOff) &&
+      if((gameControllerState == GameState::setupOwnKickOff || gameControllerState == GameState::setupOpponentKickOff || gameControllerState == GameState::setupDroppedBall) &&
          gameState.isInitial() && theFrameInfo.getTimeSince(timeOfLastIntegratedGameControllerData) < gameControllerTimeout)
         gameState.kickOffSetupFromSidelines = true;
 
@@ -378,9 +389,11 @@ void GameStateProvider::update(GameState& gameState)
       {
         case GameState::setupOwnKickOff:
         case GameState::setupOpponentKickOff:
+        case GameState::setupDroppedBall:
           // Switching to READY while changing the score means we haven't heard the whistle after a goal.
           // In that case, the state actually began earlier.
           if(!theGameControllerData.isTrueData &&
+             gameControllerState != GameState::setupDroppedBall &&
              (theGameControllerData.teams[ownTeamIndex].score != gameState.ownTeam.score ||
               theGameControllerData.teams[1 - ownTeamIndex].score != gameState.opponentTeam.score))
             gameState.timeWhenStateStarted -= (kickOffSetupDuration - theGameControllerData.secondaryTime * 1000);
@@ -768,7 +781,7 @@ void GameStateProvider::updateIllegalMotionInSetTimestamps()
   illegalMotionInSetTimestamps.resize(2 * MAX_NUM_PLAYERS, 0);
   for(unsigned int i = 0; i < 2; ++i)
     for(unsigned int j = 0; j < MAX_NUM_PLAYERS; ++j)
-      if(theGameControllerData.teams[i].players[j].penalty != PENALTY_SPL_ILLEGAL_MOTION_IN_SET)
+      if(theGameControllerData.teams[i].players[j].penalty != PENALTY_MOTION_IN_SET)
         illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] = 0;
       else if(illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] == 0)
         illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] = theFrameInfo.time;
@@ -782,12 +795,12 @@ void GameStateProvider::updateIllegalPosition()
   unsigned opponentTeam = theGameControllerData.teams[0].teamNumber != Global::getSettings().teamNumber ? 0 : 1;
   for(unsigned int j = 0; j < MAX_NUM_PLAYERS; ++j)
   {
-    if(theGameControllerData.teams[ownTeam].players[j].penalty != PENALTY_SPL_ILLEGAL_POSITION)
+    if(theGameControllerData.teams[ownTeam].players[j].penalty != PENALTY_ILLEGAL_POSITIONING)
       illegalPositionTimestampsOwnTeam[j] = 0;
     else if(illegalPositionTimestampsOwnTeam[j] == 0)
       illegalPositionTimestampsOwnTeam[j] = theFrameInfo.time;
 
-    if(theGameControllerData.teams[opponentTeam].players[j].penalty != PENALTY_SPL_ILLEGAL_POSITION)
+    if(theGameControllerData.teams[opponentTeam].players[j].penalty != PENALTY_ILLEGAL_POSITIONING)
       illegalPositionTimestampsOpponentTeam[j] = 0;
     else if(illegalPositionTimestampsOpponentTeam[j] == 0)
       illegalPositionTimestampsOpponentTeam[j] = theFrameInfo.time;
@@ -796,23 +809,29 @@ void GameStateProvider::updateIllegalPosition()
 
 GameState::Phase GameStateProvider::convertGameControllerDataToPhase(const GameControllerData& gameControllerData)
 {
-  return gameControllerData.gamePhase == GAME_PHASE_PENALTYSHOOT ?
-         GameState::penaltyShootout :
-         (gameControllerData.firstHalf ?
-          GameState::firstHalf :
-          GameState::secondHalf);
+  if(gameControllerData.gamePhase == GAME_PHASE_PENALTY_SHOOT_OUT)
+    return GameState::penaltyShootout;
+  else if(gameControllerData.gamePhase == GAME_PHASE_EXTRA_TIME)
+    return gameControllerData.firstHalf ? GameState::firstExtraHalf : GameState::secondExtraHalf;
+  else
+    return gameControllerData.firstHalf ? GameState::firstHalf : GameState::secondHalf;
 }
 
 GameState::State GameStateProvider::convertGameControllerDataToState(const GameControllerData& gameControllerData)
 {
   const bool isKickingTeam = gameControllerData.kickingTeam == Global::getSettings().teamNumber;
-  if(gameControllerData.gamePhase == GAME_PHASE_TIMEOUT)
+  const bool hasKickingTeam = gameControllerData.kickingTeam != KICKING_TEAM_NONE;
+  if(gameControllerData.stopped)
+  {
+    return GameState::stopped;
+  }
+  else if(gameControllerData.gamePhase == GAME_PHASE_TIMEOUT)
   {
     ASSERT(gameControllerData.state == STATE_INITIAL);
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     return GameState::timeout;
   }
-  else if(gameControllerData.gamePhase == GAME_PHASE_PENALTYSHOOT)
+  else if(gameControllerData.gamePhase == GAME_PHASE_PENALTY_SHOOT_OUT)
   {
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     if(gameControllerData.state == STATE_INITIAL)
@@ -826,13 +845,8 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
     else
       FAIL("Impossible game state.");
   }
-  ASSERT(gameControllerData.gamePhase == GAME_PHASE_NORMAL);
+  ASSERT(gameControllerData.gamePhase == GAME_PHASE_NORMAL || gameControllerData.gamePhase == GAME_PHASE_EXTRA_TIME);
   if(gameControllerData.state == STATE_INITIAL)
-  {
-    ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
-    return GameState::beforeHalf;
-  }
-  else if(gameControllerData.state == STATE_STANDBY)
   {
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     return GameState::beforeHalf;
@@ -841,6 +855,8 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::setupOwnPenaltyKick : GameState::setupOpponentPenaltyKick;
+    else if(!hasKickingTeam)
+      return GameState::setupDroppedBall;
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
@@ -851,6 +867,8 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::waitForOwnPenaltyKick : GameState::waitForOpponentPenaltyKick;
+    else if(!hasKickingTeam)
+      return GameState::waitForDroppedBall;
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
@@ -861,9 +879,10 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::ownPenaltyKick : GameState::opponentPenaltyKick;
-    else if(gameControllerData.setPlay == SET_PLAY_PUSHING_FREE_KICK)
+    else if(gameControllerData.setPlay == SET_PLAY_DIRECT_FREE_KICK ||
+            gameControllerData.setPlay == SET_PLAY_INDIRECT_FREE_KICK)
       return isKickingTeam ? GameState::ownPushingFreeKick : GameState::opponentPushingFreeKick;
-    else if(gameControllerData.setPlay == SET_PLAY_KICK_IN)
+    else if(gameControllerData.setPlay == SET_PLAY_THROW_IN)
       return isKickingTeam ? GameState::ownKickIn : GameState::opponentKickIn;
     else if(gameControllerData.setPlay == SET_PLAY_GOAL_KICK)
       return isKickingTeam ? GameState::ownGoalKick : GameState::opponentGoalKick;
@@ -872,7 +891,7 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
-      if(gameControllerData.secondaryTime > 0)
+      if(gameControllerData.secondaryTime > 0 && hasKickingTeam)
       {
         // The GameController doesn't explicitly have a state for this in the network messages,
         // but a secondaryTime != 0 can only happen during kick-off. This only happens when the
@@ -900,27 +919,28 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
   {
     case PENALTY_MANUAL:
       return GameState::penalizedManual;
-    case PENALTY_SPL_ILLEGAL_BALL_CONTACT:
+    case PENALTY_BALL_HOLDING:
+    case PENALTY_PLAYING_WITH_ARMS_HANDS:
       return GameState::penalizedIllegalBallContact;
-    case PENALTY_SPL_PLAYER_PUSHING:
+    case PENALTY_PUSHING:
       return GameState::penalizedPlayerPushing;
-    case PENALTY_SPL_ILLEGAL_MOTION_IN_SET:
+    case PENALTY_MOTION_IN_SET:
+    case PENALTY_MOTION_IN_STOP:
       return GameState::penalizedIllegalMotionInSet;
-    case PENALTY_SPL_INACTIVE_PLAYER:
+    case PENALTY_INCAPABLE_ROBOT:
       return GameState::penalizedInactivePlayer;
-    case PENALTY_SPL_ILLEGAL_POSITION:
+    case PENALTY_ILLEGAL_POSITIONING:
       return GameState::penalizedIllegalPosition;
-    case PENALTY_SPL_LEAVING_THE_FIELD:
+    case PENALTY_LEAVING_THE_FIELD:
       return GameState::penalizedLeavingTheField;
-    case PENALTY_SPL_REQUEST_FOR_PICKUP:
+    case PENALTY_PICK_UP:
       return GameState::penalizedRequestForPickup;
-    case PENALTY_SPL_LOCAL_GAME_STUCK:
+    case PENALTY_LOCAL_GAME_STUCK:
       return GameState::penalizedLocalGameStuck;
-    case PENALTY_SPL_ILLEGAL_POSITION_IN_SET:
-      return GameState::penalizedIllegalPositionInSet;
-    case PENALTY_SPL_ILLEGAL_MOTION_IN_STANDBY:
-    case PENALTY_SPL_PLAYER_STANCE:
+    case PENALTY_CAUTIONED:
       return GameState::penalizedPlayerStance;
+    case PENALTY_SENT_OFF:
+      return GameState::penalizedManual;
     case PENALTY_SUBSTITUTE:
       return GameState::substitute;
     case PENALTY_NONE:

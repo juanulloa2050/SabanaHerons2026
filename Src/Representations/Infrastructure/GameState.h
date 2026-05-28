@@ -21,13 +21,16 @@ STREAMABLE(GameState,
     beforeHalf, /**< The half hasn't started yet. */
     afterHalf, /**< The half is over. */
     timeout, /**< A team or the referee has taken a timeout. */
+    stopped, /**< Play has been stopped by the GameController. */
 
     playing, /**< Regular play, no special privileges or restrictions (except for potential illegal goals). */
 
     setupOwnKickOff, /**< The ready phase before an own kick-off. */
     setupOpponentKickOff, /**< The ready phase before an opponent kick-off. */
+    setupDroppedBall, /**< The ready phase before a dropped ball restart. */
     waitForOwnKickOff, /**< The set phase before an own kick-off. */
     waitForOpponentKickOff, /**< The set phase before an opponent kick-off. */
+    waitForDroppedBall, /**< The set phase before a dropped ball restart. */
     ownKickOff, /**< The phase of an own kick-off in which the opponent must not enter the center circle. */
     opponentKickOff, /**< The phase of an opponent kick-off in which we must not enter the center circle. */
 
@@ -60,6 +63,8 @@ STREAMABLE(GameState,
   {,
     firstHalf, /**< The first half of a game. */
     secondHalf, /**< The second half of a game. */
+    firstExtraHalf, /**< The first half of extra time. */
+    secondExtraHalf, /**< The second half of extra time. */
     penaltyShootout, /**< A penalty shoot-out. */
   });
 
@@ -143,6 +148,7 @@ STREAMABLE(GameState,
   {
     return state == setupOwnKickOff ||
            state == setupOpponentKickOff ||
+           state == setupDroppedBall ||
            state == setupOwnPenaltyKick ||
            state == setupOpponentPenaltyKick;
   }
@@ -156,6 +162,7 @@ STREAMABLE(GameState,
   {
     return state == waitForOwnKickOff ||
            state == waitForOpponentKickOff ||
+           state == waitForDroppedBall ||
            state == waitForOwnPenaltyKick ||
            state == waitForOpponentPenaltyKick ||
            state == waitForOwnPenaltyShot ||
@@ -208,6 +215,7 @@ STREAMABLE(GameState,
     return state == beforeHalf ||
            state == afterHalf ||
            state == timeout ||
+           state == stopped ||
            state == beforePenaltyShootout ||
            state == afterOwnPenaltyShot ||
            state == afterOpponentPenaltyShot;
@@ -231,6 +239,17 @@ STREAMABLE(GameState,
   bool isKickOff() const
   {
     return isKickOff(state);
+  }
+
+  static bool isDroppedBall(State state)
+  {
+    return state == setupDroppedBall ||
+           state == waitForDroppedBall;
+  }
+
+  bool isDroppedBall() const
+  {
+    return isDroppedBall(state);
   }
 
   static bool isPenaltyKick(State state)

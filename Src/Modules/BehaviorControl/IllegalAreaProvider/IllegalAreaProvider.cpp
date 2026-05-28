@@ -84,7 +84,7 @@ void IllegalAreaProvider::update(IllegalAreas& illegalAreas)
     else
     {
       illegalAreas.anticipatedIllegal |= bit(IllegalAreas::opponentHalf);
-      if(theGameState.isForOpponentTeam())
+      if(theGameState.isForOpponentTeam() || theGameState.isDroppedBall())
         illegalAreas.anticipatedIllegal |= bit(IllegalAreas::centerCircle);
     }
   }
@@ -106,7 +106,7 @@ void IllegalAreaProvider::update(IllegalAreas& illegalAreas)
     else
     {
       illegalAreas.illegal |= bit(IllegalAreas::opponentHalf);
-      if(theGameState.isForOpponentTeam())
+      if(theGameState.isForOpponentTeam() || theGameState.isDroppedBall())
         illegalAreas.illegal |= bit(IllegalAreas::centerCircle);
     }
   }
