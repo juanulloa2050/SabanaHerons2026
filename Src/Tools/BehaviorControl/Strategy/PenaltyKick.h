@@ -24,7 +24,6 @@ STREAMABLE_WITH_BASE(OwnPenaltyKick, PenaltyKick,
   ENUM(Type,
   {,
     theOneTrueOwnPenaltyKick,
-    theOneTrueOwnPenaltyKick_scaled,
     theOneTrueOwnPenaltyKick_full,
   });
 
@@ -39,7 +38,6 @@ STREAMABLE_WITH_BASE(OpponentPenaltyKick, PenaltyKick,
   ENUM(Type,
   {,
     theOneTrueOpponentPenaltyKick,
-    theOneTrueOpponentPenaltyKick_scaled,
     theOneTrueOpponentPenaltyKick_full,
   });
 

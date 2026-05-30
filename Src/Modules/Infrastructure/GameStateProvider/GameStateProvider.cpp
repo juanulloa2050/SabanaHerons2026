@@ -456,13 +456,23 @@ void GameStateProvider::update(GameState& gameState)
       }
     }
 
+    const std::size_t playersPerTeam = std::min<std::size_t>(theGameControllerData.playersPerTeam, MAX_NUM_PLAYERS);
+
     const auto fillTeam = [&](const RoboCup::TeamInfo& teamInfo, bool speculatingGoalFor, GameState::Team& team)
     {
       static_assert(std::tuple_size<decltype(team.playerStates)>::value == MAX_NUM_PLAYERS);
       for(std::size_t i = 0; i < team.playerStates.size(); ++i)
       {
-        team.playerStates[i] = convertPenaltyToPlayerState(teamInfo.players[i].penalty);
-        team.cautions[i] = teamInfo.players[i].cautions;
+        if(i < playersPerTeam)
+        {
+          team.playerStates[i] = convertPenaltyToPlayerState(teamInfo.players[i].penalty);
+          team.cautions[i] = teamInfo.players[i].cautions;
+        }
+        else
+        {
+          team.playerStates[i] = GameState::substitute;
+          team.cautions[i] = 0;
+        }
       }
       team.number = teamInfo.teamNumber;
       team.fieldPlayerColor = static_cast<GameState::Team::Color>(teamInfo.fieldPlayerColor);
@@ -475,7 +485,10 @@ void GameStateProvider::update(GameState& gameState)
     fillTeam(theGameControllerData.teams[ownTeamIndex], gameState.state == GameState::setupOpponentKickOff && gameControllerState != gameState.state, gameState.ownTeam);
     fillTeam(theGameControllerData.teams[1 - ownTeamIndex], gameState.state == GameState::setupOwnKickOff && gameControllerState != gameState.state, gameState.opponentTeam);
 
-    const auto gameControllerPlayerState = convertPenaltyToPlayerState(theGameControllerData.teams[ownTeamIndex].players[Global::getSettings().playerNumber - 1].penalty);
+    const int playerIndex = Global::getSettings().playerNumber - 1;
+    const auto gameControllerPlayerState = playerIndex >= 0 && static_cast<std::size_t>(playerIndex) < playersPerTeam
+                                           ? convertPenaltyToPlayerState(theGameControllerData.teams[ownTeamIndex].players[playerIndex].penalty)
+                                           : GameState::substitute;
     if(gameControllerPlayerState != gameState.playerState)
     {
       gameState.playerState = gameControllerPlayerState;
@@ -908,7 +921,7 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
              (isKickingTeam ? GameState::ownDirectFreeKick : GameState::opponentDirectFreeKick) :
              (isKickingTeam ? GameState::ownIndirectFreeKick : GameState::opponentIndirectFreeKick);
     else if(gameControllerData.setPlay == SET_PLAY_THROW_IN)
-      return isKickingTeam ? GameState::ownThrowIn : GameState::opponentThrowIn;
+      return isKickingTeam ? GameState::ownKickIn : GameState::opponentKickIn;
     else if(gameControllerData.setPlay == SET_PLAY_GOAL_KICK)
       return isKickingTeam ? GameState::ownGoalKick : GameState::opponentGoalKick;
     else if(gameControllerData.setPlay == SET_PLAY_CORNER_KICK)

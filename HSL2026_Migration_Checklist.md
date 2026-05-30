@@ -45,7 +45,6 @@ Sources checked:
 - [x] Update current Sabana `3v3_Full` location dimensions to HSL 2026 Small baseline.
 - [ ] Keep `Default`, `4v4_Full`, and `3v3_Full` on the previous ball configuration until the competition FIFA Mini Ball is selected and measured.
 - [ ] Confirm the exact competition FIFA Mini Ball diameter, weight, friction, and kick distance parameters.
-- [ ] Decide whether other legacy locations should remain scaled test fields or be migrated to HSL Small.
 - [ ] Update SimRobot field assets to visually match HSL 2026 Small dimensions.
 - [x] Implement direct vs indirect free kick semantics instead of collapsing both to pushing free kick behavior.
 - [x] Add explicit internal states or metadata for throw-in vs kick-in if behavior must distinguish hand throw from ground kick.
