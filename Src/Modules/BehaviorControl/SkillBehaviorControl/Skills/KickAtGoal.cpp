@@ -65,6 +65,18 @@ class KickAtGoalImpl : public KickAtGoalImplBase
   {
     updateKickDirectionAndKick();
 
+    const bool ownKickOffBallStillInCenterCircle =
+      theGameState.state == GameState::ownKickOff &&
+      theFieldBall.positionOnField.squaredNorm() <
+      sqr(theFieldDimensions.centerCircleRadius + theBallSpecification.radius + 150.f);
+
+    if(ownKickOffBallStillInCenterCircle)
+    {
+      theDirectKickOffSkill();
+      state = notActive;
+      return;
+    }
+
     const bool allowDirectKick = !(theGameState.isFreeKick() &&
                                    theGameState.isForOwnTeam());
     if(aimingAtGoal && allowDirectKick)
