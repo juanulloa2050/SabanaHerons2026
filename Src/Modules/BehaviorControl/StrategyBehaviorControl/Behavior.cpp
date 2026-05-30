@@ -24,7 +24,18 @@
 #include "Streaming/InExpr.h"
 #include <algorithm>
 #include <functional>
+#include <iostream>
 #include <random>
+
+namespace
+{
+  bool isKickRelatedState(const GameState& gameState)
+  {
+    return gameState.isKickOff() ||
+           gameState.isPenaltyKick() ||
+           gameState.isFreeKick();
+  }
+}
 
 Behavior::Behavior(const BallDropInModel& theBallDropInModel, const ExtendedGameState& theExtendedGameState, const FieldBall& theFieldBall, const FieldDimensions& theFieldDimensions,
                    const FrameInfo& theFrameInfo, const GameState& theGameState, const TeammatesBallModel& theTeammatesBallModel) :
@@ -243,6 +254,14 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
   const bool isKickingTeam = theGameState.isForOwnTeam();
   if(theGameState.isReady())
   {
+    if(theGameState.isDroppedBall())
+    {
+      self.proposedSetPlay = SetPlay::none;
+      self.acceptedSetPlay = SetPlay::none;
+      self.setPlayStep = -1;
+    }
+    else
+    {
     // Always force selection of a new set play when entering the ready state.
     // Otherwise, when scoring/conceding a goal, the same kick-off will be used again without deliberate selection.
     if(!theExtendedGameState.wasReady())
@@ -278,9 +297,18 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
     // Note that the accepted set play can still be none (e.g. if there is no available set play for the current game state in the strategy).
     self.acceptedSetPlay = self.proposedSetPlay;
     self.setPlayStep = -1;
+    }
   }
   else if(theGameState.isSet())
   {
+    if(theGameState.isDroppedBall())
+    {
+      self.proposedSetPlay = SetPlay::none;
+      self.acceptedSetPlay = SetPlay::none;
+      self.setPlayStep = -1;
+    }
+    else
+    {
     // During the set state, the selected set play cannot change anymore (even if its start conditions do not hold anymore).
     // However, agents which aren't proposing a valid set play (e.g. because they are being unpenalized now) continue to do so because
     // they will not usefully participate in the set play anyway (because they are far from the position where they should be).
@@ -291,6 +319,7 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
       self.proposedSetPlay = SetPlay::none;
     self.acceptedSetPlay = self.proposedSetPlay;
     self.setPlayStep = self.proposedSetPlay == SetPlay::none ? -1 : 0;
+    }
   }
   else
   {
@@ -335,17 +364,26 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
         self.setPlayStep = -1;
       }
 
-      // Under certain conditions, commit the free kick to allow it to start.
-      // TODO: This does not work under very special circumstances.
-      if(std::all_of(agents.begin(), agents.end(), [&](const Agent& agent){return SetPlay::isCompatible(setPlayType, agent.proposedSetPlay);}))
+      // Free kicks must not wait for stale teammate proposals from a previous set play.
+      // Team messages can lag behind the GameController state change, so use a valid vote
+      // if one exists, otherwise let the local proposal start the free kick immediately.
+      const SetPlay::Type votedSetPlay = evaluateVotes<SetPlay::Type, &Agent::proposedSetPlay>(agents, [this, &agents, &setPlayType](auto setPlay)
       {
-        self.proposedSetPlay = evaluateVotes<SetPlay::Type, &Agent::proposedSetPlay>(agents, [&setPlayType](auto setPlay){return SetPlay::isCompatible(setPlayType, setPlay);});
+        return SetPlay::isCompatible(setPlayType, setPlay) && checkSetPlayStartConditions(setPlay, agents, true);
+      });
+      if(votedSetPlay != SetPlay::none)
+        self.proposedSetPlay = votedSetPlay;
+
+      if(SetPlay::isCompatible(setPlayType, self.proposedSetPlay))
+      {
+        self.acceptedSetPlay = self.proposedSetPlay;
         self.setPlayStep = 0;
       }
       else
+      {
+        self.acceptedSetPlay = SetPlay::none;
         proceedSetPlay = false;
-
-      self.acceptedSetPlay = evaluateVotes<SetPlay::Type, &Agent::proposedSetPlay>(agents, [&setPlayType](auto setPlay){return SetPlay::isCompatible(setPlayType, setPlay);});
+      }
     }
 
     if(proceedSetPlay)
@@ -487,9 +525,90 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
 
   // Assign roles.
   assignRoles(agents, self, otherAgents);
+  logKickDecision(strategy, self, agents);
 
   // Determine the skill request.
   return execute(self, otherAgents);
+}
+
+void Behavior::logKickDecision(Strategy::Type strategy, const Agent& self, const std::vector<Agent>& agents)
+{
+  const bool relevant = isKickRelatedState(theGameState);
+  if(!relevant)
+  {
+    if(lastLoggedKickRelevant)
+    {
+      std::cout << "[KickLog] end"
+                << " t=" << theFrameInfo.time
+                << " player=" << self.number
+                << " previousState=" << TypeRegistry::getEnumName(lastLoggedKickState)
+                << std::endl;
+      lastLoggedKickRelevant = false;
+    }
+    return;
+  }
+
+  const bool changed = !lastLoggedKickRelevant ||
+                       lastLoggedKickState != theGameState.state ||
+                       lastLoggedProposedSetPlay != self.proposedSetPlay ||
+                       lastLoggedAcceptedSetPlay != self.acceptedSetPlay ||
+                       lastLoggedAcceptedTactic != self.acceptedTactic ||
+                       lastLoggedPosition != self.position ||
+                       lastLoggedRole != self.role ||
+                       lastLoggedSetPlayStep != self.setPlayStep ||
+                       lastLoggedMirror != self.acceptedMirror;
+  if(!changed)
+    return;
+
+  const SetPlay* acceptedSetPlay = self.acceptedSetPlay != SetPlay::none && setPlays[self.acceptedSetPlay] ? setPlays[self.acceptedSetPlay] : nullptr;
+  const Tactic::Position::Type startPosition = acceptedSetPlay ? Tactic::Position::mirrorIf(acceptedSetPlay->startPosition, self.acceptedMirror) : Tactic::Position::none;
+  int startPlayer = -1;
+  int playBallPlayer = -1;
+  for(const Agent& agent : agents)
+  {
+    if(agent.position == startPosition)
+      startPlayer = agent.number;
+    if(agent.role == ActiveRole::toRole(ActiveRole::playBall))
+      playBallPlayer = agent.number;
+  }
+
+  std::cout << "[KickLog]"
+            << " t=" << theFrameInfo.time
+            << " player=" << self.number
+            << " state=" << TypeRegistry::getEnumName(theGameState.state)
+            << " own=" << (theGameState.isForOwnTeam() ? "yes" : "no")
+            << " strategy=" << TypeRegistry::getEnumName(strategy)
+            << " proposed=" << TypeRegistry::getEnumName(self.proposedSetPlay)
+            << " accepted=" << TypeRegistry::getEnumName(self.acceptedSetPlay)
+            << " step=" << self.setPlayStep
+            << " tactic=" << TypeRegistry::getEnumName(self.acceptedTactic)
+            << " pos=" << TypeRegistry::getEnumName(self.position)
+            << " role=" << TypeRegistry::getEnumName(self.role)
+            << " mirror=" << (self.acceptedMirror ? "yes" : "no")
+            << " startPos=" << TypeRegistry::getEnumName(startPosition)
+            << " startPlayer=" << startPlayer
+            << " playBallPlayer=" << playBallPlayer
+            << " ball=(" << theFieldBall.recentBallPositionOnField(8000).x() << "," << theFieldBall.recentBallPositionOnField(8000).y() << ")"
+            << " ballSeen=" << (theFieldBall.ballWasSeen(8000) ? "yes" : "no")
+            << " teammatesBall=" << (theTeammatesBallModel.isValid ? "yes" : "no")
+            << " agents=";
+  for(const Agent& agent : agents)
+    std::cout << " #" << agent.number
+              << ":" << TypeRegistry::getEnumName(agent.position)
+              << "/" << TypeRegistry::getEnumName(agent.role)
+              << "/" << TypeRegistry::getEnumName(agent.proposedSetPlay)
+              << "/" << TypeRegistry::getEnumName(agent.acceptedSetPlay);
+  std::cout << std::endl;
+
+  lastLoggedKickRelevant = true;
+  lastLoggedKickState = theGameState.state;
+  lastLoggedProposedSetPlay = self.proposedSetPlay;
+  lastLoggedAcceptedSetPlay = self.acceptedSetPlay;
+  lastLoggedAcceptedTactic = self.acceptedTactic;
+  lastLoggedPosition = self.position;
+  lastLoggedRole = self.role;
+  lastLoggedSetPlayStep = self.setPlayStep;
+  lastLoggedMirror = self.acceptedMirror;
 }
 
 void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::vector<Agent>& agents, bool dontChangePositions, bool& proposedMirror, bool& acceptedMirror) const
@@ -693,11 +812,6 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
     else if(!dontChangePositions)
       proposedMirror = std::lexicographical_compare(bestAssignmentCost[true].begin(), bestAssignmentCost[true].end(), bestAssignmentCost[false].begin(), bestAssignmentCost[false].end());
 
-    // A hack for the Visual Referee Challenge in the preliminary games of RoboCup 2023. The offensive and defensive kick-offs both have a player on the right side. Mirror the positions in the plan for the kick-off so that these players are next to the GameController table and therefore have sufficient distance to the Referee on the other side.
-    if(theGameState.isKickOff() &&
-       theGameState.competitionPhase == GameState::CompetitionPhase::roundRobin)
-      proposedMirror = !theGameState.leftHandTeam;
-
     if(theGameState.isReady() || theGameState.isSet())
       acceptedMirror = proposedMirror;
     else
@@ -733,6 +847,29 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
   }
   else
     proposedMirror = acceptedMirror = false;
+
+  if(theGameState.isDroppedBall() && (theGameState.isReady() || theGameState.isSet()))
+  {
+    const float ownHalfLimit = theFieldDimensions.xPosHalfWayLine - theFieldDimensions.fieldLinesWidth * 0.5f - 120.f;
+    const float centerCircleLimit = theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + 120.f;
+    for(Agent& agent : agents)
+    {
+      if(agent.isGoalkeeper)
+        continue;
+
+      Vector2f& target = agent.basePose.translation;
+      target.x() = std::min(target.x(), ownHalfLimit);
+
+      if(target.squaredNorm() < sqr(centerCircleLimit))
+      {
+        Vector2f direction = target;
+        if(direction.squaredNorm() < 1.f)
+          direction = Vector2f(ownHalfLimit, agent.number % 2 == 0 ? -1.f : 1.f);
+        target = direction.normalized() * centerCircleLimit;
+        target.x() = std::min(target.x(), ownHalfLimit);
+      }
+    }
+  }
 }
 
 void Behavior::assignRoles(std::vector<Agent>& agents, Agent& self, const std::vector<const Agent*>& otherAgents) const
@@ -846,7 +983,10 @@ bool Behavior::checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vec
         if(priority <= kickOff.lowestRequiredPriority)
           ++numOfRequiredNonGoalkeeperAgents;
     const std::size_t numOfNonGoalkeeperAgents = std::count_if(agents.begin(), agents.end(), [](auto& agent){return !agent.isGoalkeeper;});
-    return numOfNonGoalkeeperAgents >= numOfRequiredNonGoalkeeperAgents;
+    const bool isSoloKickOff = setPlay == OwnKickOff::toSetPlay(OwnKickOff::soloKickOff) ||
+                               setPlay == OwnKickOff::toSetPlay(OwnKickOff::soloKickOff_full);
+    return numOfNonGoalkeeperAgents >= numOfRequiredNonGoalkeeperAgents &&
+           (!isSoloKickOff || numOfNonGoalkeeperAgents == 1);
   }
   else if(SetPlay::isPenaltyKick(setPlay))
   {
@@ -857,6 +997,21 @@ bool Behavior::checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vec
   {
     const auto& freeKick = *static_cast<const FreeKick*>(setPlays[setPlay]);
     const FreeKick::Condition& condition = wasSelected ? freeKick.invariants : freeKick.preconditions;
+    const bool isCompatibleGameState = freeKick.gameStateType == FreeKick::any ||
+                                       (freeKick.gameStateType == FreeKick::kickIn &&
+                                        (theGameState.state == GameState::ownThrowIn || theGameState.state == GameState::opponentThrowIn ||
+                                         theGameState.state == GameState::ownKickIn || theGameState.state == GameState::opponentKickIn)) ||
+                                       (freeKick.gameStateType == FreeKick::directFreeKick &&
+                                        (theGameState.state == GameState::ownDirectFreeKick || theGameState.state == GameState::opponentDirectFreeKick ||
+                                         theGameState.state == GameState::ownPushingFreeKick || theGameState.state == GameState::opponentPushingFreeKick)) ||
+                                       (freeKick.gameStateType == FreeKick::indirectFreeKick &&
+                                        (theGameState.state == GameState::ownIndirectFreeKick || theGameState.state == GameState::opponentIndirectFreeKick)) ||
+                                       (freeKick.gameStateType == FreeKick::goalKick &&
+                                        (theGameState.state == GameState::ownGoalKick || theGameState.state == GameState::opponentGoalKick)) ||
+                                       (freeKick.gameStateType == FreeKick::cornerKick &&
+                                        (theGameState.state == GameState::ownCornerKick || theGameState.state == GameState::opponentCornerKick));
+    if(!isCompatibleGameState)
+      return false;
     const bool useBallDropInModel = !(theTeammatesBallModel.isValid || theFieldBall.ballWasSeen(8000)) && theBallDropInModel.isValid && !theBallDropInModel.dropInPositions.empty();
     // It doesn't matter which drop in position is used because the sign of the y coordinate is not important.
     const Vector2f ballPosition = useBallDropInModel ? theBallDropInModel.dropInPositions[0] : theFieldBall.recentBallPositionOnField(8000);
@@ -914,6 +1069,30 @@ const Agent* Behavior::determineActiveAgent(Agent& self, const std::vector<const
 
   const bool isOpponentFreeKick = theGameState.isFreeKick() && theGameState.isForOpponentTeam();
   const bool isOwnGoalKick = theGameState.isGoalKick() && theGameState.isForOwnTeam();
+
+  if(theGameState.isForOwnTeam() &&
+     (theGameState.isKickOff() || theGameState.isPenaltyKick() || theGameState.isFreeKick()) &&
+     self.acceptedSetPlay != SetPlay::none && setPlays[self.acceptedSetPlay])
+  {
+    const Tactic::Position::Type startPosition = Tactic::Position::mirrorIf(setPlays[self.acceptedSetPlay]->startPosition, self.acceptedMirror);
+    if(startPosition != Tactic::Position::none && startPosition != Tactic::Position::goalkeeper)
+    {
+      Agent* startAgent = self.position == startPosition ? &self : nullptr;
+      for(const Agent* agent : otherAgents)
+        if(agent->position == startPosition)
+        {
+          startAgent = const_cast<Agent*>(agent);
+          break;
+        }
+
+      if(startAgent)
+      {
+        if(assign)
+          startAgent->nextRole = ActiveRole::toRole(ActiveRole::playBall);
+        return startAgent;
+      }
+    }
+  }
 
   // This function checks if the ball is in an area where the goalkeeper would want to play it.
   // The area is enlarged if the goalkeeper was already wanting to play the ball.

@@ -32,4 +32,10 @@ bodyName=$(echo $robotNames | cut -d " " -f 2)
 files=("Config/Robots/$headName/$bodyName/cameraCalibration.cfg"
        "Config/Robots/$bodyName/Body/imuCalibration.cfg")
 
-rsync --chmod=F-x -Rzce "ssh $SSHOPTIONS" "nao@$ip:${files[*]}" "$basePath/../.." && ssh $SSHOPTIONS nao@$ip "touch Config/settings.cfg"
+remoteFiles=()
+for file in "${files[@]}"
+do
+  remoteFiles+=("nao@$ip:$file")
+done
+
+rsync --chmod=F-x -Rzce "ssh $SSHOPTIONS" "${remoteFiles[@]}" "$basePath/../.." && ssh $SSHOPTIONS nao@$ip "touch Config/settings.cfg"

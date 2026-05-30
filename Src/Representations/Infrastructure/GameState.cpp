@@ -129,9 +129,7 @@ void GameState::draw() const
     yPosLeftSideline += 500;
 
     std::string gameState = "INITIAL";
-    if(state == standby)
-      gameState = "STANDBY";
-    else if(isReady())
+    if(isReady())
       gameState = "READY";
     else if(isSet())
       gameState = "SET";
@@ -139,17 +137,23 @@ void GameState::draw() const
       gameState = "PLAYING";
     else if(isFinished())
       gameState = "FINISHED";
+    else if(state == stopped)
+      gameState = "STOPPED";
     print(gameState, Vector3f(static_cast<float>((gameState.size()) * -135.f + 35.f) / 2.f + 100.f, yPosLeftSideline, 500), 100, ColorRGBA::blue);
 
     std::string setPlay;
-    if(isPushingFreeKick())
-      setPlay = "PUSHING";
+    if(isDroppedBall())
+      setPlay = "DROP";
     else if(isGoalKick())
       setPlay = "GOAL";
     else if(isCornerKick())
       setPlay = "CORNER";
     else if(isKickIn())
-      setPlay = "KICKIN";
+      setPlay = "THROWIN";
+    else if(isDirectFreeKick())
+      setPlay = "DIRECT";
+    else if(isIndirectFreeKick())
+      setPlay = "INDIRECT";
     else if(isPenaltyKick())
       setPlay = "PENALTY";
     print(setPlay, Vector3f(-1635.f, yPosLeftSideline, 500), 100, ColorRGBA::blue);
@@ -244,5 +248,16 @@ void GameState::draw() const
       yPosRightFieldBorder = theFieldDimensions.yPosRightFieldBorder;
     }
     DRAW_TEXT("representation:GameState:ownTeam", xPosOwnFieldBorder + 200, yPosRightFieldBorder - 100, (xPosOwnFieldBorder / -5200.f) * 140, ColorRGBA::red, "Team color: " << TypeRegistry::getEnumName(ownTeam.fieldPlayerColor) << "/" << TypeRegistry::getEnumName(ownTeam.goalkeeperColor));
+    std::string ownCautions;
+    std::string opponentCautions;
+    for(std::size_t i = 0; i < ownTeam.cautions.size(); ++i)
+    {
+      if(ownTeam.cautions[i])
+        ownCautions += " " + std::to_string(i + Settings::lowestValidPlayerNumber) + ":" + std::to_string(ownTeam.cautions[i]);
+      if(opponentTeam.cautions[i])
+        opponentCautions += " " + std::to_string(i + Settings::lowestValidPlayerNumber) + ":" + std::to_string(opponentTeam.cautions[i]);
+    }
+    DRAW_TEXT("representation:GameState:ownTeam", xPosOwnFieldBorder + 200, yPosRightFieldBorder - 250, (xPosOwnFieldBorder / -5200.f) * 120, ColorRGBA::yellow, "Cautions own:" << (ownCautions.empty() ? " none" : ownCautions));
+    DRAW_TEXT("representation:GameState:ownTeam", xPosOwnFieldBorder + 200, yPosRightFieldBorder - 400, (xPosOwnFieldBorder / -5200.f) * 120, ColorRGBA::yellow, "Cautions opp:" << (opponentCautions.empty() ? " none" : opponentCautions));
   }
 }
