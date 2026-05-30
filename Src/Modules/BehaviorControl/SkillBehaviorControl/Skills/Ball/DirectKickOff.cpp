@@ -30,6 +30,7 @@ SKILL_IMPLEMENTATION(DirectKickOffImpl,
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
   REQUIRES(FrameInfo),
+  REQUIRES(GameState),
   REQUIRES(KickInfo),
   REQUIRES(ObstacleModel),
   REQUIRES(RobotPose),
@@ -51,6 +52,26 @@ class DirectKickOffImpl : public DirectKickOffImplBase
     {
       theLookLeftAndRightSkill();
       theStandSkill();
+      return;
+    }
+
+    std::size_t numOfActiveOwnRobots = 0;
+    for(const auto& playerState : theGameState.ownTeam.playerStates)
+      if(playerState == GameState::active)
+        ++numOfActiveOwnRobots;
+    const bool limitedTeam = numOfActiveOwnRobots <= 2;
+
+    // For kick-offs with only one field player available, the first touch must safely leave the center circle
+    // before the same robot is allowed to attack again.
+    if(limitedTeam && !wasActive)
+    {
+      const Angle safeExitAngle = theRobotPose.rotation + (theFieldBall.positionOnField.y() >= 0.f ? -55_deg : 55_deg);
+      kickType = safeExitAngle >= 0_deg ? KickInfo::walkForwardsRightAlternative : KickInfo::walkForwardsLeftAlternative;
+      targetAngle = safeExitAngle;
+      theGoToBallAndKickSkill({.targetDirection = Angle::normalize(safeExitAngle - theRobotPose.rotation),
+                               .kickType = kickType,
+                               .lookActiveWithBall = true});
+      wasActive = true;
       return;
     }
 

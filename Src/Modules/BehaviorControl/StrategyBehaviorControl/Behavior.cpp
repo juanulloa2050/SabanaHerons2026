@@ -847,6 +847,29 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
   }
   else
     proposedMirror = acceptedMirror = false;
+
+  if(theGameState.isDroppedBall() && (theGameState.isReady() || theGameState.isSet()))
+  {
+    const float ownHalfLimit = theFieldDimensions.xPosHalfWayLine - theFieldDimensions.fieldLinesWidth * 0.5f - 120.f;
+    const float centerCircleLimit = theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + 120.f;
+    for(Agent& agent : agents)
+    {
+      if(agent.isGoalkeeper)
+        continue;
+
+      Vector2f& target = agent.basePose.translation;
+      target.x() = std::min(target.x(), ownHalfLimit);
+
+      if(target.squaredNorm() < sqr(centerCircleLimit))
+      {
+        Vector2f direction = target;
+        if(direction.squaredNorm() < 1.f)
+          direction = Vector2f(ownHalfLimit, agent.number % 2 == 0 ? -1.f : 1.f);
+        target = direction.normalized() * centerCircleLimit;
+        target.x() = std::min(target.x(), ownHalfLimit);
+      }
+    }
+  }
 }
 
 void Behavior::assignRoles(std::vector<Agent>& agents, Agent& self, const std::vector<const Agent*>& otherAgents) const
@@ -960,7 +983,10 @@ bool Behavior::checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vec
         if(priority <= kickOff.lowestRequiredPriority)
           ++numOfRequiredNonGoalkeeperAgents;
     const std::size_t numOfNonGoalkeeperAgents = std::count_if(agents.begin(), agents.end(), [](auto& agent){return !agent.isGoalkeeper;});
-    return numOfNonGoalkeeperAgents >= numOfRequiredNonGoalkeeperAgents;
+    const bool isSoloKickOff = setPlay == OwnKickOff::toSetPlay(OwnKickOff::soloKickOff) ||
+                               setPlay == OwnKickOff::toSetPlay(OwnKickOff::soloKickOff_full);
+    return numOfNonGoalkeeperAgents >= numOfRequiredNonGoalkeeperAgents &&
+           (!isSoloKickOff || numOfNonGoalkeeperAgents == 1);
   }
   else if(SetPlay::isPenaltyKick(setPlay))
   {

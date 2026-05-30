@@ -53,13 +53,13 @@ Sources checked:
 - [ ] Verify "Ball Free" behavior: free kicks expire after 45 s or game time expiration, and the defending team may then score directly even from an originally indirect free kick.
 - [ ] Add dropped ball tests/simulation scripts.
 - [x] Update global game stuck restart to dropped ball in simulator/referee scripts.
-- [ ] Rework kick-off plays to avoid direct goals and enforce the two-touch rule for 3+ robots.
-- [ ] Rework kick-off plays for 2-or-fewer robots: the taker must touch the ball at least once outside the center circle before scoring.
+- [x] Rework kick-off plays to avoid direct goals and enforce the two-touch rule for 3+ robots.
+- [x] Rework kick-off plays for 2-or-fewer robots: the taker must touch the ball at least once outside the center circle before scoring.
 - [x] Ensure kickoff behavior respects designated kicking player when one robot is outside its own half inside the center circle.
-- [ ] Add a READY-specific dropped ball positioning path for 3v3/4v4: dropped ball uses no set play, so it can inherit normal tactics with robots in opponent half or inside the center circle.
-- [ ] Add own/opponent free kick strategies for direct free kick, indirect free kick, throw-in, and opponent goal kick.
-- [ ] Add/validate own and opponent penalty kick strategies for HSL placement: keeper on goal line, one striker in opponent penalty area, all others outside penalty area and center-circle radius from penalty mark.
-- [ ] Enforce penalty kick behavior: striker must not touch the ball a second time after it clearly moves, and goalkeeper must stay on feet until the kick or completion.
+- [x] Add a READY-specific dropped ball positioning path for 3v3/4v4: dropped ball uses no set play, so it can inherit normal tactics with robots in opponent half or inside the center circle.
+- [x] Add own/opponent free kick strategies for direct free kick, indirect free kick, throw-in, and opponent goal kick.
+- [x] Add/validate own and opponent penalty kick strategies for HSL placement: keeper on goal line, one striker in opponent penalty area, all others outside penalty area and center-circle radius from penalty mark.
+- [x] Enforce penalty kick behavior: striker must not touch the ball a second time after it clearly moves, and goalkeeper must stay on feet until the kick or completion.
 - [ ] Review penalty shootout workflow: up to 6 prepared robots, non-selected robots as substitutes, no added robots after shootout starts, no timeout during shootout.
 - [ ] Review ball holding timing: goalkeeper 10 s in own penalty area, all others 5 s.
 - [ ] Review request-for-pickup behavior: HSL only allows it for dangerous injury-risk situations.
