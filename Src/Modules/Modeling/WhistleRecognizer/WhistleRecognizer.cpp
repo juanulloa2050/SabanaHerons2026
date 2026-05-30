@@ -45,9 +45,7 @@ WhistleRecognizer::GoertzelResult WhistleRecognizer::goertzelAnalyze(const RingB
   }
   rms = std::sqrt(rms / buffer.size());
 
-  // Use a more permissive volume threshold for Goertzel (1% of max range instead of 20%)
-  const float goertzel_min_volume = 0.01f;
-  if(max_sample < goertzel_min_volume)
+  if(max_sample < minVolume)
   {
     GoertzelResult empty_result;
     empty_result.power = 0.0f;
@@ -254,9 +252,8 @@ void WhistleRecognizer::update(Whistle& theWhistle)
         // Check if frequency is in whistle range
         if(result.frequency >= goertzelMinFreq && result.frequency <= goertzelMaxFreq)
         {
-          // Combine SNR, spectral flatness and bandwidth for correlation score (more permissive thresholds)
-          const float snr_score = std::max(0.0f, std::min(1.0f, (result.snr_db - 3.0f) / 15.0f)); // Lowered from 10dB to 3dB
-          const float flat_score = std::max(0.0f, 1.0f - result.spectral_flatness / 0.8f); // Raised from 0.32 to 0.8
+          const float snr_score = std::max(0.0f, std::min(1.0f, (result.snr_db - goertzelMinSNR) / 15.0f));
+          const float flat_score = std::max(0.0f, 1.0f - result.spectral_flatness / goertzelMaxFlatness);
           const float bw_score = std::max(0.0f, 1.0f - result.bandwidth_hz / goertzelMaxBandwidth);
 
           channelCorrelation = snr_score * flat_score * bw_score;
