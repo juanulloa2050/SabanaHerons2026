@@ -24,6 +24,16 @@ STREAMABLE_WITH_BASE(FreeKick, SetPlay,
     right, /**< The ball is assumed to be in the right half of the field. */
   });
 
+  ENUM(GameStateType,
+  {,
+    any, /**< The set play can be used for any free kick state. */
+    kickIn, /**< The set play can only be used for kick-ins. */
+    directFreeKick, /**< The set play can only be used for direct free kicks. */
+    indirectFreeKick, /**< The set play can only be used for indirect free kicks. */
+    goalKick, /**< The set play can only be used for goal kicks. */
+    cornerKick, /**< The set play can only be used for corner kicks. */
+  });
+
   STREAMABLE(Condition,
   {,
     (float)(0.f) ballToOpponentGoalDistanceGE, /**< Lower bound on the distance between ball and (center of) the opponent's goal. */
@@ -39,6 +49,7 @@ STREAMABLE_WITH_BASE(FreeKick, SetPlay,
   (Condition) preconditions, /**< The conditions under which the free kick may be selected. */
   (Condition) invariants, /**< The conditions under which the free kick can stay selected. */
   (BallSide)(irrelevant) ballSide, /**< The side of the field in which the ball is assumed. If the ball is on the other side, everything will be mirrored. */
+  (GameStateType)(any) gameStateType, /**< The game state in which this free kick can be used. */
 });
 
 STREAMABLE_WITH_BASE(OwnFreeKick, FreeKick,
@@ -47,10 +58,14 @@ STREAMABLE_WITH_BASE(OwnFreeKick, FreeKick,
   {,
     ownCornerKick,
     ownGoalKick,
-    ownCornerKick_scaled,
-    ownGoalKick_scaled,
     ownCornerKick_full,
     ownGoalKick_full,
+    ownKickIn,
+    ownKickIn_full,
+    ownDirectFreeKick,
+    ownDirectFreeKick_full,
+    ownIndirectFreeKick,
+    ownIndirectFreeKick_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)
@@ -64,8 +79,13 @@ STREAMABLE_WITH_BASE(OpponentFreeKick, FreeKick,
   ENUM(Type,
   {,
     opponentCornerKick,
-    opponentCornerKick_scaled,
     opponentCornerKick_full,
+    opponentDirectFreeKick,
+    opponentDirectFreeKick_full,
+    opponentIndirectFreeKick,
+    opponentIndirectFreeKick_full,
+    opponentKickIn,
+    opponentKickIn_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)

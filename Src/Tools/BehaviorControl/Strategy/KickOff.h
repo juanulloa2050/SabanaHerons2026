@@ -25,8 +25,6 @@ STREAMABLE_WITH_BASE(OwnKickOff, KickOff,
   {,
     directKickOff,
     attackKickOff,
-    attackKickOff_scaled,
-    directKickOff_scaled,
     attackKickOff_full,
   });
 
@@ -42,7 +40,6 @@ STREAMABLE_WITH_BASE(OpponentKickOff, KickOff,
   {,
     kiteKickOff,
     defenseKickOff,
-    kiteKickOff_scaled,
     kiteKickOff_full,
 
   });
