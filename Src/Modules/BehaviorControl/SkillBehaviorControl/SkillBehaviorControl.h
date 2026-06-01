@@ -175,6 +175,8 @@ private:
   void executeRequest();
 
   unsigned timeWhenAnnouncedEmptySkillRequest = 0; /**< The last time when the robot said that its skill request is empty. */
+  unsigned lastReportedKickTimestamp = 0; /**< The most recent kick timestamp published via BehaviorStatus. */
+  bool lastReportedKickWasOutsideCenterCircle = false; /**< Whether the most recent published kick was taken outside the center circle. */
 
   ArmMotionRequest theArmMotionRequest; /**< The arm motion request that is modified by the behavior. */
   BehaviorStatus theBehaviorStatus; /**< The behavior status that is modified by the behavior. */

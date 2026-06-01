@@ -50,14 +50,19 @@ Sources checked:
 - [x] Add explicit internal states or metadata for throw-in vs kick-in if behavior must distinguish hand throw from ground kick.
 - [x] Implement HSL goal-kick avoidance area: opponents must stay outside the entire penalty area.
 - [ ] Verify free kick placement rules: defending-team free kicks in own goal area may be taken anywhere in that area; attacking indirect free kicks inside opponent penalty area move to the nearest parallel penalty-area line.
+- [x] Implement internal free-kick timeout handling: after 45 s, local behavior transitions the free kick to `playing` ("Ball Free") even if the GameController/operator lags.
 - [ ] Verify "Ball Free" behavior: free kicks expire after 45 s or game time expiration, and the defending team may then score directly even from an originally indirect free kick.
-- [ ] Add dropped ball tests/simulation scripts.
+- [x] Add dropped ball tests/simulation scripts.
 - [x] Update global game stuck restart to dropped ball in simulator/referee scripts.
 - [x] Rework kick-off plays to avoid direct goals and enforce the two-touch rule for 3+ robots.
 - [x] Rework kick-off plays for 2-or-fewer robots: the taker must touch the ball at least once outside the center circle before scoring.
 - [x] Ensure kickoff behavior respects designated kicking player when one robot is outside its own half inside the center circle.
+- [x] Preserve kick-off scoring restrictions after the state transitions from `ownKickOff` to `playing`.
+- [x] Share own-team kick timestamps for kick-off enforcement through team communication.
+- [x] Track whether a post-kick-off retouch happened outside the center circle for 2-or-fewer robots.
 - [x] Add a READY-specific dropped ball positioning path for 3v3/4v4: dropped ball uses no set play, so it can inherit normal tactics with robots in opponent half or inside the center circle.
 - [x] Add own/opponent free kick strategies for direct free kick, indirect free kick, throw-in, and opponent goal kick.
+- [x] Keep direct-goal behavior aligned with HSL semantics: block only own indirect free kicks, not own corner kicks or own direct free kicks.
 - [x] Add/validate own and opponent penalty kick strategies for HSL placement: keeper on goal line, one striker in opponent penalty area, all others outside penalty area and center-circle radius from penalty mark.
 - [x] Enforce penalty kick behavior: striker must not touch the ball a second time after it clearly moves, and goalkeeper must stay on feet until the kick or completion.
 - [ ] Review penalty shootout workflow: up to 6 prepared robots, non-selected robots as substitutes, no added robots after shootout starts, no timeout during shootout.
