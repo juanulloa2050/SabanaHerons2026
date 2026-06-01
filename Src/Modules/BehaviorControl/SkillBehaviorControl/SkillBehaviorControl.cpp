@@ -92,6 +92,13 @@ void SkillBehaviorControl::update(ActivationGraph&)
                      std::to_string(theGameState.playerNumber)).c_str(), true, 0.7f);
   }
 
+  const bool isOwnKickExecutor = theGameState.isForOwnTeam() &&
+                                 (theGameState.isKickOff() || theGameState.isPenaltyKick() || theGameState.isFreeKick()) &&
+                                 theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall);
+  if(isOwnKickExecutor && !wasOwnKickExecutorLastFrame)
+    SystemCall::say("I am kicking");
+  wasOwnKickExecutorLastFrame = isOwnKickExecutor;
+
   theSkillRegistry.modifyAllParameters();
 
   theSkillRegistry.preProcess(theFrameInfo.time);

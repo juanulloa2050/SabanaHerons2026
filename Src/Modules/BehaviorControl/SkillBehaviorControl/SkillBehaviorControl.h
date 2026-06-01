@@ -47,6 +47,7 @@
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
+#include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"
 #include "Framework/Module.h"
 #include "Platform/SystemCall.h"
@@ -177,6 +178,7 @@ private:
   unsigned timeWhenAnnouncedEmptySkillRequest = 0; /**< The last time when the robot said that its skill request is empty. */
   unsigned lastReportedKickTimestamp = 0; /**< The most recent kick timestamp published via BehaviorStatus. */
   bool lastReportedKickWasOutsideCenterCircle = false; /**< Whether the most recent published kick was taken outside the center circle. */
+  bool wasOwnKickExecutorLastFrame = false; /**< Whether this robot was the announced kicker in the previous frame. */
 
   ArmMotionRequest theArmMotionRequest; /**< The arm motion request that is modified by the behavior. */
   BehaviorStatus theBehaviorStatus; /**< The behavior status that is modified by the behavior. */
