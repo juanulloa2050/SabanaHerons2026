@@ -26,10 +26,15 @@ void TeammatesBallModelProvider::update(TeammatesBallModel& teammatesBallModel)
   // Reset lists and variables:
   ballsAvailableForTeamBall.clear();
   teammatesBallModel.isValid = false;
+  teammatesBallModel.isPredictionOnly = false;
+  teammatesBallModel.timeWhenLastSeen = 0;
+  teammatesBallModel.contributors = 0;
   // Try to compute a team ball
   findAvailableBalls();
   clusterBalls();
   computeModel(teammatesBallModel);
+  if(!teammatesBallModel.isValid)
+    applyBallMemory(teammatesBallModel);
   DECLARE_DEBUG_DRAWING("module:TeammatesBallModelProvider:bufferedBalls", "drawingOnField");
   COMPLEX_DRAWING("module:TeammatesBallModelProvider:bufferedBalls")
   {
@@ -100,7 +105,33 @@ void TeammatesBallModelProvider::computeModel(TeammatesBallModel& teammatesBallM
     teammatesBallModel.isValid = true;
     teammatesBallModel.position = avgPos / weightSum;
     teammatesBallModel.velocity = avgVel / weightSum;
+    teammatesBallModel.timeWhenLastSeen = lastSeen;
+    teammatesBallModel.contributors = static_cast<unsigned char>(1 + bestBall.compatibleBallsIndices.size());
+    teammatesBallModel.isPredictionOnly = false;
+    lastValidTeammatesBallModel = teammatesBallModel;
   }
+}
+
+bool TeammatesBallModelProvider::applyBallMemory(TeammatesBallModel& teammatesBallModel)
+{
+  if(!lastValidTeammatesBallModel.isValid || !lastValidTeammatesBallModel.timeWhenLastSeen)
+    return false;
+
+  const int age = theFrameInfo.getTimeSince(lastValidTeammatesBallModel.timeWhenLastSeen);
+  if(age < 0 || age > ballMemoryTimeSpan)
+    return false;
+
+  teammatesBallModel = lastValidTeammatesBallModel;
+  if(teammatesBallModel.timeWhenLastSeen < theFrameInfo.time)
+  {
+    const float t = static_cast<float>(theFrameInfo.time - teammatesBallModel.timeWhenLastSeen) / 1000.f;
+    BallPhysics::propagateBallPositionAndVelocity(teammatesBallModel.position, teammatesBallModel.velocity, t, theBallSpecification.friction);
+  }
+
+  teammatesBallModel.isValid = theFieldDimensions.isInsideCarpet(teammatesBallModel.position);
+  teammatesBallModel.isPredictionOnly = teammatesBallModel.isValid;
+  teammatesBallModel.newerThanOwnBall = teammatesBallModel.timeWhenLastSeen > theWorldModelPrediction.timeWhenBallLastSeen;
+  return teammatesBallModel.isValid;
 }
 
 void TeammatesBallModelProvider::updateInternalBallBuffers()
@@ -279,6 +310,7 @@ bool TeammatesBallModelProvider::checkForResetByGameSituation()
   {
     for(unsigned int i = 0; i < balls.size(); ++i)
       balls[i].valid = false;
+    lastValidTeammatesBallModel = TeammatesBallModel();
   }
   return reset;
 }
