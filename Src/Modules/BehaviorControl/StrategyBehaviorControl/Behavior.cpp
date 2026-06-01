@@ -676,8 +676,29 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
   if(!remainingAgents.empty())
   {
     ASSERT(remainingAgents.size() <= positionSubsets->size());
-    const auto& suitableSubsets = (*positionSubsets)[remainingAgents.size() - 1];
-    const auto& suitableVoronoiRegionSubsets = (*voronoiRegionSubsets)[remainingAgents.size() - 1];
+    const auto& allSuitableSubsets = (*positionSubsets)[remainingAgents.size() - 1];
+    const auto& allSuitableVoronoiRegionSubsets = (*voronoiRegionSubsets)[remainingAgents.size() - 1];
+    const std::vector<std::vector<Tactic::Position::Type>>* suitableSubsets = &allSuitableSubsets;
+    const std::vector<std::vector<std::vector<Vector2f>>>* suitableVoronoiRegionSubsets = &allSuitableVoronoiRegionSubsets;
+
+    std::vector<std::vector<Tactic::Position::Type>> filteredSubsets;
+    std::vector<std::vector<std::vector<Vector2f>>> filteredVoronoiSubsets;
+    if(setPlay != SetPlay::none && setPlays[setPlay] && setPlays[setPlay]->startPosition != Tactic::Position::none)
+    {
+      const Tactic::Position::Type startPosition = setPlays[setPlay]->startPosition;
+      for(size_t i = 0; i < allSuitableSubsets.size(); ++i)
+        if(std::find(allSuitableSubsets[i].begin(), allSuitableSubsets[i].end(), startPosition) != allSuitableSubsets[i].end())
+        {
+          filteredSubsets.push_back(allSuitableSubsets[i]);
+          filteredVoronoiSubsets.push_back(allSuitableVoronoiRegionSubsets[i]);
+        }
+
+      if(!filteredSubsets.empty())
+      {
+        suitableSubsets = &filteredSubsets;
+        suitableVoronoiRegionSubsets = &filteredVoronoiSubsets;
+      }
+    }
 
     // Sort remaining agents because there is at least one point where the results depend on the order of the rows of the cost matrix (minCoeff in startPositionSpecialHandling).
     // Okay, it's not minCoeff anymore, but I am hesitatant to remove this now. (2023-06-24)
@@ -690,15 +711,15 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
 
     std::array<const Tactic::Position*, Tactic::Position::numOfTypes> remainingPositions {nullptr};
     std::array<const std::vector<Vector2f>*, Tactic::Position::numOfTypes> remainingVoronoiRegions {nullptr};
-    ASSERT(suitableSubsets.size() == suitableVoronoiRegionSubsets.size());
-    for(size_t i = 0; i < suitableSubsets.size(); i++)
+    ASSERT(suitableSubsets->size() == suitableVoronoiRegionSubsets->size());
+    for(size_t i = 0; i < suitableSubsets->size(); i++)
     {
-      ASSERT(suitableSubsets[i].size() == suitableVoronoiRegionSubsets[i].size());
-      for(size_t j = 0; j < suitableSubsets[i].size(); j++)
+      ASSERT((*suitableSubsets)[i].size() == (*suitableVoronoiRegionSubsets)[i].size());
+      for(size_t j = 0; j < (*suitableSubsets)[i].size(); j++)
       {
-        Tactic::Position::Type position = suitableSubsets[i][j];
+        Tactic::Position::Type position = (*suitableSubsets)[i][j];
         remainingPositions[position] = positionMap[position];
-        remainingVoronoiRegions[position] = &suitableVoronoiRegionSubsets[i][j];
+        remainingVoronoiRegions[position] = &(*suitableVoronoiRegionSubsets)[i][j];
       }
     }
 
@@ -757,7 +778,7 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
         startPositionIndex = startPosition * 2 + mirrored;
         startPositionCost = costMatrix.col(startPositionIndex).minCoeff();
       }
-      for(const std::vector<Tactic::Position::Type>& subset : suitableSubsets)
+      for(const std::vector<Tactic::Position::Type>& subset : *suitableSubsets)
       {
         // Construct a sorted version of the position indices (since the first assignment must be the lexicographically smallest one).
         std::vector<std::size_t> assignment(subset.size());
