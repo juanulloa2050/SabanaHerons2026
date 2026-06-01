@@ -490,6 +490,10 @@ STREAMABLE(GameState,
   (unsigned)(0) timeWhenStateStarted, /**< Time when the current state started. */
   (unsigned)(0) timeWhenStateEnds, /**< Time when the current state is expected to end. Only valid for some states! */
   (bool)(false) kickOffSetupFromSidelines, /**< During a kick-off setup: Is it from the sidelines (i.e. start of half / after timeout as opposed to after a goal / global game stuck)? */
+  (bool)(false) ownKickOffGoalRestrictionActive, /**< Whether the post-kick-off scoring restriction from HSL 2026 is still active for the own team. */
+  (bool)(false) ownKickOffGoalRestrictionRequiresDifferentRobot, /**< True if a different robot must provide the next scoring touch, false if the kick-off robot must retouch outside the center circle. */
+  (int)(0) ownKickOffKickingPlayerNumber, /**< The player number that took the first touch of the current own kick-off. */
+  (unsigned)(0) ownKickOffFirstTouchTimestamp, /**< Timestamp of the first touch of the current own kick-off. */
   (Team) ownTeam, /**< The state of the own team. */
   (Team) opponentTeam, /**< The state of the opponent team. */
   (int)(0) playerNumber, /**< The jersey number of this player. */

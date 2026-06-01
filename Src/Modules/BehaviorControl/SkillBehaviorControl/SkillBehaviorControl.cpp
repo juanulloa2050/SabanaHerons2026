@@ -28,7 +28,18 @@ void SkillBehaviorControl::update(ActivationGraph&)
 {
   DECLARE_DEBUG_RESPONSE("option:HandleRefereeSignal:now");
 
+  if(theMotionInfo.lastKickTimestamp > lastReportedKickTimestamp)
+  {
+    lastReportedKickTimestamp = theMotionInfo.lastKickTimestamp;
+    const float centerCircleRadius = theFieldDimensions.centerCircleRadius +
+                                     theFieldDimensions.fieldLinesWidth * 0.5f +
+                                     theBallSpecification.radius;
+    lastReportedKickWasOutsideCenterCircle = theFieldBall.positionOnField.squaredNorm() >= sqr(centerCircleRadius);
+  }
+
   theBehaviorStatus.calibrationFinished = false;
+  theBehaviorStatus.lastKickTimestamp = lastReportedKickTimestamp;
+  theBehaviorStatus.lastKickWasOutsideCenterCircle = lastReportedKickWasOutsideCenterCircle;
   theBehaviorStatus.passTarget = -1;
   theBehaviorStatus.passOrigin = -1;
   theBehaviorStatus.walkingTo = Vector2f::Zero();
