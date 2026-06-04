@@ -50,8 +50,8 @@ ROBOT_MAP = {r["id"]: r for r in ROBOTS}
 controllers: dict[str, BHumanController] = {}
 _connect_locks: dict[str, asyncio.Lock] = {}
 
-# Grabador de cámaras (singleton global)
-recorder = BallDetectorStreamRecorder()
+# Grabadores de cámaras por robot
+recorders: dict[str, BallDetectorStreamRecorder] = {}
 
 # == FastAPI app ===============================================================
 
@@ -87,6 +87,14 @@ async def get_or_connect(robot_id: str) -> BHumanController | None:
             return None
 
 
+def get_recorder(robot_id: str) -> BallDetectorStreamRecorder:
+    recorder = recorders.get(robot_id)
+    if recorder is None:
+        recorder = BallDetectorStreamRecorder()
+        recorders[robot_id] = recorder
+    return recorder
+
+
 def robots_status() -> list:
     return [
         {
@@ -94,6 +102,7 @@ def robots_status() -> list:
             "name": r["name"],
             "ip": r["ip"],
             "connected": r["id"] in controllers and controllers[r["id"]].connected,
+            "recording": get_recorder(r["id"]).recording,
         }
         for r in ROBOTS
     ]
@@ -271,8 +280,6 @@ async def websocket_endpoint(ws: WebSocket):
             elif kind == "record_start":
                 if not selected_id or selected_id not in ROBOT_MAP:
                     await ws.send_text(json.dumps({"type": "record_error", "msg": "Sin robot seleccionado"}))
-                elif recorder.recording:
-                    await ws.send_text(json.dumps({"type": "record_error", "msg": "Ya hay una grabación activa"}))
                 else:
                     ctrl = await get_or_connect(selected_id)
                     if not ctrl or not ctrl.connected:
@@ -281,6 +288,7 @@ async def websocket_endpoint(ws: WebSocket):
                             "msg": f"{selected_id} no esta conectado",
                         }))
                         continue
+                    recorder = get_recorder(selected_id)
                     try:
                         result = await loop.run_in_executor(None, recorder.start, ROBOT_MAP[selected_id]["ip"], selected_id)
                     except Exception as e:
@@ -289,31 +297,39 @@ async def websocket_endpoint(ws: WebSocket):
                         await asyncio.sleep(0.5)
                         await ws.send_text(json.dumps({
                             "type": "record_started",
+                            "robot_id": selected_id,
                             "upper": Path(result["upper"]).name,
                             "lower": Path(result["lower"]).name,
+                            "robots": robots_status(),
                         }))
                     else:
                         await ws.send_text(json.dumps({
                             "type": "record_error",
+                            "robot_id": selected_id,
                             "msg": result.get("error", "Error desconocido"),
+                            "robots": robots_status(),
                         }))
 
             elif kind == "record_stop":
+                if not selected_id or selected_id not in ROBOT_MAP:
+                    await ws.send_text(json.dumps({"type": "record_error", "msg": "Sin robot seleccionado"}))
+                    continue
+                recorder = get_recorder(selected_id)
                 result = await loop.run_in_executor(None, recorder.stop)
                 await ws.send_text(json.dumps({
                     "type": "record_stopped",
+                    "robot_id": selected_id,
                     "upper_frames": result["upper_frames"],
                     "lower_frames": result["lower_frames"],
                     "upper_path": result.get("upper_path", ""),
                     "lower_path": result.get("lower_path", ""),
+                    "robots": robots_status(),
                 }))
 
     except WebSocketDisconnect:
         pass
     finally:
         resend_task.cancel()
-        if recorder.recording:
-            await loop.run_in_executor(None, recorder.stop)
         if selected_id:
             ctrl = controllers.get(selected_id)
             if ctrl and ctrl.connected:
@@ -611,10 +627,22 @@ const WS_URL = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + locati
 let ws = null;
 let selectedId  = null;
 let robotList   = [];
-let isRecording = false;
+let recordingByRobot = {};
 let camWs = null;
 let camView = 'lower';
 let camOpen = false;
+
+function syncRecordingState() {
+  recordingByRobot = Object.fromEntries(robotList.map(r => [r.id, !!r.recording]));
+}
+
+function selectedRobot() {
+  return robotList.find(r => r.id === selectedId) || null;
+}
+
+function isSelectedRecording() {
+  return !!(selectedId && recordingByRobot[selectedId]);
+}
 
 function connect() {
   ws = new WebSocket(WS_URL);
@@ -627,9 +655,11 @@ function connect() {
       if (msg.robots) robotList = msg.robots;
     } else if (msg.type === 'status') {
       robotList = msg.robots;
+      syncRecordingState();
       renderRobots();
     } else if (msg.type === 'selected') {
       robotList = msg.robots;
+      syncRecordingState();
       renderRobots();
       if (msg.ok) {
         showControlScreen(msg.id, msg.robots);
@@ -637,12 +667,26 @@ function connect() {
         toast('No se pudo conectar a ' + msg.id);
       }
     } else if (msg.type === 'record_started') {
-      isRecording = true;
+      if (msg.robots) {
+        robotList = msg.robots;
+        syncRecordingState();
+        renderRobots();
+      } else if (msg.robot_id) {
+        recordingByRobot[msg.robot_id] = true;
+      }
       updateRecBtn();
       toast('Grabando → /home/limao/Desktop/SabanaHerons_Recordings');
-      document.getElementById('rec-sub').textContent = msg.upper + ' · ' + msg.lower;
+      if (selectedId === msg.robot_id) {
+        document.getElementById('rec-sub').textContent = msg.upper + ' · ' + msg.lower;
+      }
     } else if (msg.type === 'record_stopped') {
-      isRecording = false;
+      if (msg.robots) {
+        robotList = msg.robots;
+        syncRecordingState();
+        renderRobots();
+      } else if (msg.robot_id) {
+        recordingByRobot[msg.robot_id] = false;
+      }
       updateRecBtn();
       const frames = msg.upper_frames + msg.lower_frames;
       toast(
@@ -650,11 +694,17 @@ function connect() {
         ' / lower ' + msg.lower_frames +
         ' · ' + frames + ' frames totales'
       );
-      document.getElementById('rec-sub').textContent =
-        (msg.upper_path ? msg.upper_path.split('/').pop() : '') +
-        (msg.lower_path ? ' · ' + msg.lower_path.split('/').pop() : '');
+      if (selectedId === msg.robot_id) {
+        document.getElementById('rec-sub').textContent =
+          (msg.upper_path ? msg.upper_path.split('/').pop() : '') +
+          (msg.lower_path ? ' · ' + msg.lower_path.split('/').pop() : '');
+      }
     } else if (msg.type === 'record_error') {
-      isRecording = false;
+      if (msg.robots) {
+        robotList = msg.robots;
+        syncRecordingState();
+        renderRobots();
+      }
       updateRecBtn();
       toast('Error grabación: ' + msg.msg);
     }
@@ -667,10 +717,11 @@ function renderRobots() {
   const grid = document.getElementById('robot-grid');
   grid.innerHTML = '';
   robotList.forEach(r => {
-    const btn = document.createElement('div');
-    btn.className = 'robot-btn'
-      + (r.connected ? ' connected' : '');
-    btn.innerHTML = '<div class="dot"></div><div>' + r.name + '</div>';
+  const btn = document.createElement('div');
+  btn.className = 'robot-btn'
+      + (r.connected ? ' connected' : '')
+      + (r.recording ? ' recording' : '');
+    btn.innerHTML = '<div class="dot"></div><div>' + r.name + (r.recording ? ' · REC' : '') + '</div>';
     btn.addEventListener('pointerdown', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Sin conexion al servidor'); return; }
       selectedId = r.id;
@@ -690,7 +741,8 @@ function showControlScreen(id, robots) {
   document.getElementById('screen-select').classList.remove('active');
   document.getElementById('screen-control').classList.add('active');
   document.getElementById('back-btn').classList.add('visible');
-  isRecording = false;
+  const robot = selectedRobot();
+  document.getElementById('rec-sub').textContent = robot && robot.recording ? 'Grabación activa' : '';
   updateRecBtn();
   document.getElementById('cam-frame').src = '';
   camView = 'lower';
@@ -698,8 +750,6 @@ function showControlScreen(id, robots) {
 }
 
 function goBack() {
-  if (isRecording && ws && ws.readyState === WebSocket.OPEN)
-    ws.send(JSON.stringify({ type: 'record_stop' }));
   stopCamera();
   camOpen = false;
   document.getElementById('cam-panel').classList.remove('open');
@@ -715,7 +765,7 @@ function goBack() {
 function toggleRecord() {
   if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Sin conexión al servidor'); return; }
   if (!selectedId) { toast('Selecciona un robot primero'); return; }
-  ws.send(JSON.stringify({ type: isRecording ? 'record_stop' : 'record_start' }));
+  ws.send(JSON.stringify({ type: isSelectedRecording() ? 'record_stop' : 'record_start' }));
 }
 
 function updateRecBtn() {
@@ -723,13 +773,15 @@ function updateRecBtn() {
   const lbl = document.getElementById('rec-lbl');
   const dot = document.getElementById('rec-dot');
   const sub = document.getElementById('rec-sub');
-  if (isRecording) {
+  if (isSelectedRecording()) {
     btn.classList.add('recording');
     lbl.textContent = 'Detener grabación';
   } else {
     btn.classList.remove('recording');
     lbl.textContent = 'Grabar cámaras';
-    sub.textContent = '';
+    if (!sub.textContent.startsWith('Grabación activa')) {
+      sub.textContent = '';
+    }
   }
 }
 
