@@ -92,5 +92,7 @@ MODULE(TriondaBallSpotsProvider,
 
 class TriondaBallSpotsProvider : public TriondaBallSpotsProviderBase
 {
+  unsigned logCounter = 0;
+
   void update(BallSpots& ballSpots) override;
 };
