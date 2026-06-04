@@ -77,17 +77,29 @@ private:
   static constexpr int MODEL_W = 160;
   static constexpr int MODEL_H = 160;
 
-  // ── Frame handoff (camera thread → BG thread) ────────────────────────────
+  // ── Frame handoff (camera thread -> BG thread) ───────────────────────────
   std::vector<unsigned char> frameBuf;   // raw YUYV bytes
   unsigned                   frameW = 0; // actual camera width  (e.g. 320)
   unsigned                   frameH = 0; // actual camera height (e.g. 240)
-  CameraInfo::Camera         frameCamera = CameraInfo::lower;
+  CameraInfo                 frameCameraInfo;
+  CameraMatrix               frameCameraMatrix;
+  unsigned                   frameSequence = 0;
   bool                       frameReady  = false;
   std::mutex                 frameMtx;
   std::condition_variable    frameCV;
 
-  // ── Detection result (BG thread → camera thread) ─────────────────────────
-  struct Det { float cx, cy, radius, conf; bool valid = false; };
+  // ── Detection result (BG thread -> camera thread) ────────────────────────
+  struct Det
+  {
+    float cx = 0.f;
+    float cy = 0.f;
+    float radius = 0.f;
+    float conf = 0.f;
+    bool valid = false;
+    unsigned sequence = 0;
+    CameraInfo cameraInfo;
+    CameraMatrix cameraMatrix;
+  };
   Det                                   latestDet;
   std::chrono::steady_clock::time_point detTime{};
   std::mutex                            detMtx;
@@ -102,4 +114,5 @@ private:
   std::atomic<bool> bgRunning{false};
 
   int consecutiveSeen = 0;
+  unsigned lastProcessedSequence = 0;
 };
