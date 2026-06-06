@@ -23,8 +23,18 @@
 #include "Debugging/Plot.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numeric>
+#include <sstream>
+
+namespace
+{
+  float clamp01(const float value)
+  {
+    return std::max(0.0f, std::min(1.0f, value));
+  }
+}
 
 MAKE_MODULE(WhistleRecognizer);
 
@@ -105,9 +115,17 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
   if(n < 2)
     return feat;
 
+  std::vector<float> bpChrono(n);
+  std::vector<float> lpChrono(n);
+  for(int i = 0; i < n; ++i)
+  {
+    bpChrono[i] = state.bpBuf[n - 1 - i];
+    lpChrono[i] = state.lpBuf[n - 1 - i];
+  }
+
   float maxAmp = 0.0f;
   for(int i = 0; i < n; ++i)
-    maxAmp = std::max(maxAmp, std::abs(state.bpBuf[i]));
+    maxAmp = std::max(maxAmp, std::abs(bpChrono[i]));
   if(maxAmp < minVolume)
     return feat;
 
@@ -129,7 +147,7 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
     float q2 = 0.0f;
     for(int i = 0; i < n; ++i)
     {
-      const float q0 = coeff * q1 - q2 + state.bpBuf[i];
+      const float q0 = coeff * q1 - q2 + bpChrono[i];
       q2 = q1;
       q1 = q0;
     }
@@ -139,6 +157,7 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
   const auto maxIt = std::max_element(feat.powers.begin(), feat.powers.end());
   feat.peakIdx = static_cast<int>(maxIt - feat.powers.begin());
   feat.pMax = feat.powers[feat.peakIdx];
+  feat.peakFreq = goertzelMinFreq + static_cast<float>(feat.peakIdx) * (fs / static_cast<float>(n));
 
   if(feat.pMax < pMaxMin)
   {
@@ -189,7 +208,7 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
         float q2 = 0.0f;
         for(int i = 0; i < fastWindow; ++i)
         {
-          const float q0 = coeff * q1 - q2 + state.bpBuf[i];
+          const float q0 = coeff * q1 - q2 + bpChrono[n - fastWindow + i];
           q2 = q1;
           q1 = q0;
         }
@@ -227,8 +246,8 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
   double eTotal = 1e-12;
   for(int i = 0; i < n; ++i)
   {
-    const double bp = state.bpBuf[i];
-    const double lp = state.lpBuf[i];
+    const double bp = bpChrono[i];
+    const double lp = lpChrono[i];
     eWhistle += bp * bp;
     eLow += lp * lp;
     eTotal += (bp + lp) * (bp + lp);
@@ -255,6 +274,90 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& s
   state.stationaryCounter[feat.peakIdx] += 2;
 
   return feat;
+}
+
+WhistleRecognizer::GateEvaluation WhistleRecognizer::evaluateGates(const FrameFeatures& feat, ChannelState& state) const
+{
+  GateEvaluation gates;
+
+  const int nBins = static_cast<int>(state.stationaryCounter.size());
+  if(nBins > 0 && feat.peakIdx >= 0 && feat.peakIdx < nBins)
+  {
+    const int low = std::max(0, feat.peakIdx - 1);
+    const int high = std::min(nBins - 1, feat.peakIdx + 1);
+    for(int k = low; k <= high; ++k)
+    {
+      if(state.stationaryCounter[k] >= state.stationaryThreshold)
+      {
+        gates.stationary = true;
+        break;
+      }
+    }
+  }
+
+  gates.pMax = feat.pMax >= pMaxMin;
+  gates.snr = feat.snrDb >= snrDbMin;
+  gates.flat = feat.flatness <= flatMax;
+  gates.snrFast = feat.snrFast >= snrFastMin;
+  gates.flatFast = feat.flatFast <= flatFastMax;
+  gates.eRatio = feat.eRatio >= eRatioMin;
+  gates.lowband = feat.lowband <= lowbandMax;
+  gates.flux = feat.fluxDb <= fluxMax;
+  return gates;
+}
+
+int WhistleRecognizer::passedGateCount(const GateEvaluation& gates)
+{
+  return static_cast<int>(gates.pMax) +
+         static_cast<int>(gates.snr) +
+         static_cast<int>(gates.flat) +
+         static_cast<int>(gates.snrFast) +
+         static_cast<int>(gates.flatFast) +
+         static_cast<int>(gates.eRatio) +
+         static_cast<int>(gates.lowband) +
+         static_cast<int>(gates.flux) +
+         static_cast<int>(!gates.stationary);
+}
+
+std::string WhistleRecognizer::formatGateSummary(const FrameFeatures& feat, const GateEvaluation& gates, size_t channel) const
+{
+  std::ostringstream stream;
+  stream << "ch=" << channel
+         << " peakHz=" << feat.peakFreq
+         << " pMax=" << feat.pMax << "/" << pMaxMin
+         << " snr=" << feat.snrDb << "/" << snrDbMin
+         << " flat=" << feat.flatness << "/" << flatMax
+         << " snrFast=" << feat.snrFast << "/" << snrFastMin
+         << " flatFast=" << feat.flatFast << "/" << flatFastMax
+         << " eRatio=" << feat.eRatio << "/" << eRatioMin
+         << " lowband=" << feat.lowband << "/" << lowbandMax
+         << " flux=" << feat.fluxDb << "/" << fluxMax;
+
+  std::array<const char*, 9> failedLabels = {
+    gates.stationary ? "stationary" : nullptr,
+    !gates.pMax ? "pMax" : nullptr,
+    !gates.snr ? "snr" : nullptr,
+    !gates.flat ? "flat" : nullptr,
+    !gates.snrFast ? "snrFast" : nullptr,
+    !gates.flatFast ? "flatFast" : nullptr,
+    !gates.eRatio ? "eRatio" : nullptr,
+    !gates.lowband ? "lowband" : nullptr,
+    !gates.flux ? "flux" : nullptr,
+  };
+
+  bool first = true;
+  stream << " fail=[";
+  for(const char* label : failedLabels)
+  {
+    if(!label)
+      continue;
+    if(!first)
+      stream << ",";
+    stream << label;
+    first = false;
+  }
+  stream << "]";
+  return stream.str();
 }
 
 bool WhistleRecognizer::updateFSM(bool ok, ChannelState& state, int offHangover, int minDistSamples)
@@ -325,15 +428,29 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   DECLARE_PLOT("module:WhistleRecognizer:samples1");
   DECLARE_PLOT("module:WhistleRecognizer:samples2");
   DECLARE_PLOT("module:WhistleRecognizer:samples3");
+  DECLARE_PLOT("module:WhistleRecognizer:bestPMax");
+  DECLARE_PLOT("module:WhistleRecognizer:bestFlatness");
+  DECLARE_PLOT("module:WhistleRecognizer:bestSnrDb");
+  DECLARE_PLOT("module:WhistleRecognizer:bestSnrFast");
+  DECLARE_PLOT("module:WhistleRecognizer:bestFlatFast");
+  DECLARE_PLOT("module:WhistleRecognizer:bestERatio");
+  DECLARE_PLOT("module:WhistleRecognizer:bestLowband");
+  DECLARE_PLOT("module:WhistleRecognizer:bestFluxDb");
+  DECLARE_PLOT("module:WhistleRecognizer:active");
+
+  const bool inCalibration = theGameState.playerState == GameState::calibration;
+  const bool soundIsPlayingNow = SystemCall::soundIsPlaying();
 
   SystemCall::mute(mute
                    && (theGameState.isSet() || theGameState.isPlaying())
                    && !theGameState.isPenalized()
-                   && theGameState.playerState != GameState::calibration);
+                   && !inCalibration);
 
-  soundWasPlaying |= SystemCall::soundIsPlaying();
+  soundWasPlaying |= soundIsPlayingNow;
 
-  const bool shouldRecord = (theGameState.isSet() || theGameState.isPlaying()) && !soundWasPlaying;
+  const bool shouldDetectWhistles = (theGameState.isSet() || theGameState.isPlaying()) && !soundWasPlaying;
+  // Keep monitoring active in any game state so thresholds can be tuned without arming whistle-triggered behaviors.
+  const bool shouldRecord = !soundWasPlaying;
   if(!hasRecorded && shouldRecord)
   {
     buffers.clear();
@@ -434,9 +551,24 @@ void WhistleRecognizer::update(Whistle& theWhistle)
 
   if(shouldRecord && buffers[firstBuffer].full() && samplesRequired <= 0)
   {
+    struct CandidateSummary
+    {
+      bool valid = false;
+      size_t channel = 0;
+      FrameFeatures feat;
+      GateEvaluation gates;
+      int passCount = -1;
+      bool active = false;
+    } bestRejectedCandidate;
+
+    CandidateSummary bestObservedCandidate;
+
     float correlation = 0.0f;
     size_t defects = 0;
     bool anyActive = false;
+    bool loggedDetection = false;
+    bool haveBestFeatures = false;
+    FrameFeatures bestFeatures;
 
     for(size_t i = 0; i < buffers.size(); ++i)
     {
@@ -448,42 +580,68 @@ void WhistleRecognizer::update(Whistle& theWhistle)
 
       ChannelState& state = channelStates[i];
       const FrameFeatures feat = analyzeFrame(state);
+      const GateEvaluation gates = evaluateGates(feat, state);
+      const bool ok = !gates.stationary
+                      && gates.pMax
+                      && gates.snr
+                      && gates.flat
+                      && gates.snrFast
+                      && gates.flatFast
+                      && gates.eRatio
+                      && gates.lowband
+                      && gates.flux;
 
-      const int nBins = static_cast<int>(state.stationaryCounter.size());
-      bool isStationary = false;
-      if(nBins > 0 && feat.peakIdx >= 0 && feat.peakIdx < nBins)
+      const bool opened = shouldDetectWhistles && updateFSM(ok, state, offHangover, minDistSamples);
+      const bool active = state.fsmState == ChannelState::FsmState::ACTIVE || opened;
+      const int passCount = passedGateCount(gates);
+
+      if(!bestObservedCandidate.valid ||
+         feat.pMax > bestObservedCandidate.feat.pMax ||
+         (feat.pMax == bestObservedCandidate.feat.pMax && passCount > bestObservedCandidate.passCount))
       {
-        const int low = std::max(0, feat.peakIdx - 1);
-        const int high = std::min(nBins - 1, feat.peakIdx + 1);
-        for(int k = low; k <= high; ++k)
+        bestObservedCandidate.valid = true;
+        bestObservedCandidate.channel = i;
+        bestObservedCandidate.feat = feat;
+        bestObservedCandidate.gates = gates;
+        bestObservedCandidate.passCount = passCount;
+        bestObservedCandidate.active = active;
+      }
+
+      if(active)
+      {
+        const float snrScore = clamp01((feat.snrDb - snrDbMin) / 15.0f);
+        const float flatScore = std::max(0.0f, 1.0f - feat.flatness / std::max(flatMax, 1e-6f));
+        const float eRatioScore = clamp01((feat.eRatio - eRatioMin) / (1.0f - eRatioMin + 1e-6f));
+        correlation = std::max(correlation, snrScore * flatScore * eRatioScore);
+        anyActive = true;
+      }
+      else if(shouldRecord)
+      {
+        if((!bestRejectedCandidate.valid || passCount > bestRejectedCandidate.passCount ||
+            (passCount == bestRejectedCandidate.passCount && feat.pMax > bestRejectedCandidate.feat.pMax)) &&
+           (passCount >= 5 || feat.pMax >= 0.5f * pMaxMin))
         {
-          if(state.stationaryCounter[k] >= state.stationaryThreshold)
-          {
-            isStationary = true;
-            break;
-          }
+          bestRejectedCandidate.valid = true;
+          bestRejectedCandidate.channel = i;
+          bestRejectedCandidate.feat = feat;
+          bestRejectedCandidate.gates = gates;
+          bestRejectedCandidate.passCount = passCount;
         }
       }
 
-      const bool ok = !isStationary
-                      && feat.pMax >= pMaxMin
-                      && feat.snrDb >= snrDbMin
-                      && feat.flatness <= flatMax
-                      && feat.snrFast >= snrFastMin
-                      && feat.flatFast <= flatFastMax
-                      && feat.eRatio >= eRatioMin
-                      && feat.lowband <= lowbandMax
-                      && feat.fluxDb <= fluxMax;
-
-      const bool opened = updateFSM(ok, state, offHangover, minDistSamples);
-      const bool active = state.fsmState == ChannelState::FsmState::ACTIVE || opened;
-      if(active)
+      if(!haveBestFeatures || feat.pMax > bestFeatures.pMax)
       {
-        const float snrScore = std::max(0.0f, std::min(1.0f, (feat.snrDb - snrDbMin) / 15.0f));
-        const float flatScore = std::max(0.0f, 1.0f - feat.flatness / flatMax);
-        const float eRatioScore = std::max(0.0f, std::min(1.0f, (feat.eRatio - eRatioMin) / (1.0f - eRatioMin + 1e-6f)));
-        correlation = std::max(correlation, snrScore * flatScore * eRatioScore);
-        anyActive = true;
+        bestFeatures = feat;
+        haveBestFeatures = true;
+      }
+
+      if(opened && logWhistleDetections &&
+         (lastLogTime == 0 || theFrameInfo.getTimeSince(lastLogTime) >= logIntervalMs))
+      {
+        OUTPUT_WARNING("Whistle detected: " << formatGateSummary(feat, gates, i)
+                       << " corr=" << correlation);
+        lastLogTime = theFrameInfo.time;
+        loggedDetection = true;
       }
 
       switch(i)
@@ -494,6 +652,20 @@ void WhistleRecognizer::update(Whistle& theWhistle)
         case 3: PLOT("module:WhistleRecognizer:snrDb3", feat.snrDb); break;
       }
     }
+
+    if(haveBestFeatures)
+    {
+      PLOT("module:WhistleRecognizer:bestPMax", bestFeatures.pMax);
+      PLOT("module:WhistleRecognizer:bestFlatness", bestFeatures.flatness);
+      PLOT("module:WhistleRecognizer:bestSnrDb", bestFeatures.snrDb);
+      PLOT("module:WhistleRecognizer:bestSnrFast", bestFeatures.snrFast);
+      PLOT("module:WhistleRecognizer:bestFlatFast", bestFeatures.flatFast);
+      PLOT("module:WhistleRecognizer:bestERatio", bestFeatures.eRatio);
+      PLOT("module:WhistleRecognizer:bestLowband", bestFeatures.lowband);
+      PLOT("module:WhistleRecognizer:bestFluxDb", bestFeatures.fluxDb);
+    }
+
+    PLOT("module:WhistleRecognizer:active", anyActive ? 1.0f : 0.0f);
 
     if(defects < buffers.size() && anyActive)
     {
@@ -508,6 +680,28 @@ void WhistleRecognizer::update(Whistle& theWhistle)
           ANNOTATION("WhistleRecognizer", "whistle with " << static_cast<int>(bestCorrelation * 100.f) << "%");
         lastTimeWhistleDetected = theFrameInfo.time;
       }
+    }
+    else if(logWhistleMonitoring && bestObservedCandidate.valid &&
+            !loggedDetection &&
+            (lastLogTime == 0 || theFrameInfo.getTimeSince(lastLogTime) >= logIntervalMs))
+    {
+      OUTPUT_WARNING("Whistle monitor: "
+                     << formatGateSummary(bestObservedCandidate.feat,
+                                          bestObservedCandidate.gates,
+                                          bestObservedCandidate.channel)
+                     << " passCount=" << bestObservedCandidate.passCount
+                     << " active=" << (bestObservedCandidate.active ? "yes" : "no"));
+      lastLogTime = theFrameInfo.time;
+    }
+    else if(logRejectedWhistleCandidates && bestRejectedCandidate.valid &&
+            !loggedDetection &&
+            (lastLogTime == 0 || theFrameInfo.getTimeSince(lastLogTime) >= logIntervalMs))
+    {
+      OUTPUT_WARNING("Whistle near miss: "
+                     << formatGateSummary(bestRejectedCandidate.feat,
+                                          bestRejectedCandidate.gates,
+                                          bestRejectedCandidate.channel));
+      lastLogTime = theFrameInfo.time;
     }
 
     samplesRequired = hopSamples;

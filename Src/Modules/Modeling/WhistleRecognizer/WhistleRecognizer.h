@@ -25,6 +25,8 @@
 #include "Framework/Module.h"
 #include "Math/RingBuffer.h"
 
+#include <array>
+#include <string>
 #include <vector>
 
 MODULE(WhistleRecognizer,
@@ -47,19 +49,23 @@ MODULE(WhistleRecognizer,
     (bool) mute,                               /**< Mute speaker during Set/Playing. */
     (float)(3600.0f) goertzelMinFreq,          /**< Whistle band lower edge (Hz). */
     (float)(4500.0f) goertzelMaxFreq,          /**< Whistle band upper edge (Hz). */
-    (float)(699.3f) pMaxMin,                   /**< Stage 1: min peak Goertzel power. */
-    (float)(9.24f) snrDbMin,                   /**< Stage 2 main-window min SNR (dB). */
-    (float)(0.39f) flatMax,                    /**< Stage 2 main-window max flatness. */
-    (float)(8.03f) snrFastMin,                 /**< Stage 2 fast-window min SNR (dB). */
-    (float)(0.428f) flatFastMax,               /**< Stage 2 fast-window max flatness. */
-    (float)(2.30f) fluxMax,                    /**< Stage 2 max one-sided spectral flux (dB). */
-    (float)(4.41f) lowbandMax,                 /**< Stage 2 max LP/BP energy ratio. */
-    (float)(0.142f) eRatioMin,                 /**< Stage 2 min BP/total energy ratio. */
-    (int)(3) onsetConsec,                      /**< Consecutive OK frames to confirm onset. */
-    (int)(170) offMs,                          /**< Hangover after last OK frame (ms). */
-    (int)(3) gapFill,                          /**< Gap-fill budget (frames) inside ACTIVE. */
+    (float)(632.8f) pMaxMin,                   /**< Stage 1: min peak Goertzel power. */
+    (float)(7.26f) snrDbMin,                   /**< Stage 2 main-window min SNR (dB). */
+    (float)(0.546f) flatMax,                   /**< Stage 2 main-window max flatness. */
+    (float)(3.34f) snrFastMin,                 /**< Stage 2 fast-window min SNR (dB). */
+    (float)(0.692f) flatFastMax,               /**< Stage 2 fast-window max flatness. */
+    (float)(4.47f) fluxMax,                    /**< Stage 2 max one-sided spectral flux (dB). */
+    (float)(6.01f) lowbandMax,                 /**< Stage 2 max LP/BP energy ratio. */
+    (float)(0.279f) eRatioMin,                 /**< Stage 2 min BP/total energy ratio. */
+    (int)(2) onsetConsec,                      /**< Consecutive OK frames to confirm onset. */
+    (int)(115) offMs,                          /**< Hangover after last OK frame (ms). */
+    (int)(5) gapFill,                          /**< Gap-fill budget (frames) inside ACTIVE. */
     (int)(150) minDistMs,                      /**< Min distance between whistle events (ms). */
     (float)(1.0f) stationaryHoldSec,           /**< Stationary-mask hold time (s). */
+    (bool)(true) logWhistleMonitoring,         /**< Print periodic summaries of the strongest whistle candidate for tuning. */
+    (bool)(true) logWhistleDetections,         /**< Print feature summaries on confirmed whistle detections. */
+    (bool)(false) logRejectedWhistleCandidates,/**< Print near-miss feature summaries for parameter tuning. */
+    (int)(1000) logIntervalMs,                 /**< Minimum spacing between repeated info logs. */
   }),
 });
 
@@ -94,7 +100,21 @@ class WhistleRecognizer : public WhistleRecognizerBase
     float eRatio = 0.0f;
     float lowband = 0.0f;
     float fluxDb = 0.0f;
+    float peakFreq = 0.0f;
     std::vector<float> powers;
+  };
+
+  struct GateEvaluation
+  {
+    bool stationary = false;
+    bool pMax = false;
+    bool snr = false;
+    bool flat = false;
+    bool snrFast = false;
+    bool flatFast = false;
+    bool eRatio = false;
+    bool lowband = false;
+    bool flux = false;
   };
 
   struct ChannelState
@@ -124,8 +144,12 @@ class WhistleRecognizer : public WhistleRecognizerBase
   static float applyLP(float x, double (&z)[LP_N_SOS][2]);
 
   FrameFeatures analyzeFrame(ChannelState& state);
+  GateEvaluation evaluateGates(const FrameFeatures& feat, ChannelState& state) const;
   bool updateFSM(bool ok, ChannelState& state, int offHangover, int minDistSamples);
   void initChannelState(ChannelState& state, int nBins);
+  static int passedGateCount(const GateEvaluation& gates);
+  std::string formatGateSummary(const FrameFeatures& feat, const GateEvaluation& gates, size_t channel) const;
+  unsigned lastLogTime = 0;
 
 public:
   WhistleRecognizer();
