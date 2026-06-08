@@ -6,6 +6,15 @@ file(GLOB_RECURSE BHUMAN_SOURCES CONFIGURE_DEPENDS
     "${BHUMAN_ROOT_DIR}/Threads/*.cpp" "${BHUMAN_ROOT_DIR}/Threads/*.h"
     "${BHUMAN_ROOT_DIR}/Tools/*.cpp" "${BHUMAN_ROOT_DIR}/Tools/*.h")
 
+# RLSharedState must be part of the robot-side B-Human object graph for the
+# Nao target. Desktop targets provide the same implementation via
+# SimulatedNao/PythonController, so adding it there would duplicate symbols.
+if(NOT BUILD_DESKTOP)
+  list(APPEND BHUMAN_SOURCES
+      "${BHUMAN_ROOT_DIR}/Libs/Python/Controller/RLSharedState.cpp"
+      "${BHUMAN_ROOT_DIR}/Libs/Python/Controller/RLSharedState.h")
+endif()
+
 file(GLOB BHUMAN_OPTIMIZED_SOURCES CONFIGURE_DEPENDS
     "${BHUMAN_ROOT_DIR}/Tools/Math/*.cpp" "${BHUMAN_ROOT_DIR}/Tools/Math/*.h"
     "${BHUMAN_ROOT_DIR}/Tools/Motion/*.cpp" "${BHUMAN_ROOT_DIR}/Tools/Motion/*.h")
