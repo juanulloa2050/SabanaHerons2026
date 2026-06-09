@@ -8,6 +8,7 @@
 
 #include "SkillBehaviorControl.h"
 #include "Python/Controller/RLSharedState.h"
+#include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Streaming/TypeRegistry.h"
 #include <cmath>
 #include <cstdlib>
@@ -42,6 +43,46 @@ namespace
     estimated = 0,
     corrected = 1,
   };
+
+  enum class RLTeammateActivity
+  {
+    idle = 0,
+    goingToBall = 1,
+    dribbling = 2,
+    kicking = 3,
+  };
+
+  constexpr int teammateBallFreshThresholdMs = 1000;
+  constexpr float teammateWalkingSpeedThreshold = 80.f;
+  constexpr float teammateWalkTargetNearBallMm = 450.f;
+  constexpr float teammateBallControlDistanceMm = 260.f;
+  constexpr float teammateBallEngageDistanceMm = 900.f;
+
+  int encodeTeammateActivity(const Teammate& teammate)
+  {
+    if(teammate.theBehaviorStatus.shootingTo.has_value() || teammate.theBehaviorStatus.passTarget >= 0)
+      return static_cast<int>(RLTeammateActivity::kicking);
+
+    const bool playBallRole = teammate.theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall);
+    const bool hasFreshBall = teammate.theBallModel.timeWhenLastSeen > 0 &&
+                              teammate.theFrameInfo.getTimeSince(teammate.theBallModel.timeWhenLastSeen) <= teammateBallFreshThresholdMs;
+    const float ballDistance = teammate.theBallModel.estimate.position.norm();
+    const float walkTargetDistance = teammate.theBehaviorStatus.walkingTo.norm();
+    const float walkTargetToBallDistance = hasFreshBall
+                                             ? (teammate.theBehaviorStatus.walkingTo - teammate.theBallModel.estimate.position).norm()
+                                             : std::numeric_limits<float>::max();
+    const bool isWalking = teammate.theBehaviorStatus.speed >= teammateWalkingSpeedThreshold || walkTargetDistance > 10.f;
+
+    if(hasFreshBall && ballDistance <= teammateBallControlDistanceMm)
+      return static_cast<int>(RLTeammateActivity::dribbling);
+
+    if(playBallRole ||
+       (hasFreshBall && ballDistance <= teammateBallEngageDistanceMm) ||
+       (hasFreshBall && isWalking && walkTargetToBallDistance <= teammateWalkTargetNearBallMm))
+      return static_cast<int>(RLTeammateActivity::goingToBall);
+
+    return static_cast<int>(RLTeammateActivity::idle);
+  }
 
   RLObsExportMode getRLObsExportMode()
   {
@@ -326,6 +367,37 @@ void SkillBehaviorControl::update(ActivationGraph&)
     io.shotQualityNoObstacles = exportedShotQualityNoObstacles;
     io.shotOpeningWithObstacles = exportedShotOpeningWithObstacles;
     io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
+    io.teammateCount = 0;
+    for(std::size_t i = 0; i < io.teammateX.size(); ++i)
+    {
+      io.teammateX[i] = 0.f;
+      io.teammateY[i] = 0.f;
+      io.teammateTheta[i] = 0.f;
+      io.teammateAgeMs[i] = 0.f;
+      io.teammateActivity[i] = static_cast<int>(RLTeammateActivity::idle);
+    }
+    unsigned newestTeammateBallTime = 0;
+    for(const Teammate& teammate : theTeamData.teammates)
+    {
+      if(io.teammateCount >= static_cast<int>(io.teammateX.size()))
+        break;
+      const int idx = io.teammateCount++;
+      io.teammateX[static_cast<std::size_t>(idx)] = teammate.theRobotPose.translation.x();
+      io.teammateY[static_cast<std::size_t>(idx)] = teammate.theRobotPose.translation.y();
+      io.teammateTheta[static_cast<std::size_t>(idx)] = static_cast<float>(teammate.theRobotPose.rotation);
+      io.teammateAgeMs[static_cast<std::size_t>(idx)] = static_cast<float>(theFrameInfo.getTimeSince(teammate.theFrameInfo.time));
+      io.teammateActivity[static_cast<std::size_t>(idx)] = encodeTeammateActivity(teammate);
+      if(teammate.theBallModel.timeWhenLastSeen > newestTeammateBallTime)
+        newestTeammateBallTime = teammate.theBallModel.timeWhenLastSeen;
+    }
+    io.globalTeamBallX = theTeammatesBallModel.position.x();
+    io.globalTeamBallY = theTeammatesBallModel.position.y();
+    io.globalTeamBallValid = theTeammatesBallModel.isValid;
+    io.globalTeamBallAgeMs = theTeammatesBallModel.isValid && newestTeammateBallTime > 0
+                               ? static_cast<float>(theFrameInfo.getTimeSince(newestTeammateBallTime))
+                               : 0.f;
+    io.goalOpponentX = theFieldDimensions.xPosOpponentGroundLine;
+    io.goalOpponentY = 0.5f * (theFieldDimensions.yPosLeftGoal + theFieldDimensions.yPosRightGoal);
     io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
     io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
     io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);

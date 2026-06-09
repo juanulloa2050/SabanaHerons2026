@@ -89,6 +89,18 @@ struct RLPlayerIO
   float nearestTeammateFrontDist = 0.f;
   float nearestOpponentFrontDist = 0.f;
   float nearestUncertainFrontDist = 0.f;
+  int teammateCount = 0;
+  std::array<float, RLSharedStateBridge::maxWorldPlayersPerTeam> teammateX{};
+  std::array<float, RLSharedStateBridge::maxWorldPlayersPerTeam> teammateY{};
+  std::array<float, RLSharedStateBridge::maxWorldPlayersPerTeam> teammateTheta{};
+  std::array<float, RLSharedStateBridge::maxWorldPlayersPerTeam> teammateAgeMs{};
+  std::array<int, RLSharedStateBridge::maxWorldPlayersPerTeam> teammateActivity{};
+  float globalTeamBallX = 0.f;
+  float globalTeamBallY = 0.f;
+  float globalTeamBallAgeMs = 0.f;
+  bool globalTeamBallValid = false;
+  float goalOpponentX = 0.f;
+  float goalOpponentY = 0.f;
   int debugObstacleCount = 0;
   int debugObstacleTeammateCount = 0;
   int debugObstacleOpponentCount = 0;

@@ -614,6 +614,30 @@ Args:
       d["nearest_teammate_front_dist"] = io.nearestTeammateFrontDist;
       d["nearest_opponent_front_dist"] = io.nearestOpponentFrontDist;
       d["nearest_uncertain_front_dist"] = io.nearestUncertainFrontDist;
+      py::list teammateX;
+      py::list teammateY;
+      py::list teammateTheta;
+      py::list teammateAgeMs;
+      py::list teammateActivity;
+      for(int i = 0; i < io.teammateCount && i < static_cast<int>(io.teammateX.size()); ++i)
+      {
+        teammateX.append(io.teammateX[static_cast<std::size_t>(i)]);
+        teammateY.append(io.teammateY[static_cast<std::size_t>(i)]);
+        teammateTheta.append(io.teammateTheta[static_cast<std::size_t>(i)]);
+        teammateAgeMs.append(io.teammateAgeMs[static_cast<std::size_t>(i)]);
+        teammateActivity.append(io.teammateActivity[static_cast<std::size_t>(i)]);
+      }
+      d["teammate_x_mm"] = teammateX;
+      d["teammate_y_mm"] = teammateY;
+      d["teammate_theta"] = teammateTheta;
+      d["teammate_age_ms"] = teammateAgeMs;
+      d["teammate_activity"] = teammateActivity;
+      d["global_team_ball_x_mm"] = io.globalTeamBallX;
+      d["global_team_ball_y_mm"] = io.globalTeamBallY;
+      d["global_team_ball_age_ms"] = io.globalTeamBallAgeMs;
+      d["global_team_ball_valid"] = io.globalTeamBallValid;
+      d["goal_opponent_x_mm"] = io.goalOpponentX;
+      d["goal_opponent_y_mm"] = io.goalOpponentY;
       d["obstacle_count"] = io.debugObstacleCount;
       d["obstacle_teammate_count"] = io.debugObstacleTeammateCount;
       d["obstacle_opponent_count"] = io.debugObstacleOpponentCount;
