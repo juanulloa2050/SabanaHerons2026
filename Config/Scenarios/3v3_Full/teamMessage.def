@@ -49,6 +49,15 @@ BehaviorStatus
   walkingTo: Vector<Float(min=-12800, max=12800, bits=11)>(n=2)
   speed: Float(min=0.0, max=310.0, bits=5)
   shootingTo: Vector<Float(min=-12800, max=12800, bits=11)>(n=2)[:1]
+  restartMemoryType: Enum(type=RestartBallSearchType)
+  restartMemoryRegionIndex: Integer(min=-1, max=15)
+  restartMemoryPositionOnField: Vector<Float(min=-12800, max=12800, bits=11)>(n=2)
+  restartMemoryTimestamp: Timestamp(bits=11, shift=4, reference=relativePast, noclip)
+  restartMemorySourceRobot: Integer(min=-1, max=14)
+  restartMemoryValid: Boolean
+  restartMemoryFrozen: Boolean
+  restartMemoryFromLiveBall: Boolean
+  restartMemoryFromDropInFallback: Boolean
 }
 
 StrategyStatus

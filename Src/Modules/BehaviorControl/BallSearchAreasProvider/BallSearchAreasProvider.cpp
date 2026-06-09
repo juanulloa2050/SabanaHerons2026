@@ -38,6 +38,7 @@ void BallSearchAreasProvider::update(BallSearchAreas& theBallSearchAreas)
   DECLARE_DEBUG_DRAWING("module:BallSearchAreasProvider:fullGrid", "drawingOnField");
   DECLARE_DEBUG_DRAWING("module:BallSearchAreasProvider:priority", "drawingOnField");
   DECLARE_DEBUG_DRAWING("module:BallSearchAreasProvider:cornerArea", "drawingOnField");
+  DECLARE_DEBUG_DRAWING("module:BallSearchAreasProvider:restartMemory", "drawingOnField");
 
   ASSERT(grid.size() != 0);
   reset();
@@ -81,6 +82,15 @@ void BallSearchAreasProvider::draw()
   RECTANGLE("module:BallSearchAreasProvider:cornerArea", rectRightOpponentCorner.a.x(), rectRightOpponentCorner.a.y(), rectRightOpponentCorner.b.x(), rectRightOpponentCorner.b.y(), 100, Drawings::solidPen, ColorRGBA::red);
   RECTANGLE("module:BallSearchAreasProvider:cornerArea", rectLeftOwnCorner.a.x(), rectLeftOwnCorner.a.y(), rectLeftOwnCorner.b.x(), rectLeftOwnCorner.b.y(), 100, Drawings::solidPen, ColorRGBA::blue);
   RECTANGLE("module:BallSearchAreasProvider:cornerArea", rectRightOwnCorner.a.x(), rectRightOwnCorner.a.y(), rectRightOwnCorner.b.x(), rectRightOwnCorner.b.y(), 100, Drawings::solidPen, ColorRGBA::blue);
+  if(theRestartBallSearchContext.valid)
+  {
+    const Geometry::Rect rect = regionRect(theRestartBallSearchContext.regionIndex);
+    RECTANGLE("module:BallSearchAreasProvider:restartMemory", rect.a.x(), rect.a.y(), rect.b.x(), rect.b.y(), 100, Drawings::solidPen, ColorRGBA::yellow);
+    CROSS("module:BallSearchAreasProvider:restartMemory",
+          theRestartBallSearchContext.rememberedPositionOnField.x(),
+          theRestartBallSearchContext.rememberedPositionOnField.y(),
+          120, 20, Drawings::solidPen, ColorRGBA::yellow);
+  }
 }
 
 void BallSearchAreasProvider::updateTimestamp(BallSearchAreas::Cell& cell)
@@ -187,8 +197,11 @@ void BallSearchAreasProvider::updateCells()
   const bool goalKick = theGameState.isGoalKick();
   const bool cornerForOpponents = theGameState.isCornerKick() && theGameState.isForOpponentTeam();
   const bool cornerForOwn = theGameState.isCornerKick() && theGameState.isForOwnTeam();
+  const bool restartMemoryActive = theRestartBallSearchContext.valid &&
+                                   theRestartBallSearchContext.frozenForCurrentRestart &&
+                                   !theTeammatesBallModel.isValid;
+  const unsigned restartElapsed = theFrameInfo.getTimeSince(theGameState.timeWhenStateStarted);
 
-  Vector2f ball_out_position = theBallDropInModel.outPosition;
   // The sector wheel contains areas around the robot that are covered by an obstacle and therefore could not be updated within the update method.
   const std::list<SectorWheel::Sector> wheel =  calculateObstacleSectors();
   if(!grid.empty())
@@ -196,18 +209,20 @@ void BallSearchAreasProvider::updateCells()
     for(auto& cell : grid)
     {
       //This part of the code updates the priorities of the cells depending on the current game state
-      if((cornerForOpponents
+      if(!restartMemoryActive &&
+         ((cornerForOpponents
           && (Geometry::isPointInsideRectangle(rectLeftOwnCorner, cell.positionOnField)
               || Geometry::isPointInsideRectangle(rectRightOwnCorner, cell.positionOnField)))
          || (cornerForOwn
              && (Geometry::isPointInsideRectangle(rectLeftOpponentCorner, cell.positionOnField)
                  || Geometry::isPointInsideRectangle(rectRightOpponentCorner, cell.positionOnField)))
          || (goalKick
-             && Geometry::isPointInsideRectangle(rectOwnGoalArea, cell.positionOnField)))
+             && Geometry::isPointInsideRectangle(rectOwnGoalArea, cell.positionOnField))))
       {
         cell.priority = 5;
       }
-      else if(kickIn
+      else if(!restartMemoryActive &&
+              kickIn
               && (cell.id < cellCountX
                   || cellCountX * (cellCountY - 1) <= cell.id))
       {
@@ -227,6 +242,20 @@ void BallSearchAreasProvider::updateCells()
       {
         cell.priority = 1;
       }
+
+      if(restartMemoryActive)
+      {
+        if(Geometry::isPointInsideRectangle(regionRect(theRestartBallSearchContext.regionIndex), cell.positionOnField))
+          cell.priority = std::max(cell.priority, restartRegionPriority);
+        else if(restartElapsed > restartPhaseOneDuration &&
+                restartElapsed <= restartPhaseTwoDuration &&
+                cellIsInNeighborRegion(cell, theRestartBallSearchContext.regionIndex))
+          cell.priority = std::max(cell.priority, restartNeighborPriority);
+
+        if((cell.positionOnField - theRestartBallSearchContext.rememberedPositionOnField).squaredNorm() <= sqr(restartPointBoostRadius))
+          cell.priority = std::max(cell.priority, restartPointPriority);
+      }
+
       if(cellInView(cell))
       {
         // For updating the timestamp it has to be checked if the cell is in sight of the robot and if its covered by an obstacle. Therefore a sector wheel is used.
@@ -242,4 +271,30 @@ void BallSearchAreasProvider::updateCells()
       }
     }
   }
+}
+
+Geometry::Rect BallSearchAreasProvider::regionRect(const int regionIndex) const
+{
+  const int xIndex = std::clamp(regionIndex % 4, 0, 3);
+  const int yIndex = std::clamp(regionIndex / 4, 0, 3);
+  const float width = (theFieldDimensions.xPosOpponentFieldBorder - theFieldDimensions.xPosOwnFieldBorder) / 4.f;
+  const float height = (theFieldDimensions.yPosLeftFieldBorder - theFieldDimensions.yPosRightFieldBorder) / 4.f;
+  const Vector2f bottomLeft(theFieldDimensions.xPosOwnFieldBorder + width * xIndex,
+                            theFieldDimensions.yPosRightFieldBorder + height * yIndex);
+  const Vector2f topRight(bottomLeft.x() + width, bottomLeft.y() + height);
+  return Geometry::Rect(bottomLeft, topRight);
+}
+
+bool BallSearchAreasProvider::cellIsInNeighborRegion(const BallSearchAreas::Cell& cell, const int regionIndex) const
+{
+  if(regionIndex < 0)
+    return false;
+
+  const int centerX = regionIndex % 4;
+  const int centerY = regionIndex / 4;
+  const float width = (theFieldDimensions.xPosOpponentFieldBorder - theFieldDimensions.xPosOwnFieldBorder) / 4.f;
+  const float height = (theFieldDimensions.yPosLeftFieldBorder - theFieldDimensions.yPosRightFieldBorder) / 4.f;
+  const int cellRegionX = std::clamp(static_cast<int>((cell.positionOnField.x() - theFieldDimensions.xPosOwnFieldBorder) / width), 0, 3);
+  const int cellRegionY = std::clamp(static_cast<int>((cell.positionOnField.y() - theFieldDimensions.yPosRightFieldBorder) / height), 0, 3);
+  return std::abs(cellRegionX - centerX) <= 1 && std::abs(cellRegionY - centerY) <= 1;
 }
