@@ -17,7 +17,7 @@ namespace
 {
 constexpr const char* shmName = "/pybh_rl_shared_state_v3";
 constexpr unsigned int magic = 0x50594248u; // PYBH
-constexpr unsigned int version = 29u;
+constexpr unsigned int version = 30u;
 
 std::string resolveShmName()
 {

@@ -1,0 +1,6 @@
+call Includes/RLNatural
+
+gc playing
+ar kickOffDelay off
+ar penalizeIllegalPosition off
+ar penalizeIllegalPositionInSet off
