@@ -56,3 +56,6 @@ Thumbs.db
 #
 # To re-enable staging (e.g. after a release rebuild):
 #   git update-index --no-skip-worktree Make/Python/pybh/controller.*.so
+/Config/NeuralNets/BallDetector/*.bak_*
+/Util/CompiledNN_broken
+/Util/SimRobot_broken

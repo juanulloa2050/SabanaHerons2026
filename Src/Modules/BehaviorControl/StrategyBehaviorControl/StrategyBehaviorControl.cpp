@@ -7,11 +7,13 @@
  */
 
 #include "StrategyBehaviorControl.h"
+#include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
 #include "Representations/Communication/TeamData.h"
 #include "Tools/BehaviorControl/Strategy/BehaviorBase.h"
 #include "Tools/Modeling/BallPhysics.h"
 #include "Debugging/DebugDrawings.h"
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <cstring>
@@ -22,6 +24,10 @@ namespace
 {
 constexpr const char* rlOverrideTeamEnv = "PYBH_RL_OVERRIDE_TEAM";
 constexpr const char* rlOverridePlayersEnv = "PYBH_RL_ACTIVE_PLAYERS";
+constexpr const char* ppoModelEnv = "PYBH_PPO_MODEL";
+constexpr const char* ppoTeamEnv = "PYBH_PPO_TEAM";
+constexpr const char* ppoPlayersEnv = "PYBH_PPO_ACTIVE_PLAYERS";
+constexpr float disabledLogit = -1e9f;
 
 int parseEnvInt(const char* envName, int fallback)
 {
@@ -34,27 +40,36 @@ int parseEnvInt(const char* envName, int fallback)
   return end != value ? static_cast<int>(parsed) : fallback;
 }
 
+template<std::size_t count>
+std::array<bool, count + 1> parsePlayerListEnv(const char* envName)
+{
+  std::array<bool, count + 1> enabled{};
+  const char* raw = std::getenv(envName);
+  if(!raw || !*raw)
+    return enabled;
+
+  char buffer[128];
+  std::snprintf(buffer, sizeof(buffer), "%s", raw);
+  for(char* token = std::strtok(buffer, ", "); token; token = std::strtok(nullptr, ", "))
+  {
+    char* end = nullptr;
+    const long parsed = std::strtol(token, &end, 10);
+    if(end != token && parsed >= 1 && parsed <= static_cast<long>(count))
+      enabled[static_cast<std::size_t>(parsed)] = true;
+  }
+  return enabled;
+}
+
 const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>& rlOverridePlayers()
 {
-  static const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> players = []()
-  {
-    std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> enabled{};
-    const char* raw = std::getenv(rlOverridePlayersEnv);
-    if(!raw || !*raw)
-      return enabled;
+  static const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> players = parsePlayerListEnv<RLSharedStateBridge::maxWorldPlayersPerTeam>(rlOverridePlayersEnv);
 
-    char buffer[128];
-    std::snprintf(buffer, sizeof(buffer), "%s", raw);
-    for(char* token = std::strtok(buffer, ", "); token; token = std::strtok(nullptr, ", "))
-    {
-      char* end = nullptr;
-      const long parsed = std::strtol(token, &end, 10);
-      if(end != token && parsed >= 1 && parsed <= RLSharedStateBridge::maxWorldPlayersPerTeam)
-        enabled[static_cast<std::size_t>(parsed)] = true;
-    }
-    return enabled;
-  }();
+  return players;
+}
 
+const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>& embeddedPPOPlayers()
+{
+  static const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1> players = parsePlayerListEnv<RLSharedStateBridge::maxWorldPlayersPerTeam>(ppoPlayersEnv);
   return players;
 }
 
@@ -66,8 +81,49 @@ bool usesExternalRLOverride(const GameState& gameState)
 
   const int playerNumber = gameState.playerNumber;
   return playerNumber >= 1 &&
-         playerNumber <= RLSharedStateBridge::maxWorldPlayersPerTeam &&
-         rlOverridePlayers()[static_cast<std::size_t>(playerNumber)];
+	         playerNumber <= RLSharedStateBridge::maxWorldPlayersPerTeam &&
+	         rlOverridePlayers()[static_cast<std::size_t>(playerNumber)];
+}
+
+bool playerListHasAnyEnabled(const std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>& players)
+{
+  return std::any_of(players.begin() + 1, players.end(), [](const bool enabled) { return enabled; });
+}
+
+bool usesEmbeddedPPO(const GameState& gameState)
+{
+  const char* modelPath = std::getenv(ppoModelEnv);
+  if(!modelPath || !*modelPath)
+    return false;
+
+  const int teamNumber = parseEnvInt(ppoTeamEnv, gameState.ownTeam.number);
+  if(gameState.ownTeam.number != teamNumber)
+    return false;
+
+  const int playerNumber = gameState.playerNumber;
+  if(playerNumber < 1 || playerNumber > RLSharedStateBridge::maxWorldPlayersPerTeam)
+    return false;
+
+  const auto& enabledPlayers = embeddedPPOPlayers();
+  if(playerListHasAnyEnabled(enabledPlayers) && !enabledPlayers[static_cast<std::size_t>(playerNumber)])
+    return false;
+
+  return true;
+}
+
+std::array<bool, RL::ppoSkillCount> buildStage4SkillMask()
+{
+  std::array<bool, RL::ppoSkillCount> mask{};
+  mask[static_cast<std::size_t>(RL::SkillType::stand)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::walk)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::shoot)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::dribble)] = true;
+  return mask;
+}
+
+int argmax(const std::array<float, RL::ppoSkillCount>& logits)
+{
+  return static_cast<int>(std::distance(logits.begin(), std::max_element(logits.begin(), logits.end())));
 }
 
 void setProviderDebug(RLPlayerIO& io, const float tx, const float ty, const float tt, const int motionRequest)
@@ -98,6 +154,7 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
 {
   if(usesExternalRLOverride(theGameState))
   {
+    resetEmbeddedPPO();
     theStrategyStatus = StrategyStatus();
 
     if(theGameState.playerState != GameState::active ||
@@ -171,7 +228,7 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
   theBehavior.preProcess();
 
   if(theGameState.playerState != GameState::active ||
-     theGameState.isPenaltyShootout() || theGameState.isInitial() || theGameState.isFinished())
+     theGameState.isPenaltyShootout() || theGameState.isStopped())
   {
     // Reset provided representations.
     theStrategyStatus.proposedTactic = Tactic::none;
@@ -202,12 +259,113 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
     theStrategyStatus.role = self->role;
   }
 
+  if(!updateEmbeddedPPO(skillRequest))
+    resetEmbeddedPPO();
+
   theBehavior.postProcess();
 }
 
 void StrategyBehaviorControl::update(StrategyStatus& strategyStatus)
 {
   strategyStatus = usesExternalRLOverride(theGameState) ? StrategyStatus() : theStrategyStatus;
+}
+
+bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
+{
+  if(usesExternalRLOverride(theGameState) ||
+     !usesEmbeddedPPO(theGameState) ||
+     theGameState.playerState != GameState::active ||
+     theGameState.state != GameState::playing ||
+     theGameState.ownTeam.isGoalkeeper(theGameState.playerNumber))
+    return false;
+
+  if(!ensureEmbeddedPPOLoaded())
+    return false;
+
+  const RL::PPOGateObservation rawObservation = ppoObservationEncoder.buildRawObservation(
+    theRobotPose,
+    theFieldBall,
+    theBallModel,
+    theObstacleModel,
+    theExpectedGoals,
+    theTeamData,
+    theFieldDimensions);
+  const RL::PPOGateDecision gateDecision = ppoSkillGate.step(rawObservation);
+  const RL::PPOObservation observation = ppoObservationEncoder.encode(rawObservation, gateDecision);
+
+  RL::PPOPolicyOutput output;
+  std::string error;
+  if(!ppoPolicyModel.infer(observation.values, output, &error) || !output.valid)
+  {
+    if(!ppoInferErrorReported)
+    {
+      ANNOTATION("StrategyBehaviorControl", "Embedded PPO inference failed: " << error);
+      ppoInferErrorReported = true;
+    }
+    return false;
+  }
+
+  std::array<float, RL::ppoSkillCount> maskedLogits = output.skillLogits;
+  static const std::array<bool, RL::ppoSkillCount> stage4Mask = buildStage4SkillMask();
+  for(std::size_t i = 0; i < maskedLogits.size(); ++i)
+    if(!stage4Mask[i])
+      maskedLogits[i] = disabledLogit;
+
+  if(!gateDecision.shootArmed)
+    maskedLogits[static_cast<std::size_t>(RL::SkillType::shoot)] = disabledLogit;
+  if(!gateDecision.dribbleArmed)
+    maskedLogits[static_cast<std::size_t>(RL::SkillType::dribble)] = disabledLogit;
+  if(gateDecision.finishArmed())
+  {
+    maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
+    maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
+  }
+
+  const bool anyValidSkill = std::any_of(maskedLogits.begin(), maskedLogits.end(), [](const float logit)
+  {
+    return logit > disabledLogit * 0.5f;
+  });
+  if(!anyValidSkill)
+    return false;
+
+  skillRequest = ppoActionDecoder.decode(rawObservation, argmax(maskedLogits), output.paramMean);
+  ppoInferErrorReported = false;
+  return true;
+}
+
+bool StrategyBehaviorControl::ensureEmbeddedPPOLoaded()
+{
+  if(ppoPolicyModel.isLoaded())
+    return true;
+  if(ppoLoadAttempted)
+    return false;
+
+  const char* configuredModelPath = std::getenv(ppoModelEnv);
+  if(!configuredModelPath || !*configuredModelPath)
+    return false;
+
+  ppoLoadAttempted = true;
+  ppoRequestedModelPath = configuredModelPath;
+
+  std::string error;
+  if(!ppoPolicyModel.load(ppoRequestedModelPath, &error))
+  {
+    if(!ppoLoadErrorReported)
+    {
+      ANNOTATION("StrategyBehaviorControl", "Embedded PPO model load failed: " << error);
+      ppoLoadErrorReported = true;
+    }
+    return false;
+  }
+
+  ppoLoadErrorReported = false;
+  ppoInferErrorReported = false;
+  return true;
+}
+
+void StrategyBehaviorControl::resetEmbeddedPPO()
+{
+  ppoSkillGate.reset();
 }
 
 Agent* StrategyBehaviorControl::updateAgents()

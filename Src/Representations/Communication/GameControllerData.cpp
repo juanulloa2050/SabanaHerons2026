@@ -9,7 +9,7 @@
 
 #include "GameControllerData.h"
 
-static_assert(GAMECONTROLLER_STRUCT_VERSION == 18);
+static_assert(GAMECONTROLLER_STRUCT_VERSION == 20);
 
 struct RobotInfo : public RoboCup::RobotInfo
 {
@@ -20,6 +20,7 @@ private:
     REG_CLASS(RobotInfo);
     REG(penalty);
     REG(secsTillUnpenalised);
+    REG(cautions);
   }
 };
 
@@ -33,6 +34,7 @@ Out& operator<<(Out& stream, const RobotInfo& robotInfo)
 {
   STREAM_EXT(stream, robotInfo.penalty);
   STREAM_EXT(stream, robotInfo.secsTillUnpenalised);
+  STREAM_EXT(stream, robotInfo.cautions);
   return stream;
 }
 
@@ -46,6 +48,7 @@ In& operator>>(In& stream, RobotInfo& robotInfo)
 {
   STREAM_EXT(stream, robotInfo.penalty);
   STREAM_EXT(stream, robotInfo.secsTillUnpenalised);
+  STREAM_EXT(stream, robotInfo.cautions);
   return stream;
 }
 
@@ -122,6 +125,7 @@ void GameControllerData::read(In& stream)
   STREAM(playersPerTeam);
   STREAM(competitionPhase);
   STREAM(competitionType);
+  STREAM(stopped);
   STREAM(gamePhase);
   STREAM(state);
   STREAM(setPlay);
@@ -141,6 +145,7 @@ void GameControllerData::write(Out& stream) const
   STREAM(playersPerTeam);
   STREAM(competitionPhase);
   STREAM(competitionType);
+  STREAM(stopped);
   STREAM(gamePhase);
   STREAM(state);
   STREAM(setPlay);
@@ -161,6 +166,7 @@ void GameControllerData::reg()
   REG(playersPerTeam);
   REG(competitionPhase);
   REG(competitionType);
+  REG(stopped);
   REG(gamePhase);
   REG(state);
   REG(setPlay);

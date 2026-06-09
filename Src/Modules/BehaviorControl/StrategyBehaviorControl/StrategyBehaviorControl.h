@@ -9,11 +9,17 @@
 #pragma once
 
 #include "Behavior.h"
+#include "Libs/RL/PPOActionDecoder.h"
+#include "Libs/RL/PPOObservationEncoder.h"
+#include "Libs/RL/PPOPolicyModel.h"
+#include "Libs/RL/PPOSkillGate.h"
+#include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
 #include "Representations/Communication/ReceivedTeamMessages.h"
 #include "Representations/Communication/SentTeamMessage.h"
+#include "Representations/Communication/TeamData.h"
 #include "Representations/Configuration/BallSpecification.h"
 #include "Representations/Configuration/FieldDimensions.h"
 #include "Representations/Configuration/SetupPoses.h"
@@ -21,6 +27,7 @@
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/BallDropInModel.h"
 #include "Representations/Modeling/BallModel.h"
+#include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Modeling/TeammatesBallModel.h"
 #include "Representations/MotionControl/MotionInfo.h"
@@ -28,6 +35,7 @@
 #include "Representations/Sensing/GroundContactState.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"
 #include "Framework/Module.h"
+#include <string>
 #include <vector>
 
 MODULE(StrategyBehaviorControl,
@@ -35,6 +43,7 @@ MODULE(StrategyBehaviorControl,
   REQUIRES(BallDropInModel),
   REQUIRES(BallModel),
   REQUIRES(BallSpecification),
+  REQUIRES(ExpectedGoals),
   REQUIRES(ExtendedGameState),
   REQUIRES(FallDownState),
   REQUIRES(FieldBall),
@@ -43,10 +52,12 @@ MODULE(StrategyBehaviorControl,
   REQUIRES(GameState),
   REQUIRES(GroundContactState),
   REQUIRES(MotionInfo),
+  REQUIRES(ObstacleModel),
   REQUIRES(ReceivedTeamMessages),
   REQUIRES(RobotPose),
   REQUIRES(SentTeamMessage),
   REQUIRES(SetupPoses),
+  REQUIRES(TeamData),
   REQUIRES(TeammatesBallModel),
   PROVIDES(SkillRequest),
   REQUIRES(SkillRequest),
@@ -107,7 +118,19 @@ private:
    */
   void updateCurrentPosition(Agent& agent);
 
+  bool updateEmbeddedPPO(SkillRequest& skillRequest);
+  bool ensureEmbeddedPPOLoaded();
+  void resetEmbeddedPPO();
+
   Behavior theBehavior; /**< The instance of the behavior. */
   std::vector<Agent> agents; /**< The list of active agents. */
   StrategyStatus theStrategyStatus; /**< The strategy status which is provided later. */
+  RL::PPOSkillGate ppoSkillGate;
+  RL::PPOObservationEncoder ppoObservationEncoder;
+  RL::PPOPolicyModel ppoPolicyModel;
+  RL::PPOActionDecoder ppoActionDecoder;
+  bool ppoLoadAttempted = false;
+  bool ppoLoadErrorReported = false;
+  bool ppoInferErrorReported = false;
+  std::string ppoRequestedModelPath;
 };

@@ -1,5 +1,5 @@
 /**
-* @file ExtendedGameStateProvider.h
+ * @file ExtendedGameStateProvider.h
  *
  * This file implements a module that provided information that is derived from the game state
  * but not suitable for being exchanged between threads.
@@ -29,9 +29,7 @@ void ExtendedGameStateProvider::update(ExtendedGameState& extendedGameState)
   {
     if(playerStateLastFrame == GameState::penalizedManual)
       extendedGameState.returnFromManualPenalty = true;
-    else if(GameState::isPenalized(playerStateLastFrame) &&
-            playerStateLastFrame != GameState::penalizedIllegalMotionInSet &&
-            playerStateLastFrame != GameState::penalizedIllegalMotionInStandby &&
+    else if(GameState::isPenalized(playerStateLastFrame) && playerStateLastFrame != GameState::penalizedIllegalMotionInSet &&
             theFrameInfo.getTimeSince(timeWhenPenalized) > (playerStateLastFrame == GameState::penalizedIllegalPositionInSet ? minPenaltyTimeIPS : minPenaltyTime))
       extendedGameState.returnFromGameControllerPenalty = true;
   }

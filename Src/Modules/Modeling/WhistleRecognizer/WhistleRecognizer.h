@@ -7,6 +7,12 @@
  *  - Tim Laue
  *  - Dennis Schuethe
  *  - Thomas Röfer
+ *
+ * Goertzel Gate V5 (SabanaHerons 2026):
+ *  - IIR pre-filter: BP 2500-6000 Hz + LP 1500 Hz
+ *  - Dual-window: N=320 (20 ms), N_FAST=160 (10 ms), hop=80 (5 ms)
+ *  - Gates: Pmax, SNR/flatness (main+fast), energy ratios, flux, stationary mask
+ *  - 3-state FSM: IDLE -> CANDIDATE (onsetConsec) -> ACTIVE
  */
 
 #pragma once
@@ -19,6 +25,8 @@
 #include "Framework/Module.h"
 #include "Math/RingBuffer.h"
 
+#include <array>
+#include <string>
 #include <vector>
 
 MODULE(WhistleRecognizer,
@@ -30,55 +38,118 @@ MODULE(WhistleRecognizer,
   PROVIDES(Whistle),
   LOADS_PARAMETERS(
   {,
-    (std::vector<std::string>) whistles, /**< Legacy parameter: base names of reference whistles (no longer used). */
-    (unsigned) bufferSize, /**< The number of samples buffered per channel. */
-    (unsigned) sampleRate, /**< The sample rate actually used. */
-    (float) newSampleRatio, /**< The ratio of new samples buffered before recognition is tried again (0..1). */
-    (float) minVolume, /**< The minimum volume that must be reached for accepting a whistle [0..1). */
-    (float) minCorrelation, /**< Minimum correlation/score accepted for whistle detection ]0..1]. */
-    (int) accumulationDuration, /**< The duration over which detections are accumulated before being reported. */
-    (int) minAnnotationDelay, /**< The minimum time between annotations announcing a detected whistle. */
-    (bool) mute, /**< Deactivate sound output in game states in which a whistle could be detected. */
-    (float)(3600.0f) goertzelMinFreq, /**< Minimum frequency for Goertzel whistle detection (Hz). */
-    (float)(4500.0f) goertzelMaxFreq, /**< Maximum frequency for Goertzel whistle detection (Hz). */
-    (float)(3.0f) goertzelMinSNR, /**< Minimum SNR threshold for Goertzel detection (dB). (Currently used in scoring logic thresholds.) */
-    (float)(0.8f) goertzelMaxFlatness, /**< Maximum spectral flatness for whistle detection. */
-    (float)(120.0f) goertzelMaxBandwidth, /**< Maximum bandwidth for whistle detection (Hz). */
+    (std::vector<std::string>) whistles,       /**< Legacy: unused. */
+    (unsigned) bufferSize,                     /**< Main analysis window, should be 320 at 16 kHz. */
+    (unsigned) sampleRate,                     /**< Target sample rate, should be 16000. */
+    (float) newSampleRatio,                    /**< Hop ratio, should be 0.25. */
+    (float) minVolume,                         /**< Min BP amplitude to skip silence quickly. */
+    (float) minCorrelation,                    /**< Min confidence score to report detection. */
+    (int) accumulationDuration,                /**< Ms after last onset before publishing. */
+    (int) minAnnotationDelay,                  /**< Min ms between whistle annotations. */
+    (bool) mute,                               /**< Mute speaker during Set/Playing. */
+    (float)(3600.0f) goertzelMinFreq,          /**< Whistle band lower edge (Hz). */
+    (float)(4500.0f) goertzelMaxFreq,          /**< Whistle band upper edge (Hz). */
+    (float)(632.8f) pMaxMin,                   /**< Stage 1: min peak Goertzel power. */
+    (float)(7.26f) snrDbMin,                   /**< Stage 2 main-window min SNR (dB). */
+    (float)(0.546f) flatMax,                   /**< Stage 2 main-window max flatness. */
+    (float)(3.34f) snrFastMin,                 /**< Stage 2 fast-window min SNR (dB). */
+    (float)(0.692f) flatFastMax,               /**< Stage 2 fast-window max flatness. */
+    (float)(4.47f) fluxMax,                    /**< Stage 2 max one-sided spectral flux (dB). */
+    (float)(6.01f) lowbandMax,                 /**< Stage 2 max LP/BP energy ratio. */
+    (float)(0.279f) eRatioMin,                 /**< Stage 2 min BP/total energy ratio. */
+    (int)(2) onsetConsec,                      /**< Consecutive OK frames to confirm onset. */
+    (int)(115) offMs,                          /**< Hangover after last OK frame (ms). */
+    (int)(5) gapFill,                          /**< Gap-fill budget (frames) inside ACTIVE. */
+    (int)(150) minDistMs,                      /**< Min distance between whistle events (ms). */
+    (float)(1.0f) stationaryHoldSec,           /**< Stationary-mask hold time (s). */
+    (bool)(true) logWhistleMonitoring,         /**< Print periodic summaries of the strongest whistle candidate for tuning. */
+    (bool)(true) logWhistleDetections,         /**< Print feature summaries on confirmed whistle detections. */
+    (bool)(false) logRejectedWhistleCandidates,/**< Print near-miss feature summaries for parameter tuning. */
+    (int)(1000) logIntervalMs,                 /**< Minimum spacing between repeated info logs. */
   }),
 });
 
 class WhistleRecognizer : public WhistleRecognizerBase
 {
-  std::vector<RingBuffer<AudioData::Sample>> buffers; /**< Sample buffers for all channels. */
-  bool soundWasPlaying = false; /**< Was sound played back recently? */
-  bool hasRecorded = false; /**< Was audio recorded in the previous cycle? */
-  int samplesRequired = 0; /**< The number of new samples required. */
-  size_t sampleIndex = 0; /**< Index of next sample to process for subsampling. */
-  float bestCorrelation = 0.0f; /**< The best correlation/score of the last accumulation phase. */
-  unsigned lastTimeWhistleDetected = 0; /**< The last time a whistle was detected. */
+  static constexpr int BP_N_SOS = 4;
+  static constexpr int LP_N_SOS = 2;
+  static const double BP_B[BP_N_SOS][3];
+  static const double BP_A[BP_N_SOS][2];
+  static const double LP_B[LP_N_SOS][3];
+  static const double LP_A[LP_N_SOS][2];
 
-  /**
-   * This method is called when the representation provided needs to be updated.
-   * @param theWhistle The representation updated.
-   */
+  std::vector<RingBuffer<AudioData::Sample>> buffers;
+  bool soundWasPlaying = false;
+  bool hasRecorded = false;
+  int samplesRequired = 0;
+  double sourceFrameOffset = 0.0;
+  unsigned lastInputSampleRate = 0;
+  float bestCorrelation = 0.0f;
+  unsigned lastTimeWhistleDetected = 0;
+
   void update(Whistle& theWhistle) override;
 
-  // Goertzel algorithm structures and methods
-  struct GoertzelResult
+  struct FrameFeatures
   {
-    float power = 0.0f;
-    float frequency = 0.0f;
-    float snr_db = 0.0f;
-    float spectral_flatness = 1.0f;
-    float bandwidth_hz = 0.0f;
+    float pMax = 0.0f;
+    int peakIdx = 0;
+    float snrDb = 0.0f;
+    float flatness = 1.0f;
+    float snrFast = 0.0f;
+    float flatFast = 1.0f;
+    float eRatio = 0.0f;
+    float lowband = 0.0f;
+    float fluxDb = 0.0f;
+    float peakFreq = 0.0f;
+    std::vector<float> powers;
   };
 
-  /**
-   * Analyze audio buffer using Goertzel algorithm for whistle detection.
-   * @param buffer The audio samples to analyze.
-   * @return GoertzelResult with power, frequency, SNR and other metrics.
-   */
-  GoertzelResult goertzelAnalyze(const RingBuffer<AudioData::Sample>& buffer);
+  struct GateEvaluation
+  {
+    bool stationary = false;
+    bool pMax = false;
+    bool snr = false;
+    bool flat = false;
+    bool snrFast = false;
+    bool flatFast = false;
+    bool eRatio = false;
+    bool lowband = false;
+    bool flux = false;
+  };
+
+  struct ChannelState
+  {
+    double bp_z[BP_N_SOS][2] = {};
+    double lp_z[LP_N_SOS][2] = {};
+
+    RingBuffer<float> bpBuf;
+    RingBuffer<float> lpBuf;
+
+    std::vector<float> prevPowers;
+    bool prevPowersValid = false;
+
+    std::vector<int> stationaryCounter;
+    int stationaryThreshold = 0;
+
+    enum class FsmState { IDLE, CANDIDATE, ACTIVE } fsmState = FsmState::IDLE;
+    int fsmOkRun = 0;
+    int fsmOffRun = 0;
+    int fsmGapBudget = 0;
+    int fsmLastEndSample = -1000000;
+    int fsmCurrentSample = 0;
+  };
+  std::vector<ChannelState> channelStates;
+
+  static float applyBP(float x, double (&z)[BP_N_SOS][2]);
+  static float applyLP(float x, double (&z)[LP_N_SOS][2]);
+
+  FrameFeatures analyzeFrame(ChannelState& state);
+  GateEvaluation evaluateGates(const FrameFeatures& feat, ChannelState& state) const;
+  bool updateFSM(bool ok, ChannelState& state, int offHangover, int minDistSamples);
+  void initChannelState(ChannelState& state, int nBins);
+  static int passedGateCount(const GateEvaluation& gates);
+  std::string formatGateSummary(const FrameFeatures& feat, const GateEvaluation& gates, size_t channel) const;
+  unsigned lastLogTime = 0;
 
 public:
   WhistleRecognizer();
