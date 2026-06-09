@@ -23,6 +23,7 @@
 #include "Representations/Configuration/BallSpecification.h"
 #include "Representations/Configuration/FieldDimensions.h"
 #include "Representations/Infrastructure/GameState.h"
+#include "Representations/Modeling/TeammatesBallModel.h"
 #include "Tools/BehaviorControl/SectorWheel.h"
 
 MODULE(BallSearchAreasProvider,
@@ -35,6 +36,7 @@ MODULE(BallSearchAreasProvider,
   REQUIRES(CameraInfo),
   REQUIRES(CameraMatrix),
   REQUIRES(ObstacleModel),
+  REQUIRES(TeammatesBallModel),
   PROVIDES(BallSearchAreas),
   DEFINES_PARAMETERS(
   {,
@@ -42,6 +44,8 @@ MODULE(BallSearchAreasProvider,
     (unsigned char)(120)heatmapAlpha, /**< Transparency of the heatmap between 0 (invisible) and 255 (opaque) */
     (float)(3500.f) maxDistanceToCell, /**< the max distance to a cell. */
     (unsigned)(200) obstacleOffset, /**< offset to be added to the obstacle width in the sector wheel*/
+    (float)(1200.f) teamBallSearchRadius, /**< Radius around the last shared team ball that should be searched with priority. */
+    (float)(4.f) teamBallPriorityBoost, /**< Multiplier for search score around the remembered team ball position. */
   }),
 });
 
@@ -116,6 +120,7 @@ private:
    * @param gridToSearch the grid to be filtered by the cell to be searched next
    */
   const Vector2f positionCellToSearchNext(std::vector<BallSearchAreas::Cell>& gridToSearch) const;
+  float searchScore(const BallSearchAreas::Cell& cell) const;
 
   /**
    * This method creates a sectorwheel around the robot for detecting obstacles in the sight of the searching robot

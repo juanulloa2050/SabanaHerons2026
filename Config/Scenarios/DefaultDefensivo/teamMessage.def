@@ -43,6 +43,8 @@ WhistleCompact
 
 BehaviorStatus
 {
+  lastKickTimestamp: Timestamp(bits=24, shift=8, reference=relativePast, noclip)
+  lastKickWasOutsideCenterCircle: Boolean
   passTarget: Integer(min=-1, max=14)
   walkingTo: Vector<Float(min=-12800, max=12800, bits=11)>(n=2)
   speed: Float(min=0.0, max=310.0, bits=5)

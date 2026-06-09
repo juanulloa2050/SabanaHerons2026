@@ -34,6 +34,7 @@ MODULE(TeammatesBallModelProvider,
     (int) ballLastSeenTimeout,                /**< After this amount of time (in ms), a ball is not considered anymore */
     (int) ballDisappearedTimeout,             /**< After this amount of time (in ms), a disappeared ball is not valid anymore */
     (int) timestampTolerance,                 /**< Maximum difference (in ms) between two timestamps to still considered to be the same*/
+    (int)(2500) ballMemoryTimeSpan,           /**< Keep and propagate the last valid team ball for this amount of time after the last shared sighting. */
   }),
 });
 
@@ -69,6 +70,7 @@ public:
 private:
   std::vector<BufferedBall> balls;                         /**< A buffer for all observations made by my teammates */
   std::vector<ActiveBall> ballsAvailableForTeamBall;       /**< List of all balls that are suitable for computing a team ball */
+  TeammatesBallModel lastValidTeammatesBallModel;          /**< Short-lived memory of the last valid shared ball estimate. */
 
   /** Main method that triggers the model computation
    * @param teammatesBallModel A reference to the representation that is filled
@@ -88,6 +90,9 @@ private:
    * @param teammatesBallModel A reference to the representation that is filled
    */
   void computeModel(TeammatesBallModel& teammatesBallModel);
+
+  /** Reuse the last valid team ball for a short time after all shared observations vanish. */
+  bool applyBallMemory(TeammatesBallModel& teammatesBallModel);
 
   /** Maps current localization quality to a floating point number.
    *  This function determines, how strong the self-localization should influence a ball weighting.

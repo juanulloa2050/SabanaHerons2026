@@ -17,6 +17,7 @@ struct GameControllerData : public RoboCup::RoboCupGameControlData, public Strea
   /** Constructor. */
   GameControllerData();
 
+  uint8_t competitionPhase = COMPETITION_PHASE_ROUNDROBIN; /**< Legacy internal field for modules that still distinguish round-robin/play-off behavior. */
   unsigned timeLastPacketReceived = 0; /**< Time when the last GameController packet has been received. */
   bool isTrueData = false; /**< Whether the GameController packet does not delay some transitions that are normally signaled by a whistle. */
 

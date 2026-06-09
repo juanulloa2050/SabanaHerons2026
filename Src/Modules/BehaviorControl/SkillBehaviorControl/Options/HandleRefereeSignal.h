@@ -7,7 +7,7 @@
  * new game state starts. The robot will not try to actively reach such a
  * position. Since the referee signal is not shown earlier than 5 s after the
  * state change, the robot continues its normal behavior for 3 s, before
- * it turns around to look at the referee.  It will then not wait longer than
+ * it turns around to look at the referee. It will then not wait longer than
  * 10 s until it returns to normal game play. If the referee was not detected
  * within the first 6 s, a side step will be performed. The robot usually
  * steps closer to the halfway line to get a more perpendicular view at the
@@ -19,9 +19,9 @@
  * signal and with a chance of 1/2 also the correct team color.
  * The first part of "substitution" can also be mixed up with one of the
  * two gestures for "fullTime". Therefore, substitution can still result in
- * "fullTime" if that one is detected later.  The gesture for goal can be
- * detected by accident. Therefore, sending is  delayed to give this
- * robot and other robots the chance to come up with a  different signal.
+ * "fullTime" if that one is detected later. The gesture for goal can be
+ * detected by accident. Therefore, sending is delayed to give this
+ * robot and other robots the chance to come up with a different signal.
  * If the referee gesture has not been detected within 10 s, the robot will
  * send a wildcard gesture, which grants a 6/13 chance of guessing the right
  * team color. The wildcard is a two handed signal, of which only two exist,
@@ -39,7 +39,6 @@ bool beginOfRefereeSignal() const
 {
   return false;
 }
-
 
 /**
  * Send the actual referee signal and maybe also speak it out load.
@@ -159,7 +158,6 @@ option(RefereeActivation)
     }
   }
 }
-
 
 /**
  * The detection of the referee signal. In only becomes active if the robot is

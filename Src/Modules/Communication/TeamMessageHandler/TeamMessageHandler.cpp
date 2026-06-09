@@ -157,6 +157,8 @@ bool TeamMessageHandler::writeMessage(BHumanMessageOutputGenerator& outputGenera
 
     COUNT(RobotStatus.isUpright);
     // COUNT(BehaviorStatus.calibrationFinished);
+    COUNT(BehaviorStatus.lastKickTimestamp);
+    COUNT(BehaviorStatus.lastKickWasOutsideCenterCircle);
     COUNT(BehaviorStatus.passTarget);
     statistics.count("BehaviorStatus.shootingTo",
                      globalBearingsChanged(theRobotPose, theBehaviorStatus.shootingTo,
@@ -361,6 +363,8 @@ bool TeamMessageHandler::whistleDetected() const
 bool TeamMessageHandler::behaviorStatusChanged() const
 {
   return (// theBehaviorStatus.calibrationFinished != lastSent.theBehaviorStatus.calibrationFinished || // not used
+          theBehaviorStatus.lastKickTimestamp != lastSent.theBehaviorStatus.lastKickTimestamp ||
+          theBehaviorStatus.lastKickWasOutsideCenterCircle != lastSent.theBehaviorStatus.lastKickWasOutsideCenterCircle ||
           theBehaviorStatus.passTarget != lastSent.theBehaviorStatus.passTarget ||
           // theBehaviorStatus.walkingTo != lastSent.behaviorStatus.walkingTo || // included in robotPoseChanged
           // theBehaviorStatus.speed != lastSent.behaviorStatus.speed || // included in robotPoseChanged

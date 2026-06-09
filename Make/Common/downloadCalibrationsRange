@@ -1,0 +1,57 @@
+#!/bin/bash
+
+basePath=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+usage()
+{
+  echo "usage: downloadCalibrationsRange [ip-prefix] [start] [end]"
+  echo "  defaults:"
+  echo "    ip-prefix: 10.0.49."
+  echo "    start:     2"
+  echo "    end:       10"
+  echo "  examples:"
+  echo "    Make/Common/downloadCalibrationsRange"
+  echo "    Make/Common/downloadCalibrationsRange 10.0.49. 2 10"
+  exit 1
+}
+
+if [ $# -gt 3 ]
+then
+  usage
+fi
+
+ipPrefix=${1:-10.0.49.}
+start=${2:-2}
+end=${3:-10}
+
+if ! [[ $start =~ ^[0-9]+$ && $end =~ ^[0-9]+$ ]] || [ "$start" -gt "$end" ]
+then
+  usage
+fi
+
+failures=()
+
+for host in $(seq "$start" "$end")
+do
+  ip="${ipPrefix}${host}"
+  echo "==> Downloading calibration from ${ip}"
+
+  if "${basePath}/downloadCalibration" "$ip"
+  then
+    echo "==> OK ${ip}"
+  else
+    echo "==> FAILED ${ip}"
+    failures+=("$ip")
+  fi
+
+  echo
+done
+
+if [ "${#failures[@]}" -ne 0 ]
+then
+  echo "Calibration download failed for:"
+  printf '  %s\n' "${failures[@]}"
+  exit 1
+fi
+
+echo "All calibration downloads finished."

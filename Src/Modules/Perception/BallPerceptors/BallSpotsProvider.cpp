@@ -4,8 +4,10 @@
  */
 
 #include "BallSpotsProvider.h"
+#include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/Debugging.h"
+#include "Streaming/Output.h"
 #include "Tools/Math/InImageSizeCalculations.h"
 #include "ImageProcessing/PixelTypes.h"
 #include "Tools/Math/Transformation.h"
@@ -32,10 +34,19 @@ void BallSpotsProvider::update(BallSpots& ballSpots)
     {
       ballSpots.firstSpotIsPredicted = true;
       ballSpots.addBallSpot(x, y);
+      OUTPUT_TEXT("[BallSpotsProvider] Prediction spot added at (" << x << ", " << y << ") | ballPos=(" << theWorldModelPrediction.ballPosition.x() << ", " << theWorldModelPrediction.ballPosition.y() << ") | timeSinceLastSeen=" << theFrameInfo.getTimeSince(theWorldModelPrediction.timeWhenBallLastSeen) << "ms");
     }
   }
 
   searchScanLines(ballSpots);
+
+  OUTPUT_TEXT("[BallSpotsProvider] Camera=" << (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower") << " | Total spots=" << static_cast<unsigned>(ballSpots.ballSpots.size()) << " | firstIsPredicted=" << ballSpots.firstSpotIsPredicted);
+  for(size_t i = 0; i < ballSpots.ballSpots.size(); ++i)
+  {
+    OUTPUT_TEXT("[BallSpotsProvider]   Spot[" << static_cast<unsigned>(i) << "] at (" << ballSpots.ballSpots[i].x() << ", " << ballSpots.ballSpots[i].y() << ")");
+  }
+  if(!ballSpots.ballSpots.empty())
+    ANNOTATION("BallSpotsProvider", (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower") << ": " << static_cast<unsigned>(ballSpots.ballSpots.size()) << " spots | predicted=" << ballSpots.firstSpotIsPredicted);
 }
 
 void BallSpotsProvider::searchScanLines(BallSpots& ballSpots) const
@@ -99,6 +110,7 @@ void BallSpotsProvider::searchScanLines(BallSpots& ballSpots) const
                    && !checkGreenAround(ballSpots.ballSpots.back(), circle.radius, luminanceRef, saturationRef))
                || isSpotClearlyInsideARobot(ballSpots.ballSpots.back(), circle.radius))
             {
+              OUTPUT_TEXT("[BallSpotsProvider] Spot rejected at (" << ballSpots.ballSpots.back().x() << ", " << ballSpots.ballSpots.back().y() << ") | radius=" << circle.radius);
               ballSpots.ballSpots.pop_back();
             }
           }
