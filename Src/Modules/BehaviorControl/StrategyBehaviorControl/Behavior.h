@@ -20,6 +20,7 @@
 #include "Math/Eigen.h"
 #include "Framework/Settings.h"
 #include "Representations/BehaviorControl/FieldBall.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/Configuration/FieldDimensions.h"
 #include "Representations/Infrastructure/FrameInfo.h"
@@ -36,7 +37,8 @@ class Behavior final
 public:
   /** Constructor. */
   Behavior(const BallDropInModel& theBallDropInModel, const ExtendedGameState& theExtendedGameState, const FieldBall& theFieldBall, const FieldDimensions& theFieldDimensions,
-           const FrameInfo& theFrameInfo, const GameState& theGameState, const TeammatesBallModel& theTeammatesBallModel);
+           const FrameInfo& theFrameInfo, const GameState& theGameState, const RestartBallSearchContext& theRestartBallSearchContext,
+           const TeammatesBallModel& theTeammatesBallModel);
 
   /** Destructor. */
   ~Behavior();
@@ -126,6 +128,8 @@ private:
    * @return The selected agent (can be empty).
    */
   const Agent* determineActiveAgent(Agent& self, const std::vector<const Agent*>& otherAgents, bool assign = false) const;
+  const Agent* determineRestartSearchOwner(std::vector<Agent>& agents, Agent& self, bool assign = false) const;
+  bool restartSearchIsActive() const;
 
   /**
    * Performs a majority vote among all agents on a specific topic.
@@ -186,5 +190,6 @@ private:
   const FieldDimensions& theFieldDimensions;
   const FrameInfo& theFrameInfo;
   const GameState& theGameState;
+  const RestartBallSearchContext& theRestartBallSearchContext;
   const TeammatesBallModel& theTeammatesBallModel;
 };

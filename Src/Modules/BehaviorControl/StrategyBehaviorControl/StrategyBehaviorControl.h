@@ -10,6 +10,7 @@
 
 #include "Behavior.h"
 #include "Representations/BehaviorControl/FieldBall.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
 #include "Representations/Communication/ReceivedTeamMessages.h"
@@ -45,6 +46,7 @@ MODULE(StrategyBehaviorControl,
   REQUIRES(MotionInfo),
   REQUIRES(ReceivedTeamMessages),
   REQUIRES(RobotPose),
+  REQUIRES(RestartBallSearchContext),
   REQUIRES(SentTeamMessage),
   REQUIRES(SetupPoses),
   REQUIRES(TeammatesBallModel),

@@ -17,6 +17,7 @@
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Libraries/LibDemo.h"
 #include "Representations/BehaviorControl/Libraries/LibPosition.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
 #include "Representations/Communication/TeamData.h"
@@ -88,6 +89,7 @@ MODULE(SkillBehaviorControl,
   REQUIRES(ObstacleModel),
   REQUIRES(OdometryData),
   REQUIRES(RefereePercept),
+  REQUIRES(RestartBallSearchContext),
   REQUIRES(RobotHealth),
   REQUIRES(RobotPose),
   REQUIRES(SkillRequest),
