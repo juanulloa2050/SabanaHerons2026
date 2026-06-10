@@ -1,4 +1,4 @@
 call Includes/Fast
-call Includes/7vs7
+call Includes/4v4
 
 dr representation:SetupPoses:place
