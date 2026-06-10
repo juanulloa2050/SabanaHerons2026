@@ -1,20 +1,32 @@
 # Sabana-Herons Code Release
 
-This is the 2024 Sabana-herons code release. this code is heavily based in B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/) as we are a small team mainly composed by undergrad students.
+This is the current Sabana-Herons baseline. The code is still heavily based on the B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/), but it now includes our current HSL field, GameController, strategy, and ball-detection baseline.
 
-Nonetheless, we have added our own improvements to the code, and behaviors that adapt the best to our strategy, therefore, the following list is meant to describe those improvements and adaptations we've done:
+The purpose of this branch is to keep the actual team baseline in one place, so the default branch contains the same code that is deployed on the robots.
 
-## Improvements:
+## Improvements
 
-1. **5vs5 tactics and strategies**: Due to our number of available NaoV6 robots and team size, we're currently participating exclusively in SPL Shield Challenge, we've adapted and created B-Human code to work in 5vs5 matches.
-2. **Fail analysis with back head button**: Due to the difficulty to rapidly and consistently detect fails in our current field setup (a kind of true official game field but - which due to installation can generate some problems in robots motion schema), we've developed a functionality that when can output the most **"Critical recent fails"** so we don't have to access each robot's log.
-3. **Improved DribbleToGoal Skill**: We noted DribbleToGoal skill may encounter some edge cases for Striker, especially when arriving to the delimitation lines of field, which caused the striker to lose the ball and generate a Goal Kick In for adversaries or to shot at the post of the goal, we tried to improve that by almost never letting the striker shot the ball outside field boundary generating a KickIn or striking the Goal Post.
-4. **Optimize the run time of 2D pose for Probabilistic Robot Self Locator**: We noticed the UKFPose2D may have some performance issues regarding Landmark Sensor Update, since it was generating unnecessary Landmark readings that would pollute the matrix calculations for pose provider, thus matrix calculations are more expensive we found a way to optimize it.
-5. **Improve Image CNN Tools**: As far as we saw, some Image CNN Tools like Image Transforms were overkill, difficult to understand and were making unnecessary calculations. We improved some of these issues by partially refactoring some of these tools.
+1. **HSL 2026 migration**: The project now includes the current HSL GameController protocol and the main HSL restart behavior updates, including stop play, direct and indirect free kicks, throw-ins, goal kicks, corner kicks, penalty kicks, and updated kick-off restrictions.
+2. **3v3 and 4v4 full-field strategies**: The team now has dedicated `3v3_Full` and `4v4_Full` scenarios and locations for HSL-style play, with updated field dimensions and set-play behavior.
+3. **Trionda ball detection baseline**: The project baseline includes the current Trionda detector stack and the accepted far-ball baseline model named **Trionda Final Model**.
+4. **Web control and operational tooling**: The codebase includes the current web control, camera streaming, and recording workflow used for robot operation and data collection.
+5. **Behavior and match fixes**: The baseline also includes the current whistle, kick-off, set-play, and field-behavior fixes that were merged into the deployed branch.
+
+## Ball Detection Baseline
+
+The accepted final detector baseline is named:
+
+`Trionda Final Model`
+
+The external baseline note for that model is documented in:
+
+`/home/limao/workspace/semillero/TRIONDA_FINAL_MODEL_BASELINE_2026-06-10.md`
 
 ## Run this code
 
 As we said, this code is heavily based in B-Human 2023 code release [available in](https://wiki.b-human.de/coderelease2023/), therefore and so far, you can just follow their documentation to build and run the code.
+
+The build and deploy flow still follows the B-Human-style workflow. In practice, the team currently uses the configured scenarios and locations inside `Config/Scenarios` and `Config/Locations`, then deploys with `Make/Common/deploy`.
 
 ## RL and common SimRobot scenes
 
