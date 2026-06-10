@@ -14,7 +14,6 @@
 
 MAKE_MODULE(YoloBallDetector);
 
-static constexpr const char* MODEL_REL_PATH = "NeuralNets/BallDetector/yolo_ball.onnx";
 static constexpr const char* ORT_IN_NAME    = "images";
 static constexpr const char* ORT_OUT_NAME   = "output0";
 
@@ -23,6 +22,10 @@ static constexpr const char* ORT_OUT_NAME   = "output0";
 YoloBallDetector::YoloBallDetector()
     : ortEnv(ORT_LOGGING_LEVEL_WARNING, "YoloBallDetector")
 {
+  kalman.configure(kalmanInitConf, kalmanActiveConf, kalmanInstantInitConf, kalmanInitConfirmFrames,
+                   kalmanInitGatePx, kalmanFarGatePx, kalmanNearGateScale, kalmanMaxMissed,
+                   kalmanStrongPredictionMissed, kalmanMaxSpeedPx, kalmanMissedVelocityDecay,
+                   kalmanProcessNoise, kalmanMeasurementNoise);
   loadModel();
   if(modelLoaded)
   {
@@ -44,7 +47,7 @@ YoloBallDetector::~YoloBallDetector()
 
 void YoloBallDetector::loadModel()
 {
-  const std::string path = std::string(File::getBHDir()) + "/Config/" + MODEL_REL_PATH;
+  const std::string path = std::string(File::getBHDir()) + "/Config/" + modelName;
   try
   {
     Ort::SessionOptions opts;
@@ -52,8 +55,16 @@ void YoloBallDetector::loadModel()
     opts.SetInterOpNumThreads(1);
     opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     ortSession  = std::make_unique<Ort::Session>(ortEnv, path.c_str(), opts);
+    const auto inputShape = ortSession->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+    if(inputShape.size() == 4 &&
+       inputShape[2] > 0 &&
+       inputShape[3] > 0)
+    {
+      modelH = static_cast<int>(inputShape[2]);
+      modelW = static_cast<int>(inputShape[3]);
+    }
     modelLoaded = true;
-    OUTPUT_TEXT("[YoloBallDetector] Model loaded: " << path);
+    OUTPUT_TEXT("[YoloBallDetector] Model loaded: " << path << " (" << modelW << "x" << modelH << ")");
   }
   catch(const Ort::Exception& e)
   {
@@ -81,22 +92,26 @@ void YoloBallDetector::update(BallPercept& bp)
     const unsigned sz   = W * H * 4;              // 4 bytes per YUYVPixel
     frameBuf.resize(sz);
     std::memcpy(frameBuf.data(), theCameraImage[0], sz);
-    frameW      = W * 2;   // actual pixel width
-    frameH      = H;
-    frameCamera = theCameraInfo.camera;
-    frameReady  = true;
+    frameW            = W * 2;   // actual pixel width
+    frameH            = H;
+    frameCameraInfo   = theCameraInfo;
+    frameCameraMatrix = theCameraMatrix;
+    ++frameSequence;
+    frameReady        = true;
   }
   frameCV.notify_one();
 
   // Read latest detection
   Det det;
+  std::chrono::steady_clock::time_point detectionTime;
   {
     std::lock_guard<std::mutex> lk(detMtx);
-    det = latestDet;
+    det           = latestDet;
+    detectionTime = detTime;
   }
 
   const auto now   = std::chrono::steady_clock::now();
-  const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detTime).count();
+  const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detectionTime).count();
   if(!det.valid || ageMs > timeoutMs)
   {
     consecutiveSeen = 0;
@@ -109,28 +124,34 @@ void YoloBallDetector::update(BallPercept& bp)
 
   bool geomOk = Transformation::imageToRobotHorizontalPlane(
       imgPos, theBallSpecification.radius,
-      theCameraMatrix, theCameraInfo, fieldPos)
+      det.cameraMatrix, det.cameraInfo, fieldPos)
     && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
 
-  if(!geomOk && theCameraInfo.camera == CameraInfo::upper)
+  if(!geomOk && det.cameraInfo.camera == CameraInfo::upper)
     geomOk = Transformation::imageToRobotHorizontalPlane(
-        imgPos, 0.f, theCameraMatrix, theCameraInfo, fieldPos)
+        imgPos, 0.f, det.cameraMatrix, det.cameraInfo, fieldPos)
       && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
 
-  if(!geomOk && theCameraInfo.camera == CameraInfo::upper && det.radius > 0.f)
+  if(!geomOk && det.cameraInfo.camera == CameraInfo::upper && det.radius > 0.f)
   {
-    const float dist = theCameraInfo.focalLength * theBallSpecification.radius / det.radius;
-    const float ang  = std::atan2(imgPos.x() - theCameraInfo.width * 0.5f,
-                                  theCameraInfo.focalLength);
+    const float dist = det.cameraInfo.focalLength * theBallSpecification.radius / det.radius;
+    const float ang  = std::atan2(imgPos.x() - det.cameraInfo.width * 0.5f,
+                                  det.cameraInfo.focalLength);
     fieldPos = Vector2f(dist * std::cos(ang), dist * std::sin(ang));
     geomOk   = dist > 0.f && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
   }
 
   if(!geomOk) { consecutiveSeen = 0; return; }
 
-  const int minConsec = (theCameraInfo.camera == CameraInfo::upper)
+  if(det.sequence != lastProcessedSequence)
+  {
+    lastProcessedSequence = det.sequence;
+    ++consecutiveSeen;
+  }
+
+  const int minConsec = (det.cameraInfo.camera == CameraInfo::upper)
                         ? upperMinConsecutive : lowerMinConsecutive;
-  if(++consecutiveSeen < minConsec) return;
+  if(consecutiveSeen < minConsec) return;
 
   bp.status            = BallPercept::seen;
   bp.positionInImage   = imgPos;
@@ -153,8 +174,10 @@ void YoloBallDetector::inferenceLoop()
   std::vector<unsigned char> localBuf;
   unsigned                   localW      = 0;
   unsigned                   localH      = 0;
-  CameraInfo::Camera         localCamera = CameraInfo::lower;
-  std::vector<float>         tensor(1 * 3 * MODEL_H * MODEL_W);
+  CameraInfo                 localCameraInfo;
+  CameraMatrix               localCameraMatrix;
+  unsigned                   localSequence = 0;
+  std::vector<float>         tensor;
 
   while(bgRunning)
   {
@@ -162,15 +185,17 @@ void YoloBallDetector::inferenceLoop()
       std::unique_lock<std::mutex> lk(frameMtx);
       frameCV.wait(lk, [this]{ return frameReady || !bgRunning; });
       if(!bgRunning) break;
-      localBuf    = frameBuf;
-      localW      = frameW;
-      localH      = frameH;
-      localCamera = frameCamera;
-      frameReady  = false;
+      localBuf          = frameBuf;
+      localW            = frameW;
+      localH            = frameH;
+      localCameraInfo   = frameCameraInfo;
+      localCameraMatrix = frameCameraMatrix;
+      localSequence     = frameSequence;
+      frameReady        = false;
     }
 
     if(!buildTensor(localBuf.data(), static_cast<int>(localW), static_cast<int>(localH),
-                    MODEL_W, MODEL_H, tensor))
+                    modelW, modelH, tensor))
       continue;
 
     // Run ONNX inference
@@ -179,7 +204,7 @@ void YoloBallDetector::inferenceLoop()
       Ort::MemoryInfo memInfo =
           Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
-      const std::array<int64_t, 4> inShape = {1, 3, MODEL_H, MODEL_W};
+      const std::array<int64_t, 4> inShape = {1, 3, modelH, modelW};
       Ort::Value inTensor = Ort::Value::CreateTensor<float>(
           memInfo, tensor.data(), tensor.size(), inShape.data(), inShape.size());
 
@@ -194,24 +219,56 @@ void YoloBallDetector::inferenceLoop()
       if(shape.size() < 3) continue;
 
       const int64_t N          = shape[2];
-      const float   confThresh = (localCamera == CameraInfo::upper) ? upperConf : lowerConf;
+      const float   confThresh = (localCameraInfo.camera == CameraInfo::upper) ? upperConf : lowerConf;
+      const float   minTrackedConf = std::min(confThresh, std::min(kalmanInitConf, kalmanActiveConf));
 
       // Letterbox scale using actual camera dims (same as buildTensor)
-      const float lbScale = std::min(static_cast<float>(MODEL_W) / localW,
-                                     static_cast<float>(MODEL_H) / localH);
-      const float lbPadX  = (MODEL_W - localW * lbScale) * 0.5f;
-      const float lbPadY  = (MODEL_H - localH * lbScale) * 0.5f;
+      const float lbScale = std::min(static_cast<float>(modelW) / localW,
+                                     static_cast<float>(modelH) / localH);
+      const float lbPadX  = (modelW - localW * lbScale) * 0.5f;
+      const float lbPadY  = (modelH - localH * lbScale) * 0.5f;
 
+      std::vector<DetectionCandidate> detections;
+      detections.reserve(static_cast<std::size_t>(N));
       float bestConf = confThresh;
       int   bestIdx  = -1;
       for(int64_t i = 0; i < N; ++i)
       {
         const float c = data[4 * N + i];
+        if(c >= minTrackedConf)
+        {
+          const float cx_m = data[0 * N + i];
+          const float cy_m = data[1 * N + i];
+          const float  w_m = data[2 * N + i];
+          const float  h_m = data[3 * N + i];
+          DetectionCandidate detection;
+          detection.x = (cx_m - lbPadX) / lbScale;
+          detection.y = (cy_m - lbPadY) / lbScale;
+          detection.w = w_m / lbScale;
+          detection.h = h_m / lbScale;
+          detection.confidence = c;
+          detections.push_back(detection);
+        }
         if(c > bestConf) { bestConf = c; bestIdx = static_cast<int>(i); }
       }
 
       Det result;
-      if(bestIdx >= 0)
+      result.sequence     = localSequence;
+      result.cameraInfo   = localCameraInfo;
+      result.cameraMatrix = localCameraMatrix;
+      if(enableKalman)
+      {
+        const TrackState state = kalman.update(detections);
+        if(state.active && (state.visible || (publishPredictedPercepts && state.predictedOnly)))
+        {
+          result.cx = state.x;
+          result.cy = state.y;
+          result.radius = (state.w + state.h) * 0.25f;
+          result.conf = state.confidence;
+          result.valid = true;
+        }
+      }
+      else if(bestIdx >= 0)
       {
         const float cx_m = data[0 * N + bestIdx];
         const float cy_m = data[1 * N + bestIdx];
@@ -288,4 +345,269 @@ bool YoloBallDetector::buildTensor(const unsigned char* yuyvData,
     }
   }
   return true;
+}
+
+void YoloBallDetector::LightweightBallKalman::configure(float initConf_,
+                                                        float activeConf_,
+                                                        float instantInitConf_,
+                                                        int initConfirmFrames_,
+                                                        float initGatePx_,
+                                                        float farGatePx_,
+                                                        float nearGateScale_,
+                                                        int maxMissed_,
+                                                        int strongPredictionMissed_,
+                                                        float maxSpeedPx_,
+                                                        float missedVelocityDecay_,
+                                                        float processNoise_,
+                                                        float measurementNoise_)
+{
+  initConf = initConf_;
+  activeConf = activeConf_;
+  instantInitConf = instantInitConf_;
+  initConfirmFrames = initConfirmFrames_;
+  initGatePx = initGatePx_;
+  farGatePx = farGatePx_;
+  nearGateScale = nearGateScale_;
+  maxMissed = maxMissed_;
+  strongPredictionMissed = strongPredictionMissed_;
+  maxSpeedPx = maxSpeedPx_;
+  missedVelocityDecay = missedVelocityDecay_;
+  processNoise = processNoise_;
+  measurementNoise = measurementNoise_;
+  reset();
+}
+
+void YoloBallDetector::LightweightBallKalman::reset()
+{
+  x.setZero();
+  p = Matrix6f::Identity() * 500.f;
+  age = 0;
+  missed = 0;
+  active = false;
+  lastConfidence = 0.f;
+  pendingDetection = DetectionCandidate();
+  hasPendingDetection = false;
+  pendingHits = 0;
+  lastSelectedWasRelock = false;
+}
+
+void YoloBallDetector::LightweightBallKalman::predict(float dt)
+{
+  if(!active)
+    return;
+
+  clampVelocity();
+  Matrix6f f = Matrix6f::Identity();
+  f(0, 2) = dt;
+  f(1, 3) = dt;
+
+  Matrix6f q = Matrix6f::Identity() * processNoise;
+  q(2, 2) *= 2.f;
+  q(3, 3) *= 2.f;
+
+  x = f * x;
+  p = f * p * f.transpose() + q;
+  ++age;
+}
+
+YoloBallDetector::TrackState YoloBallDetector::LightweightBallKalman::update(const std::vector<DetectionCandidate>& detections, float dt)
+{
+  predict(dt);
+  const DetectionCandidate* detection = selectDetection(detections);
+
+  if(detection == nullptr)
+  {
+    if(active)
+    {
+      ++missed;
+      x[2] *= missedVelocityDecay;
+      x[3] *= missedVelocityDecay;
+      if(missed > maxMissed)
+      {
+        reset();
+        return state(false, false, false);
+      }
+      return state(true, false, true);
+    }
+    return state(false, false, false);
+  }
+
+  if(!active)
+  {
+    if(!confirmInitialDetection(*detection))
+      return state(false, false, false);
+    initialize(*detection);
+    return state(true, true, false);
+  }
+
+  if(lastSelectedWasRelock)
+    relock(*detection);
+  else
+    correct(*detection);
+
+  missed = 0;
+  lastConfidence = detection->confidence;
+  return state(true, true, false);
+}
+
+bool YoloBallDetector::LightweightBallKalman::confirmInitialDetection(const DetectionCandidate& detection)
+{
+  if(detection.confidence >= instantInitConf)
+  {
+    hasPendingDetection = false;
+    pendingHits = 0;
+    return true;
+  }
+  if(detection.confidence < initConf)
+  {
+    hasPendingDetection = false;
+    pendingHits = 0;
+    return false;
+  }
+  if(!hasPendingDetection)
+  {
+    pendingDetection = detection;
+    hasPendingDetection = true;
+    pendingHits = 1;
+    return initConfirmFrames <= 1;
+  }
+
+  const float dx = detection.x - pendingDetection.x;
+  const float dy = detection.y - pendingDetection.y;
+  const float distance = std::hypot(dx, dy);
+  pendingDetection = detection;
+  if(distance <= initGatePx)
+    ++pendingHits;
+  else
+    pendingHits = 1;
+  return pendingHits >= initConfirmFrames;
+}
+
+const YoloBallDetector::DetectionCandidate* YoloBallDetector::LightweightBallKalman::selectDetection(const std::vector<DetectionCandidate>& detections)
+{
+  lastSelectedWasRelock = false;
+  if(detections.empty())
+    return nullptr;
+
+  if(!active)
+  {
+    const DetectionCandidate* best = nullptr;
+    float bestConfidence = -1.f;
+    for(const DetectionCandidate& detection : detections)
+    {
+      if(detection.confidence < initConf)
+        continue;
+      if(detection.confidence > bestConfidence)
+      {
+        bestConfidence = detection.confidence;
+        best = &detection;
+      }
+    }
+    return best;
+  }
+
+  const float predictedX = x[0];
+  const float predictedY = x[1];
+  const float predictedSize = std::max({x[4], x[5], 1.f});
+  float gate = std::max(farGatePx, predictedSize * nearGateScale);
+  if(missed > strongPredictionMissed)
+    gate *= 1.25f;
+
+  const DetectionCandidate* best = nullptr;
+  float bestScore = -1e9f;
+  for(const DetectionCandidate& detection : detections)
+  {
+    const float dx = detection.x - predictedX;
+    const float dy = detection.y - predictedY;
+    const float distance = std::hypot(dx, dy);
+    const float relockConf = missed <= strongPredictionMissed ? 0.45f : 0.55f;
+    const bool isRelock = distance > gate;
+    if(isRelock && detection.confidence < relockConf)
+      continue;
+    if(detection.confidence < activeConf)
+      continue;
+
+    float score = detection.confidence - 0.006f * std::min(distance, gate);
+    if(isRelock)
+      score -= 0.08f;
+    if(score > bestScore)
+    {
+      bestScore = score;
+      best = &detection;
+      lastSelectedWasRelock = isRelock;
+    }
+  }
+
+  return best;
+}
+
+void YoloBallDetector::LightweightBallKalman::initialize(const DetectionCandidate& detection)
+{
+  x << detection.x, detection.y, 0.f, 0.f, detection.w, detection.h;
+  p = Matrix6f::Identity() * 120.f;
+  age = 1;
+  missed = 0;
+  active = true;
+  lastConfidence = detection.confidence;
+  hasPendingDetection = false;
+  pendingHits = 0;
+}
+
+void YoloBallDetector::LightweightBallKalman::relock(const DetectionCandidate& detection)
+{
+  const int previousAge = age;
+  initialize(detection);
+  age = std::max(previousAge, age);
+  p = Matrix6f::Identity() * 90.f;
+}
+
+void YoloBallDetector::LightweightBallKalman::correct(const DetectionCandidate& detection)
+{
+  Eigen::Matrix<float, 4, 1> z;
+  z << detection.x, detection.y, detection.w, detection.h;
+
+  Eigen::Matrix<float, 4, 6> h = Eigen::Matrix<float, 4, 6>::Zero();
+  h(0, 0) = 1.f;
+  h(1, 1) = 1.f;
+  h(2, 4) = 1.f;
+  h(3, 5) = 1.f;
+
+  Eigen::Matrix4f r = Eigen::Matrix4f::Identity() * measurementNoise;
+  const Eigen::Matrix4f s = h * p * h.transpose() + r;
+  const Eigen::Matrix<float, 6, 4> k = p * h.transpose() * s.inverse();
+  const Eigen::Matrix<float, 4, 1> innovation = z - h * x;
+
+  x = x + k * innovation;
+  p = (Matrix6f::Identity() - k * h) * p;
+  clampVelocity();
+  lastConfidence = detection.confidence;
+}
+
+void YoloBallDetector::LightweightBallKalman::clampVelocity()
+{
+  const float vx = x[2];
+  const float vy = x[3];
+  const float speed = std::hypot(vx, vy);
+  if(speed <= maxSpeedPx)
+    return;
+
+  const float scale = maxSpeedPx / std::max(speed, 1e-6f);
+  x[2] *= scale;
+  x[3] *= scale;
+}
+
+YoloBallDetector::TrackState YoloBallDetector::LightweightBallKalman::state(bool active_, bool visible_, bool predictedOnly_) const
+{
+  TrackState trackedState;
+  trackedState.active = active_;
+  trackedState.visible = visible_;
+  trackedState.predictedOnly = predictedOnly_;
+  trackedState.x = x[0];
+  trackedState.y = x[1];
+  trackedState.w = std::max(0.f, x[4]);
+  trackedState.h = std::max(0.f, x[5]);
+  trackedState.confidence = lastConfidence;
+  trackedState.age = age;
+  trackedState.missed = missed;
+  return trackedState;
 }
