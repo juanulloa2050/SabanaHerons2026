@@ -72,6 +72,9 @@ MODULE(StrategyBehaviorControl,
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
+    (int)(0) embeddedPPOStandWatchdogMs, /**< Disable PPO or force walk if PPO stand dominates this time window. 0 disables. */
+    (int)(3000) embeddedPPOStandWatchdogCooldownMs, /**< Time to keep PPO disabled after the stand watchdog fires. */
+    (bool)(false) embeddedPPOStandWatchdogForceWalk, /**< If true, force walk instead of falling back to B-Human when the watchdog fires. */
   }),
 });
 
@@ -158,6 +161,11 @@ private:
   bool ppoLoadErrorReported = false;
   bool ppoInferErrorReported = false;
   std::string ppoRequestedModelPath;
+  unsigned ppoStandWatchdogWindowStarted = 0;
+  int ppoStandWatchdogStandFrames = 0;
+  int ppoStandWatchdogTotalFrames = 0;
+  unsigned ppoStandWatchdogCooldownStarted = 0;
+  bool ppoStandWatchdogCooldownActive = false;
   bool hasLoggedRLRuntimeMode = false;
   RLRuntimeMode lastLoggedRLRuntimeMode = RLRuntimeMode::bhuman;
   std::string lastLoggedRLRuntimeReason;

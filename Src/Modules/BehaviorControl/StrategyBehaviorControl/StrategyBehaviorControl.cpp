@@ -30,6 +30,7 @@ constexpr const char* ppoTeamEnv = "PYBH_PPO_TEAM";
 constexpr const char* ppoPlayersEnv = "PYBH_PPO_ACTIVE_PLAYERS";
 constexpr float disabledLogit = -1e9f;
 constexpr float debugPi = 3.14159265358979323846f;
+constexpr float standWatchdogRatioThreshold = 0.4f;
 
 float radToDeg(const float radians)
 {
@@ -398,6 +399,13 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
      theGameState.ownTeam.isGoalkeeper(theGameState.playerNumber))
     return false;
 
+  if(ppoStandWatchdogCooldownActive)
+  {
+    if(theFrameInfo.getTimeSince(ppoStandWatchdogCooldownStarted) < std::max(0, embeddedPPOStandWatchdogCooldownMs))
+      return false;
+    ppoStandWatchdogCooldownActive = false;
+  }
+
   if(!ensureEmbeddedPPOLoaded())
     return false;
 
@@ -451,7 +459,53 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
   if(!anyValidSkill)
     return false;
 
-  const int selectedSkill = argmax(maskedLogits);
+  int selectedSkill = argmax(maskedLogits);
+  if(embeddedPPOStandWatchdogMs > 0)
+  {
+    if(ppoStandWatchdogWindowStarted == 0)
+      ppoStandWatchdogWindowStarted = theFrameInfo.time;
+
+    ++ppoStandWatchdogTotalFrames;
+    if(selectedSkill == static_cast<int>(RL::SkillType::stand))
+      ++ppoStandWatchdogStandFrames;
+
+    const int windowMs = theFrameInfo.getTimeSince(ppoStandWatchdogWindowStarted);
+    if(windowMs >= embeddedPPOStandWatchdogMs)
+    {
+      const float standRatio = ppoStandWatchdogTotalFrames > 0 ?
+                               static_cast<float>(ppoStandWatchdogStandFrames) / static_cast<float>(ppoStandWatchdogTotalFrames) :
+                               0.f;
+      const bool standDominates = standRatio >= standWatchdogRatioThreshold && ppoStandWatchdogStandFrames >= 3;
+      ppoStandWatchdogWindowStarted = theFrameInfo.time;
+      ppoStandWatchdogStandFrames = 0;
+      ppoStandWatchdogTotalFrames = 0;
+
+      if(standDominates)
+      {
+        OUTPUT_WARNING("[RL] Embedded PPO stand watchdog fired"
+                       << " player=" << theGameState.playerNumber
+                       << " windowMs=" << windowMs
+                       << " standRatio=" << standRatio
+                       << " action=" << (embeddedPPOStandWatchdogForceWalk ? "forceWalk" : "fallbackBHuman")
+                       << " cooldownMs=" << embeddedPPOStandWatchdogCooldownMs);
+        if(embeddedPPOStandWatchdogForceWalk)
+          selectedSkill = static_cast<int>(RL::SkillType::walk);
+        else
+        {
+          ppoStandWatchdogCooldownActive = true;
+          ppoStandWatchdogCooldownStarted = theFrameInfo.time;
+          return false;
+        }
+      }
+    }
+  }
+  else
+  {
+    ppoStandWatchdogWindowStarted = 0;
+    ppoStandWatchdogStandFrames = 0;
+    ppoStandWatchdogTotalFrames = 0;
+  }
+
   skillRequest = ppoActionDecoder.decode(rawObservation, selectedSkill, output.paramMean);
   logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded PPO controlling skill requests");
   logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits);
