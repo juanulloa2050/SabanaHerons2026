@@ -19,9 +19,11 @@
     "dribble",
     "shoot"
   ],
-  "checkpoint": "/home/rafael/Documentos/Robocup2026/RL/runs/production_stability_repair_v1/checkpoint_stage4_step5000.pt",
-  "checkpoint_sha256": "1d35ea8aaa2bba46d8864216274c9dfd0f56bdd5a34ce5ffdbe4a084c732e6f1",
-  "onnx_sha256": "beb98d845c7a1c89f16fe1cbc05d22b165e6bf811e0972ed793d8ac65b8fc88b",
+  "checkpoint": "runs/production_stand_repair_v1/checkpoint_stage4_stand_repair.pt",
+  "checkpoint_sha256": "d102979d31d99e7248753c14d031a22acec4b7b87dbeff58fd65cdb9c1b70f22",
+  "onnx_sha256": "0f94014577c17ccf4e3b51b6889a853514e1a6b9c1cd4c9b9219a7049b8d3155",
+  "export_commit": "obs26-stand-repair-compat-opset11",
   "normalization_contract": "ppo_obs_v26_hsl2026",
-  "deterministic": true
+  "deterministic": true,
+  "compatibility": "SabanaHerons CompiledNN static batch opset11"
 }
