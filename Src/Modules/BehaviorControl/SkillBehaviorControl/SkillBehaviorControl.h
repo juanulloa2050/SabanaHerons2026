@@ -47,6 +47,7 @@
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
+#include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"
 #include "Framework/Module.h"
 #include "Platform/SystemCall.h"
@@ -175,6 +176,11 @@ private:
   void executeRequest();
 
   unsigned timeWhenAnnouncedEmptySkillRequest = 0; /**< The last time when the robot said that its skill request is empty. */
+  unsigned lastReportedKickTimestamp = 0; /**< The most recent kick timestamp published via BehaviorStatus. */
+  bool lastReportedKickWasOutsideCenterCircle = false; /**< Whether the most recent published kick was taken outside the center circle. */
+  unsigned lastAnnouncedOwnRestartStateStarted = 0; /**< Game state start timestamp for the last own restart executor announcement. */
+  SetPlay::Type lastAnnouncedOwnRestartSetPlay = SetPlay::none; /**< Set play for the last own restart executor announcement. */
+  int lastAnnouncedOwnRestartPlayer = -1; /**< Player number for the last own restart executor announcement. */
 
   ArmMotionRequest theArmMotionRequest; /**< The arm motion request that is modified by the behavior. */
   BehaviorStatus theBehaviorStatus; /**< The behavior status that is modified by the behavior. */

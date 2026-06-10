@@ -98,7 +98,8 @@ void GlobalOpponentsTracker::updateGameAndTeammateInfo()
   // as well those that are currently supposed to play:
   for (int i = 0; i < MAX_NUM_PLAYERS; i++)
   {
-    if (theGameState.opponentTeam.playerStates[i] != GameState::substitute)
+    if (theGameState.opponentTeam.playerStates[i] != GameState::substitute &&
+        theGameState.opponentTeam.playerStates[i] != GameState::sentOff)
     {
       totalNumberOfOpponents++;
       if (!GameState::isPenalized(theGameState.opponentTeam.playerStates[i]) ||                  // Playing

@@ -40,3 +40,6 @@ Thumbs.db
 /Util/Buildchain/macOS/include
 /Util/Buildchain/macOS/lib
 /Util/WSL
+/Config/NeuralNets/BallDetector/*.bak_*
+/Util/CompiledNN_broken
+/Util/SimRobot_broken

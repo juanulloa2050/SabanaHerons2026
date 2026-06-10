@@ -28,7 +28,18 @@ void SkillBehaviorControl::update(ActivationGraph&)
 {
   DECLARE_DEBUG_RESPONSE("option:HandleRefereeSignal:now");
 
+  if(theMotionInfo.lastKickTimestamp > lastReportedKickTimestamp)
+  {
+    lastReportedKickTimestamp = theMotionInfo.lastKickTimestamp;
+    const float centerCircleRadius = theFieldDimensions.centerCircleRadius +
+                                     theFieldDimensions.fieldLinesWidth * 0.5f +
+                                     theBallSpecification.radius;
+    lastReportedKickWasOutsideCenterCircle = theFieldBall.positionOnField.squaredNorm() >= sqr(centerCircleRadius);
+  }
+
   theBehaviorStatus.calibrationFinished = false;
+  theBehaviorStatus.lastKickTimestamp = lastReportedKickTimestamp;
+  theBehaviorStatus.lastKickWasOutsideCenterCircle = lastReportedKickWasOutsideCenterCircle;
   theBehaviorStatus.passTarget = -1;
   theBehaviorStatus.passOrigin = -1;
   theBehaviorStatus.walkingTo = Vector2f::Zero();
@@ -87,6 +98,46 @@ void SkillBehaviorControl::update(ActivationGraph&)
   beginFrame(theFrameInfo.time);
 
   PlaySoccer();
+
+  const auto ownRestartName = [this]() -> const char*
+  {
+    if(theGameState.isKickIn())
+      return "kick in";
+    if(theGameState.isGoalKick())
+      return "goal kick";
+    if(theGameState.isCornerKick())
+      return "corner kick";
+    if(theGameState.state == GameState::ownDirectFreeKick || theGameState.state == GameState::ownPushingFreeKick)
+      return "direct free kick";
+    if(theGameState.state == GameState::ownIndirectFreeKick)
+      return "indirect free kick";
+    if(theGameState.isPenaltyKick())
+      return "penalty kick";
+    if(theGameState.isKickOff())
+      return "kick off";
+    return "restart";
+  };
+
+  const bool isOwnRestart = theGameState.isForOwnTeam() &&
+                            (theGameState.isKickOff() || theGameState.isPenaltyKick() || theGameState.isFreeKick());
+  const bool isSetPlayExecutor = isOwnRestart &&
+                                 theStrategyStatus.acceptedSetPlay != SetPlay::none &&
+                                 theStrategyStatus.setPlayStep >= 0 &&
+                                 (theStrategyStatus.role == ActiveRole::toRole(ActiveRole::startSetPlay) ||
+                                  theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall));
+
+  if(isSetPlayExecutor &&
+     (lastAnnouncedOwnRestartStateStarted != theGameState.timeWhenStateStarted ||
+      lastAnnouncedOwnRestartSetPlay != theStrategyStatus.acceptedSetPlay ||
+      lastAnnouncedOwnRestartPlayer != theGameState.playerNumber))
+  {
+    const std::string announcement = "I am executing " + std::string(ownRestartName()) + " player " +
+                                     std::to_string(theGameState.playerNumber);
+    SystemCall::say(announcement.c_str());
+    lastAnnouncedOwnRestartStateStarted = theGameState.timeWhenStateStarted;
+    lastAnnouncedOwnRestartSetPlay = theStrategyStatus.acceptedSetPlay;
+    lastAnnouncedOwnRestartPlayer = theGameState.playerNumber;
+  }
 
   endFrame();
   theSkillRegistry.postProcess();

@@ -17,6 +17,8 @@
 STREAMABLE(BehaviorStatus, COMMA public BHumanCompressedMessageParticle<BehaviorStatus>
 {,
   (bool)(false) calibrationFinished, /**< Set when the behavior is done with calibration and wants to transition to the unstiff state. */
+  (unsigned)(0) lastKickTimestamp, /**< Timestamp of the most recent completed kick by this robot. */
+  (bool)(false) lastKickWasOutsideCenterCircle, /**< Whether the last completed kick happened with the ball already outside the center circle. */
   (int)(-1) passTarget, /**< The number of the passed-to player. */
   (int)(-1) passOrigin, /**< The number of the player that passes to this one */
   (Vector2f)(Vector2f::Zero()) walkingTo, /**< The target position the robot is walking to (in robot relative coordinates). */

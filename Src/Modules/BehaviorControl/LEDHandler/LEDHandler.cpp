@@ -230,12 +230,6 @@ void LEDHandler::setChestButton(LEDRequest& ledRequest)
   }
   else if(theGameState.isPenalized())
     ledRequest.ledStates[LEDRequest::chestRed] = LEDRequest::on;
-  else if(theGameState.state == GameState::standby)
-  {
-    // Cyan color indicates standby state (waiting for referee gesture)
-    ledRequest.ledStates[LEDRequest::chestGreen] = LEDRequest::on;
-    ledRequest.ledStates[LEDRequest::chestBlue] = LEDRequest::on;
-  }
   else if(theGameState.isReady())
     ledRequest.ledStates[LEDRequest::chestBlue] = LEDRequest::on;
   else if(theGameState.isSet())

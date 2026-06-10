@@ -36,7 +36,7 @@ option(PenaltyKeeper)
     action
     {
       theLookForwardSkill();
-      theDiveSkill({.request = MotionRequest::Dive::prepare});
+      theStandSkill({.high = true});
     }
   }
 

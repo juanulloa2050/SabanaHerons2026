@@ -65,7 +65,33 @@ class KickAtGoalImpl : public KickAtGoalImplBase
   {
     updateKickDirectionAndKick();
 
-    const bool allowDirectKick = !(theGameState.isFreeKick() &&
+    const bool ballOutsideCenterCircle =
+      theFieldBall.positionOnField.squaredNorm() >=
+      sqr(theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + theBallSpecification.radius);
+    const bool ownKickOffGoalStillBlocked =
+      theGameState.ownKickOffGoalRestrictionActive &&
+      (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot
+         ? theGameState.playerNumber == theGameState.ownKickOffKickingPlayerNumber
+         : theGameState.playerNumber != theGameState.ownKickOffKickingPlayerNumber || !ballOutsideCenterCircle);
+    const bool ownKickOffBallStillInCenterCircle =
+      theGameState.state == GameState::ownKickOff &&
+      !ballOutsideCenterCircle;
+    const bool retryLimitedTeamKickOff =
+      ownKickOffGoalStillBlocked &&
+      !theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot &&
+      theGameState.ownKickOffKickingPlayerNumber == theGameState.playerNumber;
+
+    if(ownKickOffBallStillInCenterCircle || retryLimitedTeamKickOff)
+    {
+      theDirectKickOffSkill();
+      state = notActive;
+      return;
+    }
+
+    // HSL 2026 only forbids direct goals on indirect free kicks. Corner kicks, goal kicks,
+    // and direct free kicks must still be allowed to score directly.
+    const bool allowDirectKick = !ownKickOffGoalStillBlocked &&
+                                 !(theGameState.isIndirectFreeKick() &&
                                    theGameState.isForOwnTeam());
     if(aimingAtGoal && allowDirectKick)
     {
