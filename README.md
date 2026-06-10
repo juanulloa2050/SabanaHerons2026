@@ -9,8 +9,9 @@ The purpose of this branch is to keep the actual team baseline in one place, so 
 1. **HSL 2026 migration**: The project now includes the current HSL GameController protocol and the main HSL restart behavior updates, including stop play, direct and indirect free kicks, throw-ins, goal kicks, corner kicks, penalty kicks, and updated kick-off restrictions.
 2. **3v3 and 4v4 full-field strategies**: The team now has dedicated `3v3_Full` and `4v4_Full` scenarios and locations for HSL-style play, with updated field dimensions and set-play behavior.
 3. **Trionda ball detection baseline**: The project baseline includes the current Trionda detector stack and the accepted far-ball baseline model named **Trionda Final Model**.
-4. **Web control and operational tooling**: The codebase includes the current web control, camera streaming, and recording workflow used for robot operation and data collection.
-5. **Behavior and match fixes**: The baseline also includes the current whistle, kick-off, set-play, and field-behavior fixes that were merged into the deployed branch.
+4. **New whistle implementation**: The baseline includes the current whistle recognizer and tuning used in the latest deployed match baseline.
+5. **Web control and operational tooling**: The codebase includes the current web control, camera streaming, and recording workflow used for robot operation and data collection.
+6. **Behavior and match fixes**: The baseline also includes the current kick-off, set-play, and field-behavior fixes that were merged into the deployed branch.
 
 ## Ball Detection Baseline
 
