@@ -14,7 +14,6 @@
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Modeling/Whistle.h"
 #include "Tools/Communication/RobotStatus.h"
-#include "Representations/BehaviorControl/InitialToReady.h"
 #include "Tools/Communication/TeamMessageBuffer.h"
 #include "Streaming/AutoStreamable.h"
 
@@ -29,7 +28,6 @@ STREAMABLE(ReceivedTeamMessage,
   (BehaviorStatus) theBehaviorStatus,
   (Whistle) theWhistle,
   (StrategyStatus) theStrategyStatus,
-  (InitialToReady) theInitialToReady,
 });
 
 STREAMABLE(ReceivedTeamMessages,

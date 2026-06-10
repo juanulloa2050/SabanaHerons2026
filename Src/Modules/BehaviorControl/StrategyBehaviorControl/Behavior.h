@@ -104,6 +104,9 @@ private:
    */
   [[nodiscard]] bool checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vector<Agent>& agents, bool wasSelected = false) const;
 
+  /** Logs set play decisions for kick-related game states. */
+  void logKickDecision(Strategy::Type strategy, const Agent& self, const std::vector<Agent>& agents);
+
   /** Updates \c ballXTimestamps. */
   void updateBallXTimestamps();
 
@@ -166,6 +169,16 @@ private:
   BallSearch* ballSearch = nullptr;
 
   std::unordered_map<float, BallXTimestamps> ballXTimestamps;
+
+  bool lastLoggedKickRelevant = false;
+  GameState::State lastLoggedKickState = GameState::beforeHalf;
+  SetPlay::Type lastLoggedProposedSetPlay = SetPlay::none;
+  SetPlay::Type lastLoggedAcceptedSetPlay = SetPlay::none;
+  Tactic::Type lastLoggedAcceptedTactic = Tactic::none;
+  Tactic::Position::Type lastLoggedPosition = Tactic::Position::none;
+  Role::Type lastLoggedRole = Role::none;
+  int lastLoggedSetPlayStep = -2;
+  bool lastLoggedMirror = false;
 
   const BallDropInModel& theBallDropInModel;
   const ExtendedGameState& theExtendedGameState;

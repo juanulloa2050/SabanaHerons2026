@@ -23,12 +23,14 @@ void WalkToBallAndKickEngine::update(WalkToBallAndKickGenerator& walkToBallAndKi
   DECLARE_DEBUG_RESPONSE("module:WalkToBallAndKickEngine:forwardTurnInterpolation");
   DECLARE_DEBUG_RESPONSE("module:WalkToBallAndKickEngine:UseMirroredForwardKick");
   MODIFY("module:WalkToBallAndKickEngine:ignoreBallTimestamp", ignoreBallTimestamp);
+  MODIFY("module:WalkToBallAndKickEngine:ignoreBallOdometry", ignoreBallOdometry);
   walkToBallAndKickGenerator.createPhase = [this](const MotionRequest& motionRequest, const MotionPhase& lastPhase)
   {
     lastPhaseWasKick = lastPhase.type == MotionPhase::kick;
 
     const bool isLeftPhase = theWalkGenerator.isNextLeftPhase(lastPhase, Pose2f(0, motionRequest.ballEstimate.position));
-    const Pose2f scsCognition = getTransformationToZeroStep(theTorsoMatrix, theRobotModel, theRobotDimensions, motionRequest.odometryData, theOdometryDataPreview, isLeftPhase);
+    const Pose2f& startOdometry = ignoreBallOdometry ? theOdometryDataPreview : motionRequest.odometryData;
+    const Pose2f scsCognition = getTransformationToZeroStep(theTorsoMatrix, theRobotModel, theRobotDimensions, startOdometry, theOdometryDataPreview, isLeftPhase);
 
     const Rangef ttrbRange(1.f, 2.f);
     const float timeToReachBall = ttrbRange.limit(std::max(std::abs(motionRequest.ballEstimate.position.x()) / theWalkingEngineOutput.maxSpeed.translation.x(), std::abs(motionRequest.ballEstimate.position.y()) / theWalkingEngineOutput.maxSpeed.translation.y()));

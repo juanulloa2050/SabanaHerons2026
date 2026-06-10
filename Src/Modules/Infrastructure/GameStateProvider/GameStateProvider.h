@@ -9,7 +9,6 @@
 #pragma once
 
 #include "Representations/BehaviorControl/BehaviorStatus.h"
-#include "Representations/BehaviorControl/InitialToReady.h"
 #include "Representations/Communication/GameControllerData.h"
 #include "Representations/Communication/TeamData.h"
 #include "Representations/Configuration/BallSpecification.h"
@@ -39,9 +38,7 @@ MODULE(GameStateProvider,
   USES(RobotPose),
   REQUIRES(TeamData),
   REQUIRES(Whistle),
-  REQUIRES(InitialToReady),
   PROVIDES(GameState),
-
   LOADS_PARAMETERS(
   {,
     (unsigned) unstiffHeadButtonPressDuration, /**< How long the head buttons need to be pressed until the robot transitions to unstiff (in ms). */
@@ -136,6 +133,15 @@ class GameStateProvider : public GameStateProviderBase
   /** Updates timestamps when a player have been penalized for illegal position. */
   void updateIllegalPosition();
 
+  /** Tracks the HSL 2026 scoring restriction that continues after an own kick-off becomes playing. */
+  void updateOwnKickOffGoalRestriction(GameState& gameState);
+
+  /** Clears all cached data related to the HSL 2026 own kick-off scoring restriction. */
+  void clearOwnKickOffGoalRestriction(GameState& gameState);
+
+  /** Whether the locally observed ball is already outside the center circle. */
+  bool isBallOutsideCenterCircle() const;
+
   /**
    * Extracts the B-Human game phase from raw GameController data.
    * @param gameControllerData The data from the GameController.
@@ -172,4 +178,9 @@ class GameStateProvider : public GameStateProviderBase
   unsigned timeWhenStateStartedBeforeBallMoved = 0; /**< Timestamp of the start of the state before a trasition was triggered by ball movement. */
   unsigned timeWhenSwitchedToPlayingViaWhistle = 0; /**< Timestamp when a transition to PLAYING (kick-off/penalty kick/penalty shot) was triggered by a whistle. */
   unsigned minWhistleTimestamp = 0; /**< Lower bound for whistle timestamps to consider for transitions. */
+  unsigned lastOwnKickTimestamp = 0; /**< Most recent locally observed completed kick. */
+  bool lastOwnKickWasOutsideCenterCircle = false; /**< Whether the most recent locally observed completed kick happened outside the center circle. */
+  unsigned ownKickOffStartTime = 0; /**< Timestamp when the current own kick-off began. */
+  bool trackOwnKickOffGoalRestriction = false; /**< Whether a currently active own kick-off still needs post-kick-off touch tracking. */
+  GameState::State previousState = GameState::beforeHalf; /**< The game state from the previous update. */
 };
