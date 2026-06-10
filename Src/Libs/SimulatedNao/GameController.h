@@ -53,6 +53,7 @@ public:
     illegalBallContact,
     playerPushing,
     illegalMotionInSet,
+    illegalMotionInStop,
     inactivePlayer,
     illegalPosition,
     leavingTheField,
@@ -60,6 +61,7 @@ public:
     localGameStuck,
     illegalPositionInSet,
     playerStance,
+    sentOff,
     substitute,
     manual,
   });
@@ -99,14 +101,17 @@ private:
   static const int readyTime = 45;
   static const int penaltyKickReadyTime = 30;
   static const int kickOffTime = 10;
-  static const int freeKickTime = 30;
+  static const int freeKickTime = 45;
   static const int penaltyShotTime = 30;
-  static const int delayedSwitchToPlaying = 15;
+  static const int delayedSwitchToPlaying = 10;
   static const int delayedSwitchAfterGoal = 15;
   static const float footLength; /**< foot length for position check. */
   static const float dropHeight; /**< height at which robots are placed so the fall a little bit and recognize it. */
   Pose2f lastBallContactPose; /**< Position where the last ball contact of a robot took place, orientation is toward opponent goal (0/180 degrees). */
   unsigned lastBallContactTime = 0;
+  int lastBallContactRobot = 0;
+  int indirectSetPlayFirstTouchRobot = 0;
+  bool indirectSetPlaySecondTouch = false;
   FieldDimensions fieldDimensions;
   BallSpecification ballSpecification;
   GameControllerData gameControllerData;
@@ -162,13 +167,22 @@ public:
   bool finished();
   bool competitionPhasePlayoff();
   bool competitionPhaseRoundrobin();
+  bool competitionTypeSmallFoundation();
+  bool competitionTypeSmallAdvanced();
+  bool competitionTypeMiddleFoundation();
+  bool competitionTypeMiddleAdvanced();
+  bool competitionTypeLargeFoundation();
+  bool competitionTypeLargeAdvanced();
   bool competitionTypeChampionsCup();
   bool competitionTypeChallengeShield();
   bool globalGameStuck(int side);
   bool goal(int side);
   bool goalKick(int side);
+  bool directFreeKick(int side);
+  bool indirectFreeKick(int side);
   bool pushingFreeKick(int side);
   bool cornerKick(int side);
+  bool throwIn(int side);
   bool kickIn(int side);
   bool penaltyKick(int side);
   bool kickOff(int side);

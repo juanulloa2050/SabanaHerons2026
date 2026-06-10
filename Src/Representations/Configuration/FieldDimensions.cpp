@@ -299,95 +299,7 @@ void FieldDimensions::LinesTable::pushCircle(const Vector2f& center, float radiu
 
 void FieldDimensions::read(In& stream)
 {
-  In* theStream = &stream;
-
-  // read from a file?
-  if(dynamic_cast<InMapFile*>(theStream))
   {
-    // if yes, try to load JSON file instead
-#ifdef TARGET_ROBOT
-    const char* filename = "/media/usb/field_dimensions.json";
-#else
-    const char* filename = "field_dimensions.json";
-#endif
-    InMapFile jsonStream(filename, ~0);
-    if(jsonStream.exists())
-    {
-      STREAMABLE(Dimensions,
-      {
-        STREAMABLE(Field,
-        {,
-          (float) length,
-          (float) width,
-          (float) penaltyCrossSize,
-          (float) penaltyAreaLength,
-          (float) penaltyAreaWidth,
-          (float) penaltyCrossDistance,
-          (float) centerCircleDiameter,
-          (float) borderStripWidth,
-        });
-
-        STREAMABLE(Goal,
-        {,
-          (float) postDiameter,
-          (float) height,
-          (float) innerWidth,
-          (float) depth,
-        }),
-
-        (Field) field,
-        (Goal) goal,
-      }) dims;
-
-      STREAMABLE(DimensionsOpt,
-      {
-        STREAMABLE(Field,
-        {,
-          (float)(-1.f) goalBoxAreaLength,
-          (float)(-1.f) goalBoxAreaWidth,
-        }),
-
-        (Field) field,
-      }) dimsOpt;
-
-      jsonStream >> dims;
-      InMapFile(filename, ~bit(InMap::missingAttribute)) >> dimsOpt;
-
-      const float lineWidth = 0.05f;
-
-      // pre-define some values and use a template for field dimensions to generate everything else
-      theStream = new InSymbolicMapFile(dimsOpt.field.goalBoxAreaLength != -1.f
-                                        && (std::abs(dimsOpt.field.goalBoxAreaLength - dims.field.penaltyAreaLength) > 0.001f
-                                            || std::abs(dimsOpt.field.goalBoxAreaWidth - dims.field.penaltyAreaWidth) > 0.001f)
-                                        ? "fieldDimensions2020.cfg" : "fieldDimensions2015.cfg",
-      {
-        {"xPosOpponentFieldBorder", dims.field.length * 500.f + dims.field.borderStripWidth * 1000.f},
-        {"xPosOpponentGoal", dims.field.length * 500.f - lineWidth * 500.f + dims.goal.depth * 1000.f},
-        {"xPosOpponentGoalPost", dims.field.length * 500.f + lineWidth * 500.f},
-        {"xPosOpponentGroundLine", dims.field.length * 500.f},
-        {"xPosOpponentPenaltyArea", dims.field.length * 500.f - dims.field.penaltyAreaLength * 1000.f},
-        {"xPosOpponentPenaltyMark", dims.field.length * 500.f - dims.field.penaltyCrossDistance * 1000.f},
-        {"xPosOpponentGoalArea", dims.field.length * 500.f - dimsOpt.field.goalBoxAreaLength * 1000.f},
-        {"yPosLeftFieldBorder", dims.field.width * 500.f + dims.field.borderStripWidth * 1000},
-        {"yPosLeftSideline", dims.field.width * 500.f},
-        {"yPosLeftPenaltyArea", dims.field.penaltyAreaWidth * 500.f},
-        {"yPosLeftGoal", dims.goal.innerWidth * 500.f + dims.goal.postDiameter * 500.f},
-        {"yPosLeftGoalArea", dimsOpt.field.goalBoxAreaWidth * 500.f},
-        {"fieldLinesWidth", lineWidth * 1000.f},
-        {"centerCircleRadius", dims.field.centerCircleDiameter * 500.f},
-        {"goalPostRadius", dims.goal.postDiameter * 500.f},
-        {"goalHeight", dims.goal.height * 1000.f},
-        {"penaltyMarkSize", dims.field.penaltyCrossSize * 1000.f},
-        {"xPenaltyMarkClose", dims.field.length * 500.f - dims.field.penaltyCrossDistance * 1000.f - dims.field.penaltyCrossSize * 500.f},
-        {"xPenaltyMarkFar", dims.field.length * 500.f - dims.field.penaltyCrossDistance * 1000.f + dims.field.penaltyCrossSize * 500.f},
-        {"penaltyMarkRadius", dims.field.penaltyCrossSize * 500.f}
-      });
-    }
-  }
-
-  {
-    In& stream = *theStream;
-
     STREAM_BASE(SimpleFieldDimensions);
 
     std::vector<LinesTable::Line>& fieldLines(straightFieldLines.lines);
@@ -409,9 +321,6 @@ void FieldDimensions::read(In& stream)
     for(LinesTable::Line& line : goalFrameLines)
       fieldLinesWithGoalFrame.lines.push_back(line);
   }
-
-  if(theStream != &stream)
-    delete theStream;
 }
 
 void FieldDimensions::write(Out& stream) const

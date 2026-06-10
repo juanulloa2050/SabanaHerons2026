@@ -29,9 +29,17 @@ Thumbs.db
 !/Make/Linux/.idea/fileTemplates
 /Make/Linux/.idea/fileTemplates/includes/Set Author.
 !/Make/Linux/.idea/runConfigurations
+/Make/Linux/cmake-build-debug
+/Make/Linux/cmake-build-release
+/Make/Linux/cmake-build-develop
+/Make/Linux/DeployDialog_autogen
+/Make/Linux/Nao-prefix
 /Make/Windows/B-Human.lnk
 /Make/macOS/B-Human.xcodeproj
 /Util/Buildchain/macOS/bin/cmake
 /Util/Buildchain/macOS/include
 /Util/Buildchain/macOS/lib
 /Util/WSL
+/Config/NeuralNets/BallDetector/*.bak_*
+/Util/CompiledNN_broken
+/Util/SimRobot_broken

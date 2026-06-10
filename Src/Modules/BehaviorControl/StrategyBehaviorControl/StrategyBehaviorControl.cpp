@@ -33,7 +33,7 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
   theBehavior.preProcess();
 
   if(theGameState.playerState != GameState::active ||
-     theGameState.isPenaltyShootout() || theGameState.isInitial() || theGameState.isFinished())
+     theGameState.isPenaltyShootout() || theGameState.isStopped())
   {
     // Reset provided representations.
     theStrategyStatus.proposedTactic = Tactic::none;

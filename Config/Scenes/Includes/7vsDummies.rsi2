@@ -26,16 +26,6 @@
       <Rotation z="-90degree"/>
       <Set name="NaoColor" value="black"/>
     </Body>
-    <Body ref="Nao" name="robot6">
-      <Translation x="3" y="-2" z="320mm"/>
-      <Rotation z="-90degree"/>
-      <Set name="NaoColor" value="black"/>
-    </Body>
-    <Body ref="Nao" name="robot7">
-      <Translation x="2" y="-2" z="320mm"/>
-      <Rotation z="-90degree"/>
-      <Set name="NaoColor" value="black"/>
-    </Body>
   </Compound>
 
   <Compound name="extras">

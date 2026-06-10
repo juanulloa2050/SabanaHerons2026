@@ -355,10 +355,18 @@ void ConsoleRoboCupCtrl::executeConsoleCommand(std::string command, RobotConsole
       check(gameController.competitionPhasePlayoff());
     else if(buffer == "competitionPhaseRoundRobin")
       check(gameController.competitionPhaseRoundrobin());
-    else if(buffer == "competitionTypeChampionsCup")
-      check(gameController.competitionTypeChampionsCup());
-    else if(buffer == "competitionTypeChallengeShield")
-      check(gameController.competitionTypeChallengeShield());
+    else if(buffer == "competitionTypeSmallFoundation")
+      check(gameController.competitionTypeSmallFoundation());
+    else if(buffer == "competitionTypeSmallAdvanced" || buffer == "competitionTypeChampionsCup")
+      check(gameController.competitionTypeSmallAdvanced());
+    else if(buffer == "competitionTypeMiddleFoundation")
+      check(gameController.competitionTypeMiddleFoundation());
+    else if(buffer == "competitionTypeMiddleAdvanced" || buffer == "competitionTypeChallengeShield")
+      check(gameController.competitionTypeMiddleAdvanced());
+    else if(buffer == "competitionTypeLargeFoundation")
+      check(gameController.competitionTypeLargeFoundation());
+    else if(buffer == "competitionTypeLargeAdvanced")
+      check(gameController.competitionTypeLargeAdvanced());
     else if(buffer == "globalGameStuckByFirstTeam")
       check(gameController.globalGameStuck(0));
     else if(buffer == "globalGameStuckBySecondTeam")
@@ -371,18 +379,22 @@ void ConsoleRoboCupCtrl::executeConsoleCommand(std::string command, RobotConsole
       check(gameController.goalKick(0));
     else if(buffer == "goalKickForSecondTeam")
       check(gameController.goalKick(1));
-    else if(buffer == "pushingFreeKickForFirstTeam")
-      check(gameController.pushingFreeKick(0));
-    else if(buffer == "pushingFreeKickForSecondTeam")
-      check(gameController.pushingFreeKick(1));
+    else if(buffer == "directFreeKickForFirstTeam" || buffer == "pushingFreeKickForFirstTeam")
+      check(gameController.directFreeKick(0));
+    else if(buffer == "directFreeKickForSecondTeam" || buffer == "pushingFreeKickForSecondTeam")
+      check(gameController.directFreeKick(1));
+    else if(buffer == "indirectFreeKickForFirstTeam")
+      check(gameController.indirectFreeKick(0));
+    else if(buffer == "indirectFreeKickForSecondTeam")
+      check(gameController.indirectFreeKick(1));
     else if(buffer == "cornerKickForFirstTeam")
       check(gameController.cornerKick(0));
     else if(buffer == "cornerKickForSecondTeam")
       check(gameController.cornerKick(1));
-    else if(buffer == "kickInForFirstTeam")
-      check(gameController.kickIn(0));
-    else if(buffer == "kickInForSecondTeam")
-      check(gameController.kickIn(1));
+    else if(buffer == "throwInForFirstTeam" || buffer == "kickInForFirstTeam")
+      check(gameController.throwIn(0));
+    else if(buffer == "throwInForSecondTeam" || buffer == "kickInForSecondTeam")
+      check(gameController.throwIn(1));
     else if(buffer == "penaltyKickForFirstTeam")
       check(gameController.penaltyKick(0));
     else if(buffer == "penaltyKickForSecondTeam")
@@ -515,7 +527,7 @@ void ConsoleRoboCupCtrl::help(In& stream)
   list("  cls : Clear console window.", pattern, true);
   list("  dt off | on | <fps> : Delay time of a simulation step to real time or a certain number of frames per second.", pattern, true);
   list("  echo <text> : Print text into console window. Useful in console.con.", pattern, true);
-  list("  gc initial | ready | set | playing | finished | goalByFirstTeam | goalBySecondTeam | kickOffFirstTeam | kickOffSecondTeam | globalGameStuckByFirstTeam | globalGameStuckBySecondTeam | goalKickForFirstTeam | goalKickForSecondTeam | pushingFreeKickForFirstTeam | pushingFreeKickForSecondTeam | cornerKickForFirstTeam | cornerKickForSecondTeam | kickInForFirstTeam | kickInForSecondTeam | penaltyKickForFirstTeam | penaltyKickForSecondTeam | halfFirst | halfSecond | gameNormal | gamePenaltyShootout | competitionPhasePlayoff | competitionPhaseRoundRobin | competitionTypeChampionsCup | competitionTypeChallengeShield : Set GameController state.", pattern, true);
+  list("  gc initial | ready | set | playing | finished | goalByFirstTeam | goalBySecondTeam | kickOffFirstTeam | kickOffSecondTeam | globalGameStuckByFirstTeam | globalGameStuckBySecondTeam | goalKickForFirstTeam | goalKickForSecondTeam | directFreeKickForFirstTeam | directFreeKickForSecondTeam | indirectFreeKickForFirstTeam | indirectFreeKickForSecondTeam | cornerKickForFirstTeam | cornerKickForSecondTeam | throwInForFirstTeam | throwInForSecondTeam | penaltyKickForFirstTeam | penaltyKickForSecondTeam | halfFirst | halfSecond | gameNormal | gamePenaltyShootout | competitionPhasePlayoff | competitionPhaseRoundRobin | competitionTypeSmallFoundation | competitionTypeSmallAdvanced | competitionTypeMiddleFoundation | competitionTypeMiddleAdvanced | competitionTypeLargeFoundation | competitionTypeLargeAdvanced : Set GameController state.", pattern, true);
   list("  ( help | ? ) [<pattern>] : Display this text.", pattern, true);
   if(is2D)
     list("  mvo <name> <x> <y> [<rot>] : Move the object with the given name to the given position.", pattern, true);
@@ -548,7 +560,7 @@ void ConsoleRoboCupCtrl::help(In& stream)
   list("  mv <x> <y> <z> [<rotx> <roty> <rotz>] : Move the selected simulated robot to the given position.", pattern, true);
   list("  mvb <x> <y> <z> : Move the ball to the given position.", pattern, true);
   list("  poll : Poll for all available debug requests and drawings. ", pattern, true);
-  list("  pr none | illegalBallContact | playerPushing | illegalMotionInSet | inactivePlayer | illegalPosition | leavingTheField | requestForPickup | localGameStuck | illegalPositionInSet | playerStance | substitute | manual : Set robot penalty.", pattern, true);
+  list("  pr none | illegalBallContact | playerPushing | illegalMotionInSet | illegalMotionInStop | inactivePlayer | illegalPosition | leavingTheField | requestForPickup | localGameStuck | illegalPositionInSet | playerStance | sentOff | substitute | manual : Set robot penalty.", pattern, true);
   list("  set ? [<pattern>] | <key> ( ? | unchanged | <data> ) : Change debug data or show its specification.", pattern, true);
   if(!is2D)
     list("  si reset [<number>] | [number] [grayscale] [<file>] : Save camera image. Only \"reset\" works without \"for\".", pattern, true);
@@ -708,8 +720,12 @@ void ConsoleRoboCupCtrl::createCompletion()
     "gc set",
     "gc playing",
     "gc finished",
-    "gc competitionTypeChampionsCup",
-    "gc competitionTypeChallengeShield",
+    "gc competitionTypeSmallFoundation",
+    "gc competitionTypeSmallAdvanced",
+    "gc competitionTypeMiddleFoundation",
+    "gc competitionTypeMiddleAdvanced",
+    "gc competitionTypeLargeFoundation",
+    "gc competitionTypeLargeAdvanced",
     "gc competitionPhasePlayoff",
     "gc competitionPhaseRoundRobin",
     "gc globalGameStuckByFirstTeam",
@@ -718,12 +734,14 @@ void ConsoleRoboCupCtrl::createCompletion()
     "gc goalBySecondTeam",
     "gc goalKickForFirstTeam",
     "gc goalKickForSecondTeam",
-    "gc pushingFreeKickForFirstTeam",
-    "gc pushingFreeKickForSecondTeam",
+    "gc directFreeKickForFirstTeam",
+    "gc directFreeKickForSecondTeam",
+    "gc indirectFreeKickForFirstTeam",
+    "gc indirectFreeKickForSecondTeam",
     "gc cornerKickForFirstTeam",
     "gc cornerKickForSecondTeam",
-    "gc kickInForFirstTeam",
-    "gc kickInForSecondTeam",
+    "gc throwInForFirstTeam",
+    "gc throwInForSecondTeam",
     "gc penaltyKickForFirstTeam",
     "gc penaltyKickForSecondTeam",
     "gc kickOffFirstTeam",
