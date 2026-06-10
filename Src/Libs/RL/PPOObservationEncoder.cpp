@@ -6,7 +6,7 @@
 
 namespace
 {
-  constexpr float pi = 3.14159265358979323846f;
+  constexpr float ppoPi = 3.14159265358979323846f;
   constexpr float fieldXHalf = 4500.f;
   constexpr float fieldYHalf = 3000.f;
   constexpr float ballVelNorm = 3000.f;
@@ -75,16 +75,43 @@ namespace
       return fieldDimensions.xPosOpponentGroundLine * 2.f;
     return value;
   }
+
+  float computeNaturalTimeSinceBallSeen(
+    const FrameInfo& frameInfo,
+    const BallPercept& ballPercept,
+    unsigned& lastNaturalBallSeenTimestamp,
+    bool& hasNaturalBallSeenTimestamp)
+  {
+    if(ballPercept.status == BallPercept::seen)
+    {
+      lastNaturalBallSeenTimestamp = frameInfo.time;
+      hasNaturalBallSeenTimestamp = true;
+      return 0.f;
+    }
+
+    if(hasNaturalBallSeenTimestamp)
+      return static_cast<float>(frameInfo.getTimeSince(lastNaturalBallSeenTimestamp));
+
+    return timeNormMs;
+  }
+}
+
+void RL::PPOObservationEncoder::reset()
+{
+  lastNaturalBallSeenTimestamp = 0;
+  hasNaturalBallSeenTimestamp = false;
 }
 
 RL::PPOGateObservation RL::PPOObservationEncoder::buildRawObservation(
+  const FrameInfo& frameInfo,
   const RobotPose& robotPose,
   const FieldBall& fieldBall,
   const BallModel& ballModel,
+  const BallPercept& ballPercept,
   const ObstacleModel& obstacleModel,
   const ExpectedGoals& expectedGoals,
   const TeamData& teamData,
-  const FieldDimensions& fieldDimensions) const
+  const FieldDimensions& fieldDimensions)
 {
   PPOGateObservation raw;
   raw.robotX = robotPose.translation.x();
@@ -101,7 +128,7 @@ RL::PPOGateObservation RL::PPOObservationEncoder::buildRawObservation(
   raw.timeSinceBallSeenMs = static_cast<float>(fieldBall.timeSinceBallWasSeen);
   raw.timeSinceBallDisappearedMs = static_cast<float>(fieldBall.timeSinceBallDisappeared);
   raw.ballSeenPercentage = static_cast<float>(ballModel.seenPercentage);
-  raw.naturalTimeSinceBallSeenMs = raw.timeSinceBallSeenMs;
+  raw.naturalTimeSinceBallSeenMs = computeNaturalTimeSinceBallSeen(frameInfo, ballPercept, lastNaturalBallSeenTimestamp, hasNaturalBallSeenTimestamp);
   raw.ballConsistentWithGameState = fieldBall.ballPositionConsistentWithGameState;
 
   const Vector2f ballOnField(raw.ballX, raw.ballY);
@@ -129,7 +156,7 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(const PPOGateObservation& r
   auto& values = observation.values;
   values[0] = normalizeSigned(raw.robotX, fieldXHalf);
   values[1] = normalizeSigned(raw.robotY, fieldYHalf);
-  values[2] = std::clamp(raw.robotTheta / pi, -1.f, 1.f);
+  values[2] = std::clamp(raw.robotTheta / ppoPi, -1.f, 1.f);
   values[3] = normalizeSigned(raw.ballRelX, fieldXHalf);
   values[4] = normalizeSigned(raw.ballRelY, fieldYHalf);
   values[5] = normalizeSigned(raw.ballEndRelX, fieldXHalf);
@@ -157,14 +184,16 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(const PPOGateObservation& r
 }
 
 RL::PPOObservation RL::PPOObservationEncoder::encode(
+  const FrameInfo& frameInfo,
   const RobotPose& robotPose,
   const FieldBall& fieldBall,
   const BallModel& ballModel,
+  const BallPercept& ballPercept,
   const ObstacleModel& obstacleModel,
   const ExpectedGoals& expectedGoals,
   const TeamData& teamData,
   const FieldDimensions& fieldDimensions,
-  const PPOGateDecision& gateDecision) const
+  const PPOGateDecision& gateDecision)
 {
-  return encode(buildRawObservation(robotPose, fieldBall, ballModel, obstacleModel, expectedGoals, teamData, fieldDimensions), gateDecision);
+  return encode(buildRawObservation(frameInfo, robotPose, fieldBall, ballModel, ballPercept, obstacleModel, expectedGoals, teamData, fieldDimensions), gateDecision);
 }

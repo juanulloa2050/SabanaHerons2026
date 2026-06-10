@@ -5,12 +5,13 @@
 
 #include <CompiledNN2ONNX/Model.h>
 
+#include <exception>
 #include <filesystem>
 #include <sstream>
 
 namespace
 {
-  int flatSize(const TensorXf& tensor)
+  int flatSize(const NeuralNetworkONNX::CompiledNN::Tensor& tensor)
   {
     int result = 1;
     for(unsigned int i = 0; i < tensor.rank(); ++i)
@@ -41,7 +42,16 @@ bool RL::PPOPolicyModel::load(const std::string& configuredModelPath, std::strin
     return false;
   }
 
-  network.compile(NeuralNetworkONNX::Model(path.string()));
+  try
+  {
+    network.compile(NeuralNetworkONNX::Model(path.string()));
+  }
+  catch(const std::exception& e)
+  {
+    if(error)
+      *error = "PPO ONNX model failed to compile: " + path.string() + " (" + e.what() + ")";
+    return false;
+  }
   if(!network.valid())
   {
     if(error)
@@ -95,7 +105,7 @@ bool RL::PPOPolicyModel::infer(const std::array<float, ppoObsSize>& observation,
     return false;
   }
 
-  TensorXf& input = network.input(0);
+  auto input = network.input(0);
   if(input.rank() == 2)
   {
     if(input.dims(0) != 1 || input.dims(1) != static_cast<unsigned int>(ppoObsSize))

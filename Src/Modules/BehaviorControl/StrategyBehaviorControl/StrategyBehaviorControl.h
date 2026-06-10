@@ -31,6 +31,7 @@
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Modeling/TeammatesBallModel.h"
 #include "Representations/MotionControl/MotionInfo.h"
+#include "Representations/Perception/BallPercepts/BallPercept.h"
 #include "Representations/Sensing/FallDownState.h"
 #include "Representations/Sensing/GroundContactState.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"
@@ -42,6 +43,7 @@ MODULE(StrategyBehaviorControl,
 {,
   REQUIRES(BallDropInModel),
   REQUIRES(BallModel),
+  REQUIRES(BallPercept),
   REQUIRES(BallSpecification),
   REQUIRES(ExpectedGoals),
   REQUIRES(ExtendedGameState),
@@ -65,6 +67,11 @@ MODULE(StrategyBehaviorControl,
   LOADS_PARAMETERS(
   {,
     (Strategy::Type) strategy, /**< The strategy to play. */
+    (bool)(false) enableEmbeddedPPO, /**< Enable the embedded PPO policy override. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
+    (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
+    (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
+    (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
   }),
 });
 
@@ -81,6 +88,15 @@ public:
   static std::vector<ModuleBase::Info> getExtModuleInfo();
 
 private:
+  enum class RLRuntimeMode
+  {
+    bhuman,
+    externalOverride,
+    embeddedWaiting,
+    embeddedFallback,
+    embeddedActive,
+  };
+
   /**
    * Updates the skill request.
    * @param skillRequest The provided skill request.
@@ -118,8 +134,17 @@ private:
    */
   void updateCurrentPosition(Agent& agent);
 
+  bool usesEmbeddedPPO(const GameState& gameState) const;
+  std::string embeddedPPOStatusReason(const GameState& gameState) const;
+  std::string configuredEmbeddedPPOModelPath() const;
   bool updateEmbeddedPPO(SkillRequest& skillRequest);
   bool ensureEmbeddedPPOLoaded();
+  void logRLModeIfChanged(RLRuntimeMode mode, const std::string& reason);
+  void logEmbeddedPPODecisionIfChanged(
+    int skillIndex,
+    const RL::PPOGateDecision& gateDecision,
+    const RL::PPOGateObservation& rawObservation,
+    const std::array<float, RL::ppoSkillCount>& maskedLogits);
   void resetEmbeddedPPO();
 
   Behavior theBehavior; /**< The instance of the behavior. */
@@ -133,4 +158,11 @@ private:
   bool ppoLoadErrorReported = false;
   bool ppoInferErrorReported = false;
   std::string ppoRequestedModelPath;
+  bool hasLoggedRLRuntimeMode = false;
+  RLRuntimeMode lastLoggedRLRuntimeMode = RLRuntimeMode::bhuman;
+  std::string lastLoggedRLRuntimeReason;
+  int lastLoggedEmbeddedPPOSkillIndex = -1;
+  bool lastLoggedEmbeddedPPOShootArmed = false;
+  bool lastLoggedEmbeddedPPODribbleArmed = false;
+  unsigned lastLoggedEmbeddedPPOTimestamp = 0;
 };

@@ -12,7 +12,7 @@ namespace
   constexpr float residualYRange = 450.f;
   constexpr float residualThetaRange = 0.75f;
   constexpr float approachOffsetX = -210.f;
-  constexpr float repairTargetRadiusLimit = 1.05f * std::hypot(residualXRange, residualYRange);
+  const float repairTargetRadiusLimit = 1.05f * std::hypot(residualXRange, residualYRange);
   constexpr float repairThetaLimit = 1.05f * residualThetaRange;
 
   float wrapAngle(const float angle)
