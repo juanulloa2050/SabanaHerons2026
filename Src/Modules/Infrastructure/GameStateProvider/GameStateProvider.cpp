@@ -12,6 +12,74 @@
 #include "Platform/BHAssert.h"
 #include "Platform/SystemCall.h"
 #include <algorithm>
+#include <limits>
+#include <iostream>
+
+// Helper function to convert GameController state to string
+static const char* gcStateToString(uint8_t state)
+{
+  switch(state)
+  {
+    case STATE_INITIAL: return "INITIAL";
+    case STATE_READY: return "READY";
+    case STATE_SET: return "SET";
+    case STATE_PLAYING: return "PLAYING";
+    case STATE_FINISHED: return "FINISHED";
+    default: return "UNKNOWN";
+  }
+}
+
+// Helper function to convert GameState to string
+static const char* gameStateToString(GameState::State state)
+{
+  switch(state)
+  {
+    case GameState::beforeHalf: return "beforeHalf";
+    case GameState::afterHalf: return "afterHalf";
+    case GameState::setupOwnKickOff: return "setupOwnKickOff";
+    case GameState::setupOpponentKickOff: return "setupOpponentKickOff";
+    case GameState::setupDroppedBall: return "setupDroppedBall";
+    case GameState::waitForOwnKickOff: return "waitForOwnKickOff";
+    case GameState::waitForOpponentKickOff: return "waitForOpponentKickOff";
+    case GameState::waitForDroppedBall: return "waitForDroppedBall";
+    case GameState::ownKickOff: return "ownKickOff";
+    case GameState::opponentKickOff: return "opponentKickOff";
+    case GameState::ownDirectFreeKick: return "ownDirectFreeKick";
+    case GameState::opponentDirectFreeKick: return "opponentDirectFreeKick";
+    case GameState::ownIndirectFreeKick: return "ownIndirectFreeKick";
+    case GameState::opponentIndirectFreeKick: return "opponentIndirectFreeKick";
+    case GameState::ownThrowIn: return "ownThrowIn";
+    case GameState::opponentThrowIn: return "opponentThrowIn";
+    case GameState::playing: return "playing";
+    default: return "other";
+  }
+}
+
+// Helper function to convert PlayerState to string
+static const char* playerStateToString(GameState::PlayerState state)
+{
+  switch(state)
+  {
+    case GameState::unstiff: return "unstiff";
+    case GameState::calibration: return "calibration";
+    case GameState::active: return "active";
+    case GameState::penalizedManual: return "penalizedManual";
+    case GameState::penalizedIllegalBallContact: return "penalizedIllegalBallContact";
+    case GameState::penalizedPlayerPushing: return "penalizedPlayerPushing";
+    case GameState::penalizedIllegalMotionInSet: return "penalizedIllegalMotionInSet";
+    case GameState::penalizedIllegalMotionInStop: return "penalizedIllegalMotionInStop";
+    case GameState::penalizedInactivePlayer: return "penalizedInactivePlayer";
+    case GameState::penalizedIllegalPosition: return "penalizedIllegalPosition";
+    case GameState::penalizedLeavingTheField: return "penalizedLeavingTheField";
+    case GameState::penalizedRequestForPickup: return "penalizedRequestForPickup";
+    case GameState::penalizedLocalGameStuck: return "penalizedLocalGameStuck";
+    case GameState::penalizedIllegalPositionInSet: return "penalizedIllegalPositionInSet";
+    case GameState::penalizedPlayerStance: return "penalizedPlayerStance";
+    case GameState::sentOff: return "sentOff";
+    case GameState::substitute: return "substitute";
+    default: return "unknown";
+  }
+}
 
 MAKE_MODULE(GameStateProvider);
 
@@ -99,6 +167,20 @@ void GameStateProvider::update(GameState& gameState)
   else if(theFrameInfo.getTimeSince(timeOfLastIntegratedGameControllerData) >= gameControllerTimeout)
     gameState.gameControllerActive = false;
 
+  // LOG: Print GameController state and robot state
+  static GameState::State lastLoggedState = GameState::beforeHalf;
+  static uint8_t lastLoggedGCState = 255;
+  if(gameState.state != lastLoggedState || theGameControllerData.state != lastLoggedGCState)
+  {
+    std::cout << "[GameStateProvider] GameController state: " << gcStateToString(theGameControllerData.state) 
+              << " | Robot GameState: " << gameStateToString(gameState.state)
+              << " | PlayerState: " << playerStateToString(gameState.playerState)
+              << " | GC Active: " << (gameState.gameControllerActive ? "YES" : "NO")
+              << std::endl;
+    lastLoggedState = gameState.state;
+    lastLoggedGCState = theGameControllerData.state;
+  }
+
   // Reset whistle state transitions that turn out to be wrong.
   if(gameStateOverridden)
   {
@@ -106,6 +188,7 @@ void GameStateProvider::update(GameState& gameState)
     {
       case GameState::setupOwnKickOff:
       case GameState::setupOpponentKickOff:
+      case GameState::setupDroppedBall:
         // A guessed READY state (after a goal) is reverted if
         // - sufficient time has elapsed without the GameController state actually changing to READY or
         // - the GameController continues to announce a set play.
@@ -148,7 +231,10 @@ void GameStateProvider::update(GameState& gameState)
         }
 
         auto gameControllerState = convertGameControllerDataToState(theGameControllerData);
+        const bool freeKickTimedOut = timeWhenStateStartedBeforeBallMoved > 0 &&
+                                      timeWhenStateStartedBeforeBallMoved + freeKickDuration <= theFrameInfo.time;
         if(GameState::isFreeKick(gameControllerState) &&
+           !freeKickTimedOut &&
            ((*std::max_element(illegalPositionTimestampsOwnTeam.begin(), illegalPositionTimestampsOwnTeam.end()) > gameState.timeWhenStateStarted &&
              GameState::isForOpponentTeam(gameControllerState)) ||
             (*std::max_element(illegalPositionTimestampsOpponentTeam.begin(), illegalPositionTimestampsOpponentTeam.end()) > gameState.timeWhenStateStarted &&
@@ -176,15 +262,32 @@ void GameStateProvider::update(GameState& gameState)
     gameState.timeWhenStateEnds = 0;
   }
 
+  // HSL 2026: a free kick becomes ball free after 45 seconds even if the operator has not cleared
+  // the set play yet. Keep that interpretation locally until the GameController catches up.
+  if(gameState.isFreeKick() && gameState.timeWhenStateEnds != 0 && theFrameInfo.time >= gameState.timeWhenStateEnds)
+  {
+    gameStateOverridden = true;
+    timeWhenStateStartedBeforeBallMoved = gameState.timeWhenStateStarted;
+    gameState.state = GameState::playing;
+    gameState.timeWhenStateStarted = theFrameInfo.time;
+    gameState.timeWhenStateEnds = 0;
+  }
+
   // State transitions that are triggered by the whistle:
   if(!gameState.gameControllerActive || !theGameControllerData.isTrueData)
   {
     switch(gameState.state)
     {
+      case GameState::opponentDirectFreeKick:
+      case GameState::opponentIndirectFreeKick:
+      case GameState::opponentThrowIn:
       case GameState::opponentKickIn:
       case GameState::opponentCornerKick:
       case GameState::opponentPushingFreeKick:
       case GameState::opponentGoalKick:
+      case GameState::ownDirectFreeKick:
+      case GameState::ownIndirectFreeKick:
+      case GameState::ownThrowIn:
       case GameState::ownPushingFreeKick:
       case GameState::ownKickIn:
       case GameState::ownGoalKick:
@@ -224,6 +327,7 @@ void GameStateProvider::update(GameState& gameState)
         break;
       case GameState::waitForOwnKickOff:
       case GameState::waitForOpponentKickOff:
+      case GameState::waitForDroppedBall:
       case GameState::waitForOwnPenaltyKick:
       case GameState::waitForOpponentPenaltyKick:
       case GameState::waitForOwnPenaltyShot:
@@ -243,6 +347,9 @@ void GameStateProvider::update(GameState& gameState)
             case GameState::waitForOpponentKickOff:
               gameState.state = GameState::opponentKickOff;
               break;
+            case GameState::waitForDroppedBall:
+              gameState.state = GameState::playing;
+              break;
             case GameState::waitForOwnPenaltyKick:
               gameState.state = GameState::ownPenaltyKick;
               break;
@@ -257,7 +364,11 @@ void GameStateProvider::update(GameState& gameState)
               break;
           }
           gameState.timeWhenStateStarted = theFrameInfo.time;
-          gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + (gameState.isKickOff() ? kickOffDuration : penaltyKickDuration);
+          gameState.timeWhenStateEnds = 0;
+          if(gameState.isKickOff())
+            gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + kickOffDuration;
+          else if(gameState.isPenaltyKick() || gameState.isPenaltyShootout())
+            gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + penaltyKickDuration;
           gameState.whistled = true;
         }
         break;
@@ -296,7 +407,7 @@ void GameStateProvider::update(GameState& gameState)
         minWhistleTimestamp = theFrameInfo.time;
 
       // kickOffSetupFromSidelines: We are switching from some INITIAL state to READY and we already integrated a GameController packet recently.
-      if((gameControllerState == GameState::setupOwnKickOff || gameControllerState == GameState::setupOpponentKickOff) &&
+      if((gameControllerState == GameState::setupOwnKickOff || gameControllerState == GameState::setupOpponentKickOff || gameControllerState == GameState::setupDroppedBall) &&
          gameState.isInitial() && theFrameInfo.getTimeSince(timeOfLastIntegratedGameControllerData) < gameControllerTimeout)
         gameState.kickOffSetupFromSidelines = true;
 
@@ -307,9 +418,11 @@ void GameStateProvider::update(GameState& gameState)
       {
         case GameState::setupOwnKickOff:
         case GameState::setupOpponentKickOff:
+        case GameState::setupDroppedBall:
           // Switching to READY while changing the score means we haven't heard the whistle after a goal.
           // In that case, the state actually began earlier.
           if(!theGameControllerData.isTrueData &&
+             gameControllerState != GameState::setupDroppedBall &&
              (theGameControllerData.teams[ownTeamIndex].score != gameState.ownTeam.score ||
               theGameControllerData.teams[1 - ownTeamIndex].score != gameState.opponentTeam.score))
             gameState.timeWhenStateStarted -= (kickOffSetupDuration - theGameControllerData.secondaryTime * 1000);
@@ -335,6 +448,12 @@ void GameStateProvider::update(GameState& gameState)
             gameState.timeWhenStateStarted -= playingSignalDelay;
           gameState.timeWhenStateEnds = gameState.timeWhenStateStarted + penaltyKickDuration;
           break;
+        case GameState::ownDirectFreeKick:
+        case GameState::opponentDirectFreeKick:
+        case GameState::ownIndirectFreeKick:
+        case GameState::opponentIndirectFreeKick:
+        case GameState::ownThrowIn:
+        case GameState::opponentThrowIn:
         case GameState::ownPushingFreeKick:
         case GameState::opponentPushingFreeKick:
         case GameState::ownKickIn:
@@ -352,11 +471,24 @@ void GameStateProvider::update(GameState& gameState)
       }
     }
 
+    const std::size_t playersPerTeam = std::min<std::size_t>(theGameControllerData.playersPerTeam, MAX_NUM_PLAYERS);
+
     const auto fillTeam = [&](const RoboCup::TeamInfo& teamInfo, bool speculatingGoalFor, GameState::Team& team)
     {
       static_assert(std::tuple_size<decltype(team.playerStates)>::value == MAX_NUM_PLAYERS);
       for(std::size_t i = 0; i < team.playerStates.size(); ++i)
-        team.playerStates[i] = convertPenaltyToPlayerState(teamInfo.players[i].penalty);
+      {
+        if(i < playersPerTeam)
+        {
+          team.playerStates[i] = convertPenaltyToPlayerState(teamInfo.players[i].penalty);
+          team.cautions[i] = teamInfo.players[i].cautions;
+        }
+        else
+        {
+          team.playerStates[i] = GameState::substitute;
+          team.cautions[i] = 0;
+        }
+      }
       team.number = teamInfo.teamNumber;
       team.fieldPlayerColor = static_cast<GameState::Team::Color>(teamInfo.fieldPlayerColor);
       team.goalkeeperColor = static_cast<GameState::Team::Color>(teamInfo.goalkeeperColor);
@@ -368,7 +500,10 @@ void GameStateProvider::update(GameState& gameState)
     fillTeam(theGameControllerData.teams[ownTeamIndex], gameState.state == GameState::setupOpponentKickOff && gameControllerState != gameState.state, gameState.ownTeam);
     fillTeam(theGameControllerData.teams[1 - ownTeamIndex], gameState.state == GameState::setupOwnKickOff && gameControllerState != gameState.state, gameState.opponentTeam);
 
-    const auto gameControllerPlayerState = convertPenaltyToPlayerState(theGameControllerData.teams[ownTeamIndex].players[Global::getSettings().playerNumber - 1].penalty);
+    const int playerIndex = Global::getSettings().playerNumber - 1;
+    const auto gameControllerPlayerState = playerIndex >= 0 && static_cast<std::size_t>(playerIndex) < playersPerTeam
+                                           ? convertPenaltyToPlayerState(theGameControllerData.teams[ownTeamIndex].players[playerIndex].penalty)
+                                           : GameState::substitute;
     if(gameControllerPlayerState != gameState.playerState)
     {
       gameState.playerState = gameControllerPlayerState;
@@ -453,8 +588,12 @@ void GameStateProvider::update(GameState& gameState)
     gameState.timeWhenPhaseEnds = theFrameInfo.time + theGameControllerData.secsRemaining * 1000;
   }
 
+  updateOwnKickOffGoalRestriction(gameState);
+
   if(gameState.state != GameState::setupOwnKickOff && gameState.state != GameState::setupOpponentKickOff)
     gameState.kickOffSetupFromSidelines = false;
+
+  previousState = gameState.state;
 }
 
 void GameStateProvider::reset(GameState& gameState)
@@ -472,6 +611,11 @@ void GameStateProvider::reset(GameState& gameState)
   timeWhenStateStartedBeforeWhistle = 0;
   timeWhenSwitchedToPlayingViaWhistle = 0;
   minWhistleTimestamp = 0;
+  lastOwnKickTimestamp = 0;
+  lastOwnKickWasOutsideCenterCircle = false;
+  ownKickOffStartTime = 0;
+  trackOwnKickOffGoalRestriction = false;
+  previousState = GameState::beforeHalf;
 }
 
 bool GameStateProvider::checkForWhistle(unsigned from) const
@@ -697,7 +841,7 @@ void GameStateProvider::updateIllegalMotionInSetTimestamps()
   illegalMotionInSetTimestamps.resize(2 * MAX_NUM_PLAYERS, 0);
   for(unsigned int i = 0; i < 2; ++i)
     for(unsigned int j = 0; j < MAX_NUM_PLAYERS; ++j)
-      if(theGameControllerData.teams[i].players[j].penalty != PENALTY_SPL_ILLEGAL_MOTION_IN_SET)
+      if(theGameControllerData.teams[i].players[j].penalty != PENALTY_MOTION_IN_SET)
         illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] = 0;
       else if(illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] == 0)
         illegalMotionInSetTimestamps[i * MAX_NUM_PLAYERS + j] = theFrameInfo.time;
@@ -711,37 +855,156 @@ void GameStateProvider::updateIllegalPosition()
   unsigned opponentTeam = theGameControllerData.teams[0].teamNumber != Global::getSettings().teamNumber ? 0 : 1;
   for(unsigned int j = 0; j < MAX_NUM_PLAYERS; ++j)
   {
-    if(theGameControllerData.teams[ownTeam].players[j].penalty != PENALTY_SPL_ILLEGAL_POSITION)
+    if(theGameControllerData.teams[ownTeam].players[j].penalty != PENALTY_ILLEGAL_POSITIONING)
       illegalPositionTimestampsOwnTeam[j] = 0;
     else if(illegalPositionTimestampsOwnTeam[j] == 0)
       illegalPositionTimestampsOwnTeam[j] = theFrameInfo.time;
 
-    if(theGameControllerData.teams[opponentTeam].players[j].penalty != PENALTY_SPL_ILLEGAL_POSITION)
+    if(theGameControllerData.teams[opponentTeam].players[j].penalty != PENALTY_ILLEGAL_POSITIONING)
       illegalPositionTimestampsOpponentTeam[j] = 0;
     else if(illegalPositionTimestampsOpponentTeam[j] == 0)
       illegalPositionTimestampsOpponentTeam[j] = theFrameInfo.time;
   }
 }
 
+void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
+{
+  if(theMotionInfo.lastKickTimestamp > lastOwnKickTimestamp)
+  {
+    lastOwnKickTimestamp = theMotionInfo.lastKickTimestamp;
+    lastOwnKickWasOutsideCenterCircle = isBallOutsideCenterCircle();
+  }
+
+  if(gameState.state == GameState::ownKickOff && previousState != GameState::ownKickOff)
+  {
+    ownKickOffStartTime = gameState.timeWhenStateStarted;
+    trackOwnKickOffGoalRestriction = true;
+    clearOwnKickOffGoalRestriction(gameState);
+  }
+  else if(gameState.state != GameState::ownKickOff && gameState.state != GameState::playing)
+  {
+    trackOwnKickOffGoalRestriction = false;
+    ownKickOffStartTime = 0;
+    clearOwnKickOffGoalRestriction(gameState);
+    return;
+  }
+
+  if(!trackOwnKickOffGoalRestriction)
+    return;
+
+  struct KickTouch
+  {
+    int playerNumber = 0;
+    unsigned timestamp = 0;
+    bool outsideCenterCircle = false;
+  };
+
+  auto forEachOwnKickTouch = [&](const auto& callback)
+  {
+    if(lastOwnKickTimestamp > 0)
+      callback(KickTouch{gameState.playerNumber, lastOwnKickTimestamp, lastOwnKickWasOutsideCenterCircle});
+
+    for(const Teammate& teammate : theTeamData.teammates)
+      if(teammate.number >= Settings::lowestValidPlayerNumber &&
+         teammate.theBehaviorStatus.lastKickTimestamp > 0)
+        callback(KickTouch{teammate.number,
+                           teammate.theBehaviorStatus.lastKickTimestamp,
+                           teammate.theBehaviorStatus.lastKickWasOutsideCenterCircle});
+  };
+
+  if(!gameState.ownKickOffGoalRestrictionActive)
+  {
+    KickTouch firstTouch;
+    firstTouch.timestamp = std::numeric_limits<unsigned>::max();
+    forEachOwnKickTouch([&](const KickTouch& touch)
+    {
+      if(touch.timestamp > ownKickOffStartTime && touch.timestamp < firstTouch.timestamp)
+        firstTouch = touch;
+    });
+
+    if(firstTouch.timestamp != std::numeric_limits<unsigned>::max())
+    {
+      std::size_t numOfActiveOwnRobots = 0;
+      for(const auto& playerState : gameState.ownTeam.playerStates)
+        if(playerState == GameState::active)
+          ++numOfActiveOwnRobots;
+
+      gameState.ownKickOffGoalRestrictionActive = true;
+      gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = numOfActiveOwnRobots >= 3;
+      gameState.ownKickOffKickingPlayerNumber = firstTouch.playerNumber;
+      gameState.ownKickOffFirstTouchTimestamp = firstTouch.timestamp;
+    }
+  }
+
+  if(!gameState.ownKickOffGoalRestrictionActive)
+    return;
+
+  bool restrictionSatisfied = false;
+  forEachOwnKickTouch([&](const KickTouch& touch)
+  {
+    if(restrictionSatisfied || touch.timestamp <= gameState.ownKickOffFirstTouchTimestamp)
+      return;
+
+    if(gameState.ownKickOffGoalRestrictionRequiresDifferentRobot)
+      restrictionSatisfied = touch.playerNumber != gameState.ownKickOffKickingPlayerNumber;
+    else
+      restrictionSatisfied = touch.playerNumber == gameState.ownKickOffKickingPlayerNumber &&
+                             touch.outsideCenterCircle;
+  });
+
+  if(restrictionSatisfied)
+  {
+    trackOwnKickOffGoalRestriction = false;
+    ownKickOffStartTime = 0;
+    clearOwnKickOffGoalRestriction(gameState);
+  }
+}
+
+void GameStateProvider::clearOwnKickOffGoalRestriction(GameState& gameState)
+{
+  gameState.ownKickOffGoalRestrictionActive = false;
+  gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = false;
+  gameState.ownKickOffKickingPlayerNumber = 0;
+  gameState.ownKickOffFirstTouchTimestamp = 0;
+}
+
+bool GameStateProvider::isBallOutsideCenterCircle() const
+{
+  if(theBallModel.timeWhenLastSeen <= theFrameInfo.time - 500)
+    return false;
+
+  const Vector2f ballOnField = theRobotPose * theBallModel.estimate.position;
+  const float legalCenterCircleRadius = theFieldDimensions.centerCircleRadius +
+                                        theFieldDimensions.fieldLinesWidth * 0.5f +
+                                        theBallSpecification.radius;
+  return ballOnField.squaredNorm() >= sqr(legalCenterCircleRadius);
+}
+
 GameState::Phase GameStateProvider::convertGameControllerDataToPhase(const GameControllerData& gameControllerData)
 {
-  return gameControllerData.gamePhase == GAME_PHASE_PENALTYSHOOT ?
-         GameState::penaltyShootout :
-         (gameControllerData.firstHalf ?
-          GameState::firstHalf :
-          GameState::secondHalf);
+  if(gameControllerData.gamePhase == GAME_PHASE_PENALTY_SHOOT_OUT)
+    return GameState::penaltyShootout;
+  else if(gameControllerData.gamePhase == GAME_PHASE_EXTRA_TIME)
+    return gameControllerData.firstHalf ? GameState::firstExtraHalf : GameState::secondExtraHalf;
+  else
+    return gameControllerData.firstHalf ? GameState::firstHalf : GameState::secondHalf;
 }
 
 GameState::State GameStateProvider::convertGameControllerDataToState(const GameControllerData& gameControllerData)
 {
   const bool isKickingTeam = gameControllerData.kickingTeam == Global::getSettings().teamNumber;
-  if(gameControllerData.gamePhase == GAME_PHASE_TIMEOUT)
+  const bool hasKickingTeam = gameControllerData.kickingTeam != KICKING_TEAM_NONE;
+  if(gameControllerData.stopped)
+  {
+    return GameState::stopped;
+  }
+  else if(gameControllerData.gamePhase == GAME_PHASE_TIMEOUT)
   {
     ASSERT(gameControllerData.state == STATE_INITIAL);
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     return GameState::timeout;
   }
-  else if(gameControllerData.gamePhase == GAME_PHASE_PENALTYSHOOT)
+  else if(gameControllerData.gamePhase == GAME_PHASE_PENALTY_SHOOT_OUT)
   {
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
     if(gameControllerData.state == STATE_INITIAL)
@@ -755,7 +1018,7 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
     else
       FAIL("Impossible game state.");
   }
-  ASSERT(gameControllerData.gamePhase == GAME_PHASE_NORMAL);
+  ASSERT(gameControllerData.gamePhase == GAME_PHASE_NORMAL || gameControllerData.gamePhase == GAME_PHASE_EXTRA_TIME);
   if(gameControllerData.state == STATE_INITIAL)
   {
     ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
@@ -765,6 +1028,8 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::setupOwnPenaltyKick : GameState::setupOpponentPenaltyKick;
+    else if(!hasKickingTeam)
+      return GameState::setupDroppedBall;
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
@@ -775,6 +1040,8 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::waitForOwnPenaltyKick : GameState::waitForOpponentPenaltyKick;
+    else if(!hasKickingTeam)
+      return GameState::waitForDroppedBall;
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
@@ -785,9 +1052,12 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
   {
     if(gameControllerData.setPlay == SET_PLAY_PENALTY_KICK)
       return isKickingTeam ? GameState::ownPenaltyKick : GameState::opponentPenaltyKick;
-    else if(gameControllerData.setPlay == SET_PLAY_PUSHING_FREE_KICK)
-      return isKickingTeam ? GameState::ownPushingFreeKick : GameState::opponentPushingFreeKick;
-    else if(gameControllerData.setPlay == SET_PLAY_KICK_IN)
+    else if(gameControllerData.setPlay == SET_PLAY_DIRECT_FREE_KICK ||
+            gameControllerData.setPlay == SET_PLAY_INDIRECT_FREE_KICK)
+      return gameControllerData.setPlay == SET_PLAY_DIRECT_FREE_KICK ?
+             (isKickingTeam ? GameState::ownDirectFreeKick : GameState::opponentDirectFreeKick) :
+             (isKickingTeam ? GameState::ownIndirectFreeKick : GameState::opponentIndirectFreeKick);
+    else if(gameControllerData.setPlay == SET_PLAY_THROW_IN)
       return isKickingTeam ? GameState::ownKickIn : GameState::opponentKickIn;
     else if(gameControllerData.setPlay == SET_PLAY_GOAL_KICK)
       return isKickingTeam ? GameState::ownGoalKick : GameState::opponentGoalKick;
@@ -796,7 +1066,7 @@ GameState::State GameStateProvider::convertGameControllerDataToState(const GameC
     else
     {
       ASSERT(gameControllerData.setPlay == SET_PLAY_NONE);
-      if(gameControllerData.secondaryTime > 0)
+      if(gameControllerData.secondaryTime > 0 && hasKickingTeam)
       {
         // The GameController doesn't explicitly have a state for this in the network messages,
         // but a secondaryTime != 0 can only happen during kick-off. This only happens when the
@@ -824,26 +1094,29 @@ GameState::PlayerState GameStateProvider::convertPenaltyToPlayerState(decltype(R
   {
     case PENALTY_MANUAL:
       return GameState::penalizedManual;
-    case PENALTY_SPL_ILLEGAL_BALL_CONTACT:
+    case PENALTY_BALL_HOLDING:
+    case PENALTY_PLAYING_WITH_ARMS_HANDS:
       return GameState::penalizedIllegalBallContact;
-    case PENALTY_SPL_PLAYER_PUSHING:
+    case PENALTY_PUSHING:
       return GameState::penalizedPlayerPushing;
-    case PENALTY_SPL_ILLEGAL_MOTION_IN_SET:
+    case PENALTY_MOTION_IN_SET:
       return GameState::penalizedIllegalMotionInSet;
-    case PENALTY_SPL_INACTIVE_PLAYER:
+    case PENALTY_MOTION_IN_STOP:
+      return GameState::penalizedIllegalMotionInStop;
+    case PENALTY_INCAPABLE_ROBOT:
       return GameState::penalizedInactivePlayer;
-    case PENALTY_SPL_ILLEGAL_POSITION:
+    case PENALTY_ILLEGAL_POSITIONING:
       return GameState::penalizedIllegalPosition;
-    case PENALTY_SPL_LEAVING_THE_FIELD:
+    case PENALTY_LEAVING_THE_FIELD:
       return GameState::penalizedLeavingTheField;
-    case PENALTY_SPL_REQUEST_FOR_PICKUP:
+    case PENALTY_PICK_UP:
       return GameState::penalizedRequestForPickup;
-    case PENALTY_SPL_LOCAL_GAME_STUCK:
+    case PENALTY_LOCAL_GAME_STUCK:
       return GameState::penalizedLocalGameStuck;
-    case PENALTY_SPL_ILLEGAL_POSITION_IN_SET:
-      return GameState::penalizedIllegalPositionInSet;
-    case PENALTY_SPL_PLAYER_STANCE:
+    case PENALTY_CAUTIONED:
       return GameState::penalizedPlayerStance;
+    case PENALTY_SENT_OFF:
+      return GameState::sentOff;
     case PENALTY_SUBSTITUTE:
       return GameState::substitute;
     case PENALTY_NONE:

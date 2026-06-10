@@ -67,7 +67,8 @@ bool SetupPosesProvider::updateRobotOrder()
   std::vector<int> currentRobotOrder;
   for(unsigned long i=0; i<theGameState.ownTeam.playerStates.size(); i++)
   {
-    if(theGameState.ownTeam.playerStates[i] != GameState::substitute)
+    if(theGameState.ownTeam.playerStates[i] != GameState::substitute &&
+       theGameState.ownTeam.playerStates[i] != GameState::sentOff)
       currentRobotOrder.push_back(static_cast<int>(i)+1);
   }
   if(currentRobotOrder != robotOrderFromGC)

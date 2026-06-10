@@ -53,6 +53,8 @@ option(PenaltyTaker)
 
   common_transition
   {
+    if(theMotionInfo.lastKickTimestamp > theGameState.timeWhenStateStarted)
+      goto waitAfterKick;
     if(timeSincePenaltyShootoutStarted > 5000 && !theFieldBall.ballWasSeen(5000))
       goto goBehindPenaltyMark;
   }
@@ -167,6 +169,16 @@ option(PenaltyTaker)
                            .speed = {theBehaviorParameters.penaltyStrikerWalkSpeed, theBehaviorParameters.penaltyStrikerWalkSpeed, theBehaviorParameters.penaltyStrikerWalkSpeed},
                            .rough = true,
                            .disableObstacleAvoidance = true});
+    }
+  }
+
+  state(waitAfterKick)
+  {
+    action
+    {
+      theLookActiveSkill({.withBall = true,
+                          .onlyOwnBall = true});
+      theStandSkill({.high = true});
     }
   }
 }
