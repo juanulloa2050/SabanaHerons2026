@@ -1,7 +1,7 @@
 {
   "format": "onnx",
   "obs_size_input": 26,
-  "obs_size_env": 41,
+  "obs_size_env": 26,
   "obs_size_model_trained": 26,
   "skill_order": [
     "stand",
@@ -19,10 +19,9 @@
     "dribble",
     "shoot"
   ],
-  "checkpoint": "/home/SRAUS/Desktop/Semillero/RL/runs/production_stability_repair_v1/checkpoint_stage4_step5000.pt",
+  "checkpoint": "/home/rafael/Documentos/Robocup2026/RL/runs/production_stability_repair_v1/checkpoint_stage4_step5000.pt",
   "checkpoint_sha256": "1d35ea8aaa2bba46d8864216274c9dfd0f56bdd5a34ce5ffdbe4a084c732e6f1",
-  "onnx_sha256": "7d5b783e569ab01e00cbd3f2e9ab5a871444002a8a857974115d6a46bafed5d5",
-  "export_commit": "ed8ffdc",
+  "onnx_sha256": "beb98d845c7a1c89f16fe1cbc05d22b165e6bf811e0972ed793d8ac65b8fc88b",
   "normalization_contract": "ppo_obs_v26_hsl2026",
   "deterministic": true
 }

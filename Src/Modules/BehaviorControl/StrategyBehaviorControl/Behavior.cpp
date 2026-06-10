@@ -24,18 +24,7 @@
 #include "Streaming/InExpr.h"
 #include <algorithm>
 #include <functional>
-#include <iostream>
 #include <random>
-
-namespace
-{
-  bool isKickRelatedState(const GameState& gameState)
-  {
-    return gameState.isKickOff() ||
-           gameState.isPenaltyKick() ||
-           gameState.isFreeKick();
-  }
-}
 
 Behavior::Behavior(const BallDropInModel& theBallDropInModel, const ExtendedGameState& theExtendedGameState, const FieldBall& theFieldBall, const FieldDimensions& theFieldDimensions,
                    const FrameInfo& theFrameInfo, const GameState& theGameState, const TeammatesBallModel& theTeammatesBallModel) :
@@ -533,82 +522,9 @@ SkillRequest Behavior::update(Strategy::Type strategy, Agent& self, std::vector<
 
 void Behavior::logKickDecision(Strategy::Type strategy, const Agent& self, const std::vector<Agent>& agents)
 {
-  const bool relevant = isKickRelatedState(theGameState);
-  if(!relevant)
-  {
-    if(lastLoggedKickRelevant)
-    {
-      std::cout << "[KickLog] end"
-                << " t=" << theFrameInfo.time
-                << " player=" << self.number
-                << " previousState=" << TypeRegistry::getEnumName(lastLoggedKickState)
-                << std::endl;
-      lastLoggedKickRelevant = false;
-    }
-    return;
-  }
-
-  const bool changed = !lastLoggedKickRelevant ||
-                       lastLoggedKickState != theGameState.state ||
-                       lastLoggedProposedSetPlay != self.proposedSetPlay ||
-                       lastLoggedAcceptedSetPlay != self.acceptedSetPlay ||
-                       lastLoggedAcceptedTactic != self.acceptedTactic ||
-                       lastLoggedPosition != self.position ||
-                       lastLoggedRole != self.role ||
-                       lastLoggedSetPlayStep != self.setPlayStep ||
-                       lastLoggedMirror != self.acceptedMirror;
-  if(!changed)
-    return;
-
-  const SetPlay* acceptedSetPlay = self.acceptedSetPlay != SetPlay::none && setPlays[self.acceptedSetPlay] ? setPlays[self.acceptedSetPlay] : nullptr;
-  const Tactic::Position::Type startPosition = acceptedSetPlay ? Tactic::Position::mirrorIf(acceptedSetPlay->startPosition, self.acceptedMirror) : Tactic::Position::none;
-  int startPlayer = -1;
-  int playBallPlayer = -1;
-  for(const Agent& agent : agents)
-  {
-    if(agent.position == startPosition)
-      startPlayer = agent.number;
-    if(agent.role == ActiveRole::toRole(ActiveRole::playBall))
-      playBallPlayer = agent.number;
-  }
-
-  std::cout << "[KickLog]"
-            << " t=" << theFrameInfo.time
-            << " player=" << self.number
-            << " state=" << TypeRegistry::getEnumName(theGameState.state)
-            << " own=" << (theGameState.isForOwnTeam() ? "yes" : "no")
-            << " strategy=" << TypeRegistry::getEnumName(strategy)
-            << " proposed=" << TypeRegistry::getEnumName(self.proposedSetPlay)
-            << " accepted=" << TypeRegistry::getEnumName(self.acceptedSetPlay)
-            << " step=" << self.setPlayStep
-            << " tactic=" << TypeRegistry::getEnumName(self.acceptedTactic)
-            << " pos=" << TypeRegistry::getEnumName(self.position)
-            << " role=" << TypeRegistry::getEnumName(self.role)
-            << " mirror=" << (self.acceptedMirror ? "yes" : "no")
-            << " startPos=" << TypeRegistry::getEnumName(startPosition)
-            << " startPlayer=" << startPlayer
-            << " playBallPlayer=" << playBallPlayer
-            << " ball=(" << theFieldBall.recentBallPositionOnField(8000).x() << "," << theFieldBall.recentBallPositionOnField(8000).y() << ")"
-            << " ballSeen=" << (theFieldBall.ballWasSeen(8000) ? "yes" : "no")
-            << " teammatesBall=" << (theTeammatesBallModel.isValid ? "yes" : "no")
-            << " agents=";
-  for(const Agent& agent : agents)
-    std::cout << " #" << agent.number
-              << ":" << TypeRegistry::getEnumName(agent.position)
-              << "/" << TypeRegistry::getEnumName(agent.role)
-              << "/" << TypeRegistry::getEnumName(agent.proposedSetPlay)
-              << "/" << TypeRegistry::getEnumName(agent.acceptedSetPlay);
-  std::cout << std::endl;
-
-  lastLoggedKickRelevant = true;
-  lastLoggedKickState = theGameState.state;
-  lastLoggedProposedSetPlay = self.proposedSetPlay;
-  lastLoggedAcceptedSetPlay = self.acceptedSetPlay;
-  lastLoggedAcceptedTactic = self.acceptedTactic;
-  lastLoggedPosition = self.position;
-  lastLoggedRole = self.role;
-  lastLoggedSetPlayStep = self.setPlayStep;
-  lastLoggedMirror = self.acceptedMirror;
+  static_cast<void>(strategy);
+  static_cast<void>(self);
+  static_cast<void>(agents);
 }
 
 void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::vector<Agent>& agents, bool dontChangePositions, bool& proposedMirror, bool& acceptedMirror) const

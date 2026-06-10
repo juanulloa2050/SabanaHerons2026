@@ -170,16 +170,6 @@ private:
 
   std::unordered_map<float, BallXTimestamps> ballXTimestamps;
 
-  bool lastLoggedKickRelevant = false;
-  GameState::State lastLoggedKickState = GameState::beforeHalf;
-  SetPlay::Type lastLoggedProposedSetPlay = SetPlay::none;
-  SetPlay::Type lastLoggedAcceptedSetPlay = SetPlay::none;
-  Tactic::Type lastLoggedAcceptedTactic = Tactic::none;
-  Tactic::Position::Type lastLoggedPosition = Tactic::Position::none;
-  Role::Type lastLoggedRole = Role::none;
-  int lastLoggedSetPlayStep = -2;
-  bool lastLoggedMirror = false;
-
   const BallDropInModel& theBallDropInModel;
   const ExtendedGameState& theExtendedGameState;
   const FieldBall& theFieldBall;
