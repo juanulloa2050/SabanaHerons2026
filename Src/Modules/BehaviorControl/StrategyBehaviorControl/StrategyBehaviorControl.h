@@ -15,6 +15,7 @@
 #include "Libs/RL/PPOSkillGate.h"
 #include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
 #include "Representations/Communication/ReceivedTeamMessages.h"
@@ -57,6 +58,7 @@ MODULE(StrategyBehaviorControl,
   REQUIRES(ObstacleModel),
   REQUIRES(ReceivedTeamMessages),
   REQUIRES(RobotPose),
+  REQUIRES(RestartBallSearchContext),
   REQUIRES(SentTeamMessage),
   REQUIRES(SetupPoses),
   REQUIRES(TeamData),
