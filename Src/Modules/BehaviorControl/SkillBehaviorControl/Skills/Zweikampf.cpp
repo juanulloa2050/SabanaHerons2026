@@ -764,7 +764,10 @@ class ZweikampfImpl : public ZweikampfImplBase
       {
         Vector2f i1(0.f, 0.f);
         Vector2f i2(0.f, 0.f);
-        VERIFY(Geometry::getIntersectionPointsOfLineAndRectangle(-opponentHalfFrontLeft, opponentHalfFrontLeft, Geometry::Line(useBallPositionInField, Vector2f(1.f, 0.f).rotated(kickAngle + theRobotPose.rotation)), i1, i2));
+        const Geometry::Line kickLine(useBallPositionInField, Vector2f(1.f, 0.f).rotated(kickAngle + theRobotPose.rotation));
+        if(!useBallPositionInField.allFinite() || !kickLine.direction.allFinite() ||
+           !Geometry::getIntersectionPointsOfLineAndRectangle(-opponentHalfFrontLeft, opponentHalfFrontLeft, kickLine, i1, i2))
+          continue;
         const Vector2f ballToIntersection1 = i1 - useBallPositionInField;
         const Vector2f ballToIntersection2 = i2 - useBallPositionInField;
         // the 5_degs is just a arbitrary number, because the angle to the intersection point is only for a small fraction different to the original kickAngle, resulting from rounding erros.
@@ -1139,7 +1142,10 @@ class ZweikampfImpl : public ZweikampfImplBase
       Angle changeableMin = min;
       Angle changeableMax = max;
       const Angle kickAngleInField = Angle::normalize(kickAngleToCheck);
-      VERIFY(Geometry::getIntersectionPointsOfLineAndRectangle(-opponentHalfFrontLeft, opponentHalfFrontLeft, Geometry::Line(fieldPointClipped, Vector2f(1.f, 0.f).rotated(kickAngleInField)), i1, i2));
+      const Geometry::Line kickLine(fieldPointClipped, Vector2f(1.f, 0.f).rotated(kickAngleInField));
+      if(!fieldPointClipped.allFinite() || !kickLine.direction.allFinite() ||
+         !Geometry::getIntersectionPointsOfLineAndRectangle(-opponentHalfFrontLeft, opponentHalfFrontLeft, kickLine, i1, i2))
+        return;
       const Vector2f ballToIntersection2 = i2 - fieldPoint;
       Vector2f& intersection = i1;
       // the 5_degs is just a arbitrary number, because the angle to the intersection point is only for a small fraction different to the original kickAngle, resulting from rounding erros.
