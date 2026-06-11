@@ -162,7 +162,7 @@ const char* ppoSkillName(const int skillIndex)
 
 StrategyBehaviorControl::StrategyBehaviorControl() :
   theBehavior(theBallDropInModel, theExtendedGameState, theFieldBall, theFieldDimensions, theFrameInfo,
-              theGameState, theTeammatesBallModel)
+              theGameState, theRestartBallSearchContext, theTeammatesBallModel)
 {}
 
 std::vector<ModuleBase::Info> StrategyBehaviorControl::getExtModuleInfo()
