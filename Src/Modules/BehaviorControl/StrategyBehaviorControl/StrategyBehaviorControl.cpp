@@ -508,7 +508,7 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 
   skillRequest = ppoActionDecoder.decode(rawObservation, selectedSkill, output.paramMean);
   logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded PPO controlling skill requests");
-  logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits);
+  logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits, output.paramMean, skillRequest);
   ppoInferErrorReported = false;
   return true;
 }
@@ -596,7 +596,9 @@ void StrategyBehaviorControl::logEmbeddedPPODecisionIfChanged(
   const int skillIndex,
   const RL::PPOGateDecision& gateDecision,
   const RL::PPOGateObservation& rawObservation,
-  const std::array<float, RL::ppoSkillCount>& maskedLogits)
+  const std::array<float, RL::ppoSkillCount>& maskedLogits,
+  const std::array<float, RL::ppoParamCount>& paramMean,
+  const SkillRequest& skillRequest)
 {
   const bool sameDecision = lastLoggedEmbeddedPPOSkillIndex == skillIndex &&
                             lastLoggedEmbeddedPPOShootArmed == gateDecision.shootArmed &&
@@ -640,6 +642,8 @@ void StrategyBehaviorControl::logEmbeddedPPODecisionIfChanged(
   const auto walkLogit = maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)];
   const auto shootLogit = maskedLogits[static_cast<std::size_t>(RL::SkillType::shoot)];
   const auto dribbleLogit = maskedLogits[static_cast<std::size_t>(RL::SkillType::dribble)];
+  const Pose2f rawRobotPose(rawObservation.robotTheta, rawObservation.robotX, rawObservation.robotY);
+  const Pose2f targetRelative = rawRobotPose.inverse() * skillRequest.target;
 
   OUTPUT_WARNING("[RL] Embedded PPO action"
                  << " player=" << theGameState.playerNumber
@@ -660,7 +664,15 @@ void StrategyBehaviorControl::logEmbeddedPPODecisionIfChanged(
                  << " shEnter=" << static_cast<int>(shootEnter)
                  << " shHold=" << static_cast<int>(shootHold)
                  << " logits[s,w,d,sh]="
-                 << standLogit << "," << walkLogit << "," << dribbleLogit << "," << shootLogit);
+                 << standLogit << "," << walkLogit << "," << dribbleLogit << "," << shootLogit
+                 << " params[x,y,th,p]="
+                 << paramMean[0] << "," << paramMean[1] << "," << paramMean[2] << "," << paramMean[3]
+                 << " targetAbs[x,y,th]="
+                 << skillRequest.target.translation.x() << "," << skillRequest.target.translation.y() << ","
+                 << static_cast<float>(skillRequest.target.rotation)
+                 << " targetRel[x,y,th]="
+                 << targetRelative.translation.x() << "," << targetRelative.translation.y() << ","
+                 << static_cast<float>(targetRelative.rotation));
 
   lastLoggedEmbeddedPPOSkillIndex = skillIndex;
   lastLoggedEmbeddedPPOShootArmed = gateDecision.shootArmed;
