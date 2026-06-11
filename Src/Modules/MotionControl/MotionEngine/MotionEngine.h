@@ -53,6 +53,7 @@
 #include "Representations/MotionControl/WalkToPoseGenerator.h"
 #include "Representations/MotionControl/WalkToBallAndKickGenerator.h"
 #include "Representations/Sensing/FallDownState.h"
+#include "Representations/Sensing/GroundContactState.h"
 #include "Representations/Sensing/GyroOffset.h"
 #include "Representations/Sensing/InertialData.h"
 #include "Representations/Sensing/JointPlay.h"
@@ -75,6 +76,7 @@ MODULE(MotionEngine,
   REQUIRES(FallGenerator),
   REQUIRES(FrameInfo),
   REQUIRES(GetUpGenerator),
+  REQUIRES(GroundContactState),
   REQUIRES(GyroOffset),
   REQUIRES(HeadMotionGenerator),
   REQUIRES(HeadMotionRequest),

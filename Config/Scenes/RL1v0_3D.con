@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Start the RL scene directly in play so the SkillRequest produced by
+# RLSkillProvider is executed by the normal B-Human skill pipeline.
+gc playing

@@ -73,7 +73,9 @@ if(MACOS)
   set(BUILD_NAO ON)
   set(CMAKE_XCODE_ATTRIBUTE_CC "${CMAKE_CURRENT_SOURCE_DIR}/../../Util/Buildchain/macOS/bin/compile")
 elseif(LINUX)
-  set(CMAKE_CXX_COMPILER_LAUNCHER env CCACHE_CPP2=yes CCACHE_SLOPPINESS=pch_defines,time_macros "ccache")
+  set(CCACHE_TEMPDIR "${CMAKE_BINARY_DIR}/.ccache-tmp")
+  file(MAKE_DIRECTORY "${CCACHE_TEMPDIR}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER env CCACHE_CPP2=yes CCACHE_SLOPPINESS=pch_defines,time_macros CCACHE_TEMPDIR=${CCACHE_TEMPDIR} "ccache")
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -206,6 +208,10 @@ if(BUILD_DESKTOP)
         set_target_properties(GTest::GTest PROPERTIES INTERFACE_LINK_OPTIONS -no-pie)
       endif()
     endif()
+  endif()
+
+  if(PYTHON_ONLY)
+    include("${SIMROBOT_PREFIX}/Make/CMake/Qt6.cmake")
   endif()
 
   if(MACOS)
@@ -370,7 +376,10 @@ if(BUILD_DESKTOP)
   if(ARM)
     target_include_directories(CompiledNN::ONNX SYSTEM INTERFACE "${BHUMAN_PREFIX}/Util/CompiledNN2ONNX/arm64/include")
 
-    add_library(asmjit INTERFACE)
+    add_library(asmjit INTERFACE
+        ../../Src/Representations/Infrastructure/ResourceStats.h
+        ../../Src/Modules/Infrastructure/ResourceMonitor/ResourceMonitor.cpp
+        ../../Src/Modules/Infrastructure/ResourceMonitor/ResourceMonitor.h)
     target_include_directories(asmjit SYSTEM INTERFACE "${BHUMAN_PREFIX}/Util/CompiledNN2ONNX/arm64/include")
   endif()
 endif()

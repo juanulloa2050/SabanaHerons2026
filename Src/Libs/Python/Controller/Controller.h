@@ -10,6 +10,7 @@
 
 #include "PythonRobot.h"
 #include "Framework/Settings.h"
+#include "Representations/Infrastructure/GroundTruthWorldState.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -43,6 +44,9 @@ public:
    * @param scenario The scenario in the configuration file search path.
    */
   void addPlayer(const std::string& name, int teamNumber, Settings::TeamColor fieldPlayerColor, Settings::TeamColor goalkeeperColor, int playerNumber, const std::string& location, const std::string& scenario);
+
+  /** Injects world state into a robot before the next update(). robotIndex is 0-based. */
+  void setWorldState(int robotIndex, const GroundTruthWorldState& ws);
 
 private:
   std::vector<std::unique_ptr<PythonRobot>> robots; /**< List of registered robots. */

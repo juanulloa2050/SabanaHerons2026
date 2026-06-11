@@ -11,6 +11,7 @@
 #include "PythonConsole.h"
 #include "Framework/Debug.h"
 #include "Framework/Robot.h"
+#include "Representations/Infrastructure/GroundTruthWorldState.h"
 #include <string>
 
 class PythonRobot : public Robot
@@ -23,7 +24,7 @@ public:
    */
   PythonRobot(const Settings& settings, const std::string& name) :
     Robot(settings, name),
-    console(new PythonConsole(settings, name, static_cast<Debug*>(front())))
+    console(new PythonConsole(settings, name, static_cast<Debug*>(front()), settings.playerNumber))
   {
     push_back(console);
   }
@@ -32,6 +33,11 @@ public:
   void update()
   {
     console->update();
+  }
+
+  void setWorldState(const GroundTruthWorldState& ws)
+  {
+    console->setWorldState(ws);
   }
 
 private:

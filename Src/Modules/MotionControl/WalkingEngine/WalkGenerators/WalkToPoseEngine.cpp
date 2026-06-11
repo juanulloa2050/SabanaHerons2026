@@ -10,6 +10,9 @@
 #include "WalkToPoseEngine.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Math/BHMath.h"
+#include "Python/Controller/RLSharedState.h"
+#include "Framework/Settings.h"
+#include "Streaming/Global.h"
 #include "Tools/Motion/WalkUtilities.h"
 #include "Tools/Motion/Transformation.h"
 
@@ -192,6 +195,39 @@ std::unique_ptr<MotionPhase> WalkToPoseEngine::createPhase(const Pose2f& targetI
      (targetInSCS.translation - step.translation).x() / useReferenceMaxForwardStep < reduceForwardStepLowerThreshold)
   {
     step.translation.x() *= reduceForwardStepUpperThreshold;
+  }
+
+  if(RLSharedStateBridge::isEnabledForTeam(Global::getSettings().teamNumber))
+  {
+    const int playerNumber = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
+    io.lock();
+    ++io.debugWalkToPoseCallCount;
+    io.debugWalkToPoseTargetX = targetInSCS.translation.x();
+    io.debugWalkToPoseTargetY = targetInSCS.translation.y();
+    io.debugWalkToPoseTargetTheta = static_cast<float>(targetInSCS.rotation);
+    io.debugWalkToPoseStepX = step.translation.x();
+    io.debugWalkToPoseStepY = step.translation.y();
+    io.debugWalkToPoseStepTheta = static_cast<float>(step.rotation);
+    io.debugWalkToPoseAvoidanceX = obstacleAvoidanceInSCS.avoidance.x();
+    io.debugWalkToPoseAvoidanceY = obstacleAvoidanceInSCS.avoidance.y();
+    io.debugWalkToPosePathCount = static_cast<int>(obstacleAvoidanceInSCS.path.size());
+    if(!obstacleAvoidanceInSCS.path.empty())
+    {
+      const auto& firstSegment = obstacleAvoidanceInSCS.path.front();
+      io.debugWalkToPoseFirstObstacleX = firstSegment.obstacle.center.x();
+      io.debugWalkToPoseFirstObstacleY = firstSegment.obstacle.center.y();
+      io.debugWalkToPoseFirstObstacleRadius = firstSegment.obstacle.radius;
+      io.debugWalkToPoseFirstObstacleClockwise = firstSegment.clockwise;
+    }
+    else
+    {
+      io.debugWalkToPoseFirstObstacleX = 0.f;
+      io.debugWalkToPoseFirstObstacleY = 0.f;
+      io.debugWalkToPoseFirstObstacleRadius = 0.f;
+      io.debugWalkToPoseFirstObstacleClockwise = false;
+    }
+    io.unlock();
   }
 
   return theWalkGenerator.createPhase(step, lastPhase, 0.f);

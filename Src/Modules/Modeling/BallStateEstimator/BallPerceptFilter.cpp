@@ -19,7 +19,9 @@
 
 #include "BallPerceptFilter.h"
 #include "Debugging/Annotation.h"
+#include "Streaming/Output.h"
 #include "Tools/Modeling/BallLocatorTools.h"
+#include <iostream>
 
 MAKE_MODULE(BallPerceptFilter);
 
@@ -65,17 +67,40 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
 
   // Do some first checks
   if(theBallPercept.status == BallPercept::notSeen)
+  {
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+      OUTPUT_TEXT("[BallPerceptFilter] No ball percept this frame");
     return;
+  }
   if(perceptCanBeExcludedByLocalization() ||
      perceptIsInsideTeammateAndCanBeExcludedByTeamBall() ||
      (disableBallInOtherHalfForTesting && perceptIsInOtherHalf()))
+  {
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+      OUTPUT_TEXT("[BallPerceptFilter] Percept EXCLUDED | status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | reason: localization/teammate/otherHalf");
+    ANNOTATION("BallPerceptFilter", "EXCLUDED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm");
+    {
+      static unsigned lastExcludedLogTime = 0;
+      if(theFrameInfo.time - lastExcludedLogTime > 2000)
+      {
+        lastExcludedLogTime = theFrameInfo.time;
+        std::cout << "[BallPerceptFilter] EXCLUDED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed")
+                  << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << ","
+                  << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm" << std::endl;
+      }
+    }
     return;
+  }
 
   // If we have reached this part of the code, the ball percept contains information
   // that might be useful and that can be used for some computations.
   const FilteredBallPercept fbp(theBallPercept.positionInImage, theBallPercept.positionOnField,
                                 theBallPercept.covarianceOnField, theBallPercept.radiusOnField, theFrameInfo.time);
   bufferedBalls.push_front(fbp);
+
+  DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+
+    OUTPUT_TEXT("[BallPerceptFilter] Processing percept: status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | dist=" << theBallPercept.positionOnField.norm() << "mm | bufferedSeen=" << static_cast<unsigned>(bufferedSeenBalls.size()) << " bufferedAll=" << static_cast<unsigned>(bufferedBalls.size()));
 
   // Analyze new percept
   if(theBallPercept.status == BallPercept::seen ||  // The ball was seen and the perceptor seems to be quite sure.
@@ -94,14 +119,24 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
       bufferedSeenBalls.push_front(fbp);
 
     if(!ballCanBeUsed)
+    {
+      DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+        OUTPUT_TEXT("[BallPerceptFilter] Seen ball failed verification (not enough consistent nearby percepts)");
+      ANNOTATION("BallPerceptFilter", "VERIFY_FAIL fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm bufferedSeen=" << static_cast<unsigned>(bufferedSeenBalls.size()));
       return;
+    }
 
     // If we saw a ball in the lower camera recently, we ignore far away balls in the upper camera for a while.
     // However, these balls are still buffered.
     if(theCameraInfo.camera == CameraInfo::upper &&
        theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) < farBallIgnoreTimeout &&
        theBallPercept.positionOnField.norm() > farBallIgnoreDistance)
+    {
+      DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+        OUTPUT_TEXT("[BallPerceptFilter] Far ball in upper camera ignored (dist=" << theBallPercept.positionOnField.norm() << "mm > " << farBallIgnoreDistance << "mm, lower cam seen " << theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) << "ms ago)");
+      ANNOTATION("BallPerceptFilter", "FAR_IGNORED dist=" << static_cast<int>(theBallPercept.positionOnField.norm()) << "mm lowerSeen=" << theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) << "ms ago");
       return;
+    }
 
     if(theBallPercept.status == BallPercept::seen)
       filteredBallPercepts.percepts.push_back(bufferedSeenBalls[0]);
@@ -121,6 +156,22 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
 
     // Save point of time of last percept transmission
     timeOfLastFilteredPercept = theFrameInfo.time;
+
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+
+      OUTPUT_TEXT("[BallPerceptFilter] ACCEPTED: " << static_cast<unsigned>(filteredBallPercepts.percepts.size()) << " percept(s) passed to estimator | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ")");
+    ANNOTATION("BallPerceptFilter", "ACCEPTED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm dist=" << static_cast<int>(theBallPercept.positionOnField.norm()) << "mm percepts=" << static_cast<unsigned>(filteredBallPercepts.percepts.size()));
+    {
+      static unsigned lastAcceptedLogTime = 0;
+      if(theFrameInfo.time - lastAcceptedLogTime > 2000)
+      {
+        lastAcceptedLogTime = theFrameInfo.time;
+        std::cout << "[BallPerceptFilter] ACCEPTED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed")
+                  << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << ","
+                  << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm"
+                  << " dist=" << static_cast<int>(theBallPercept.positionOnField.norm()) << "mm" << std::endl;
+      }
+    }
 
     // Update timestamp, if the ball was seen in the lower camera:
     if(theCameraInfo.camera == CameraInfo::lower)

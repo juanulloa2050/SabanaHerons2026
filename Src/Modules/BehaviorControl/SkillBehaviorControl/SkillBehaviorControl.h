@@ -11,6 +11,7 @@
 #include "Libs/Math/Random.h"
 #include "Representations/BehaviorControl/ActivationGraph.h"
 #include "Representations/BehaviorControl/BehaviorStatus.h"
+#include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/GoaliePose.h"
 #include "Representations/BehaviorControl/IllegalAreas.h"
@@ -47,6 +48,7 @@
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
+#include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"
 #include "Framework/Module.h"
 #include "Platform/SystemCall.h"
@@ -71,6 +73,7 @@ MODULE(SkillBehaviorControl,
   REQUIRES(DamageConfigurationBody),
   REQUIRES(EnhancedKeyStates),
   REQUIRES(ExtendedGameState),
+  REQUIRES(ExpectedGoals),
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
   REQUIRES(FrameInfo),
@@ -175,6 +178,11 @@ private:
   void executeRequest();
 
   unsigned timeWhenAnnouncedEmptySkillRequest = 0; /**< The last time when the robot said that its skill request is empty. */
+  unsigned lastReportedKickTimestamp = 0; /**< The most recent kick timestamp published via BehaviorStatus. */
+  bool lastReportedKickWasOutsideCenterCircle = false; /**< Whether the most recent published kick was taken outside the center circle. */
+  unsigned lastAnnouncedOwnRestartStateStarted = 0; /**< Game state start timestamp for the last own restart executor announcement. */
+  SetPlay::Type lastAnnouncedOwnRestartSetPlay = SetPlay::none; /**< Set play for the last own restart executor announcement. */
+  int lastAnnouncedOwnRestartPlayer = -1; /**< Player number for the last own restart executor announcement. */
 
   ArmMotionRequest theArmMotionRequest; /**< The arm motion request that is modified by the behavior. */
   BehaviorStatus theBehaviorStatus; /**< The behavior status that is modified by the behavior. */
@@ -199,6 +207,7 @@ private:
 #include "Options/HandlePhotoMode.h"
 #include "Options/HandlePhysicalRobot.h"
 #include "Options/HandlePlayerState.h"
+#include "Options/HandleRLRequest.h"
 #include "Options/HandleRefereeSignal.h"
 #include "Options/HandleReplayWalk.h"
 #include "Options/HandleStrikerLostBall.h"

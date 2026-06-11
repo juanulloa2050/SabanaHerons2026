@@ -12,6 +12,8 @@ option(HandleGameState)
       goto playing;
     else if(theGameState.isFinished())
       goto finished;
+    else if(theGameState.state == GameState::stopped)
+      goto stopped;
     FAIL("Unknown game state.");
   }
 
@@ -81,6 +83,15 @@ option(HandleGameState)
     {
       theLookForwardSkill();
       theStandSkill();
+    }
+  }
+
+  state(stopped)
+  {
+    action
+    {
+      theLookForwardSkill();
+      theStandSkill({.high = true});
     }
   }
 }

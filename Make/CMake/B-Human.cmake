@@ -1,10 +1,14 @@
 set(BHUMAN_ROOT_DIR "${BHUMAN_PREFIX}/Src")
 
 file(GLOB_RECURSE BHUMAN_SOURCES CONFIGURE_DEPENDS
+    "${BHUMAN_ROOT_DIR}/Libs/RL/*.cpp" "${BHUMAN_ROOT_DIR}/Libs/RL/*.h"
     "${BHUMAN_ROOT_DIR}/Modules/*.cpp" "${BHUMAN_ROOT_DIR}/Modules/*.h"
     "${BHUMAN_ROOT_DIR}/Representations/*.cpp" "${BHUMAN_ROOT_DIR}/Representations/*.h"
     "${BHUMAN_ROOT_DIR}/Threads/*.cpp" "${BHUMAN_ROOT_DIR}/Threads/*.h"
     "${BHUMAN_ROOT_DIR}/Tools/*.cpp" "${BHUMAN_ROOT_DIR}/Tools/*.h")
+list(APPEND BHUMAN_SOURCES
+    "${BHUMAN_ROOT_DIR}/Libs/Python/Controller/RLSharedState.cpp"
+    "${BHUMAN_ROOT_DIR}/Libs/Python/Controller/RLSharedState.h")
 
 file(GLOB BHUMAN_OPTIMIZED_SOURCES CONFIGURE_DEPENDS
     "${BHUMAN_ROOT_DIR}/Tools/Math/*.cpp" "${BHUMAN_ROOT_DIR}/Tools/Math/*.h"

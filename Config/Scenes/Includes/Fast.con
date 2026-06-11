@@ -40,11 +40,12 @@ mr OtherOdometryData off
 mr AlternativeRobotPoseHypothesis off
 mr AutoExposureWeightTable off
 mr BallContactChecker off
-mr BallPercept off
+for Lower Upper mr BallPercept OracledPerceptsProvider
 mr BallSpots off
 mr BodyContour off
 mr CameraCalibrationStatus off
 mr CameraImage off
+mr CameraStream off
 mr CameraIntrinsics off
 mr CameraResolutionRequest off
 mr CenterCircleWithLine off
@@ -68,6 +69,7 @@ mr PenaltyMarkPercept off
 mr PenaltyMarkRegions off
 mr PenaltyMarkWithPenaltyAreaLine off
 mr PerceptRegistration off
+mr RawBallPatch off
 mr RelativeFieldColors off
 mr ScanGrid off
 mr SegmentedObstacleImage off

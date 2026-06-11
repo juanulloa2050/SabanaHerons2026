@@ -1,0 +1,63 @@
+<Simulation>
+
+  <Include href="Includes/2D.rsi2d"/>
+
+  <Scene name="RoboCup" controller="SimulatedNao" stepLength="0.01666666s" background="Textures/field.svg">
+    <Compound ref="field"/>
+
+    <Compound name="teams">
+      <Compound name="Herons">
+        <Compound name="24"/>
+        <Compound name="black"/>
+        <Compound name="black"/>
+      </Compound>
+      <Compound name="Opponents">
+        <Compound name="70"/>
+        <Compound name="red"/>
+        <Compound name="blue"/>
+      </Compound>
+    </Compound>
+
+    <Compound name="location">
+      <Compound name="field_e"/>
+    </Compound>
+
+    <Compound name="scenarios">
+      <Compound name="4v4_RL2D"/>
+    </Compound>
+
+    <Compound name="robots">
+      <Body ref="player" name="robot1">
+        <Set name="playerColor" value="rgb(0,0,0)"/>
+        <Translation x="0.9" y="0.0"/>
+        <Rotation angle="180degree"/>
+      </Body>
+      <Body ref="player" name="robot2">
+        <Set name="playerColor" value="rgb(0,0,0)"/>
+        <Translation x="0.4" y="0.7"/>
+        <Rotation angle="180degree"/>
+      </Body>
+      <Body ref="player" name="robot3">
+        <Set name="playerColor" value="rgb(0,0,0)"/>
+        <Translation x="0.4" y="-0.7"/>
+        <Rotation angle="180degree"/>
+      </Body>
+      <Body ref="player" name="robot21">
+        <Set name="playerColor" value="rgb(255,0,0)"/>
+        <Translation x="-0.9" y="0.5"/>
+        <Rotation angle="0degree"/>
+      </Body>
+      <Body ref="player" name="robot22">
+        <Set name="playerColor" value="rgb(255,0,0)"/>
+        <Translation x="-0.9" y="-0.5"/>
+        <Rotation angle="0degree"/>
+      </Body>
+    </Compound>
+
+    <Compound name="extras"/>
+
+    <Compound name="balls">
+      <Body ref="ball"/>
+    </Compound>
+  </Scene>
+</Simulation>

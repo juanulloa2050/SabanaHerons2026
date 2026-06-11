@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Diagnostic variant: obstacle is a full Nao body instead of NaoDummy, while
+# keeping ObstacleModelProvider.minPercepts low through field_e_obstacle_diag.
+gc playing

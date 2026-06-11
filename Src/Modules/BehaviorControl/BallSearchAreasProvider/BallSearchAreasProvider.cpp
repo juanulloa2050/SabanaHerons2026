@@ -138,8 +138,10 @@ const Vector2f BallSearchAreasProvider::positionCellToSearchNext(std::vector<Bal
 
   for(auto& cell : gridToSearch)
   {
-    // Saves the cell with the highest search score, which is calculatet by: If the difference between the timestamp of the cell and the timestamp of the cameraframe multiplied by the priority (evaluation of how long a cell has not been seen multiplied by the importance of the cell in the current gamestate) is higher than the stored value, replace the stored cell.
-    if(((theFrameInfo.time - cell.timestamp) + 1) * cell.priority > ((theFrameInfo.time - nextSearchCell.timestamp) + 1) * nextSearchCell.priority)
+    // Saves the cell with the highest search score. The score is based on
+    // how long a cell has not been seen, its game-state priority, and a
+    // boost around the remembered team-ball position.
+    if(searchScore(cell) > searchScore(nextSearchCell))
     {
       nextSearchCell = cell;
     }
@@ -147,6 +149,17 @@ const Vector2f BallSearchAreasProvider::positionCellToSearchNext(std::vector<Bal
   const Vector2f positionCellToSearchNext = nextSearchCell.positionOnField;
   CROSS("module:BallSearchAreasProvider:nextSearch", positionCellToSearchNext.x(), positionCellToSearchNext.y(), 100, 20, Drawings::solidPen, ColorRGBA::violet);
   return positionCellToSearchNext;
+}
+
+float BallSearchAreasProvider::searchScore(const BallSearchAreas::Cell& cell) const
+{
+  float score = static_cast<float>(((theFrameInfo.time - cell.timestamp) + 1) * cell.priority);
+  if(theTeammatesBallModel.isValid &&
+     (cell.positionOnField - theTeammatesBallModel.position).squaredNorm() <= sqr(teamBallSearchRadius))
+  {
+    score *= teamBallPriorityBoost;
+  }
+  return score;
 }
 
 std::list<SectorWheel::Sector> BallSearchAreasProvider::calculateObstacleSectors() const
