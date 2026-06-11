@@ -147,7 +147,9 @@ private:
     int skillIndex,
     const RL::PPOGateDecision& gateDecision,
     const RL::PPOGateObservation& rawObservation,
-    const std::array<float, RL::ppoSkillCount>& maskedLogits);
+    const std::array<float, RL::ppoSkillCount>& maskedLogits,
+    const std::array<float, RL::ppoParamCount>& paramMean,
+    const SkillRequest& skillRequest);
   void resetEmbeddedPPO();
 
   Behavior theBehavior; /**< The instance of the behavior. */
