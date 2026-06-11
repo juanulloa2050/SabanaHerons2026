@@ -132,8 +132,11 @@ void CameraStreamer::acceptClients()
     // Disable Nagle: send small headers + large JPEG payload without delay
     int flag = 1;
     ::setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-    // Set send timeout so a slow/dead client doesn't block the camera thread
-    struct timeval tv{ .tv_sec = 1, .tv_usec = 0 };
+    // Set send timeout so a slow/dead client doesn't block the camera thread.
+    // Must stay well below MotionEngine's emergencySitDownDelay (3 s): the
+    // sends run in the camera thread, and a stalled client would otherwise
+    // freeze frames long enough to trigger the "I'm blind" sit-down.
+    struct timeval tv{ .tv_sec = 0, .tv_usec = 100000 };
     ::setsockopt(clientFd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     clients.push_back(clientFd);

@@ -185,7 +185,9 @@ void YoloBallDetector::inferenceLoop()
       std::unique_lock<std::mutex> lk(frameMtx);
       frameCV.wait(lk, [this]{ return frameReady || !bgRunning; });
       if(!bgRunning) break;
-      localBuf          = frameBuf;
+      // Swap instead of copy: keeps the lock-hold time O(1) so the camera
+      // thread is never stalled behind a megabyte memcpy.
+      std::swap(localBuf, frameBuf);
       localW            = frameW;
       localH            = frameH;
       localCameraInfo   = frameCameraInfo;
