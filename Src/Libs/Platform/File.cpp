@@ -235,7 +235,10 @@ const char* File::getBHDir()
         if(stat(dir, &buff) == 0)
           if(S_ISDIR(buff.st_mode))
           {
-            end[end > dir ? 0 : 1] = '\0';
+            if(end < dir)
+              strcpy(dir, ".");   // Config is in CWD — return "." as BHDir
+            else
+              end[0] = '\0';
             return dir;
           }
       }

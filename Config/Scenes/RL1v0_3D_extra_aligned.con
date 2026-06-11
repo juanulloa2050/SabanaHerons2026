@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Start directly in play so the RL skill path is active without needing a
+# manual gamestate transition.
+gc playing

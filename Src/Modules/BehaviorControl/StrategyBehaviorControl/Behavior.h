@@ -104,6 +104,9 @@ private:
    */
   [[nodiscard]] bool checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vector<Agent>& agents, bool wasSelected = false) const;
 
+  /** Logs set play decisions for kick-related game states. */
+  void logKickDecision(Strategy::Type strategy, const Agent& self, const std::vector<Agent>& agents);
+
   /** Updates \c ballXTimestamps. */
   void updateBallXTimestamps();
 

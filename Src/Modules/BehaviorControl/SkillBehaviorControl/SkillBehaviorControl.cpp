@@ -7,10 +7,107 @@
  */
 
 #include "SkillBehaviorControl.h"
+#include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"
+#include <cmath>
+#include <cstdlib>
+#include <limits>
 #include <string>
 
 MAKE_MODULE(SkillBehaviorControl, SkillBehaviorControl::getExtModuleInfo);
+
+namespace
+{
+  struct ObstacleSummary
+  {
+    int count = 0;
+    int teammateCount = 0;
+    int opponentCount = 0;
+    int uncertainCount = 0;
+    int frontCount = 0;
+    float nearestTeammate = std::numeric_limits<float>::max();
+    float nearestOpponent = std::numeric_limits<float>::max();
+    float nearestUncertain = std::numeric_limits<float>::max();
+    float nearestTeammateFront = std::numeric_limits<float>::max();
+    float nearestOpponentFront = std::numeric_limits<float>::max();
+    float nearestUncertainFront = std::numeric_limits<float>::max();
+    float nearestObstacle = std::numeric_limits<float>::max();
+    float nearestObstacleAngle = 0.f;
+    float nearestFrontObstacle = std::numeric_limits<float>::max();
+    float nearestOpponentAngle = 0.f;
+  };
+
+  enum class RLObsExportMode
+  {
+    estimated = 0,
+    corrected = 1,
+  };
+
+  RLObsExportMode getRLObsExportMode()
+  {
+    const char* value = std::getenv("PYBH_RL_OBS_MODE");
+    if(!value || !value[0])
+      return RLObsExportMode::corrected;
+    const std::string mode(value);
+    return mode == "estimated" ? RLObsExportMode::estimated : RLObsExportMode::corrected;
+  }
+
+  void updateNearest(float distance, bool isFront, float& nearest, float& nearestFront)
+  {
+    if(distance < nearest)
+      nearest = distance;
+    if(isFront && distance < nearestFront)
+      nearestFront = distance;
+  }
+
+  ObstacleSummary summarizeObstacles(const ObstacleModel& obstacleModel)
+  {
+    ObstacleSummary summary;
+    for(const Obstacle& obstacle : obstacleModel.obstacles)
+    {
+      ++summary.count;
+      const float distance = obstacle.center.norm();
+      const bool isFront = obstacle.center.x() > 0.f;
+      const float angle = std::atan2(obstacle.center.y(), obstacle.center.x());
+      if(distance < summary.nearestObstacle)
+      {
+        summary.nearestObstacle = distance;
+        summary.nearestObstacleAngle = angle;
+      }
+      if(isFront)
+      {
+        ++summary.frontCount;
+        if(distance < summary.nearestFrontObstacle)
+          summary.nearestFrontObstacle = distance;
+      }
+      if(obstacle.isTeammate())
+      {
+        ++summary.teammateCount;
+        updateNearest(distance, isFront, summary.nearestTeammate, summary.nearestTeammateFront);
+      }
+      else if(obstacle.isOpponent())
+      {
+        ++summary.opponentCount;
+        if(distance < summary.nearestOpponent)
+          summary.nearestOpponentAngle = angle;
+        updateNearest(distance, isFront, summary.nearestOpponent, summary.nearestOpponentFront);
+      }
+      else
+      {
+        ++summary.uncertainCount;
+        updateNearest(distance, isFront, summary.nearestUncertain, summary.nearestUncertainFront);
+      }
+    }
+    return summary;
+  }
+
+  float boundedDistance(float value, const FieldDimensions& fieldDimensions)
+  {
+    if(value == std::numeric_limits<float>::max())
+      return fieldDimensions.xPosOpponentGroundLine * 2.f;
+    return value;
+  }
+}
 
 SkillBehaviorControl::SkillBehaviorControl() :
   Cabsl<SkillBehaviorControl>(const_cast<ActivationGraph*>(&theActivationGraph)),
@@ -28,7 +125,18 @@ void SkillBehaviorControl::update(ActivationGraph&)
 {
   DECLARE_DEBUG_RESPONSE("option:HandleRefereeSignal:now");
 
+  if(theMotionInfo.lastKickTimestamp > lastReportedKickTimestamp)
+  {
+    lastReportedKickTimestamp = theMotionInfo.lastKickTimestamp;
+    const float centerCircleRadius = theFieldDimensions.centerCircleRadius +
+                                     theFieldDimensions.fieldLinesWidth * 0.5f +
+                                     theBallSpecification.radius;
+    lastReportedKickWasOutsideCenterCircle = theFieldBall.positionOnField.squaredNorm() >= sqr(centerCircleRadius);
+  }
+
   theBehaviorStatus.calibrationFinished = false;
+  theBehaviorStatus.lastKickTimestamp = lastReportedKickTimestamp;
+  theBehaviorStatus.lastKickWasOutsideCenterCircle = lastReportedKickWasOutsideCenterCircle;
   theBehaviorStatus.passTarget = -1;
   theBehaviorStatus.passOrigin = -1;
   theBehaviorStatus.walkingTo = Vector2f::Zero();
@@ -86,10 +194,211 @@ void SkillBehaviorControl::update(ActivationGraph&)
   theSkillRegistry.preProcess(theFrameInfo.time);
   beginFrame(theFrameInfo.time);
 
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    io.lock();
+    io.debugZweikampfActive = false;
+    io.unlock();
+  }
+
   PlaySoccer();
+
+  const auto ownRestartName = [this]() -> const char*
+  {
+    if(theGameState.isKickIn())
+      return "kick in";
+    if(theGameState.isGoalKick())
+      return "goal kick";
+    if(theGameState.isCornerKick())
+      return "corner kick";
+    if(theGameState.state == GameState::ownDirectFreeKick || theGameState.state == GameState::ownPushingFreeKick)
+      return "direct free kick";
+    if(theGameState.state == GameState::ownIndirectFreeKick)
+      return "indirect free kick";
+    if(theGameState.isPenaltyKick())
+      return "penalty kick";
+    if(theGameState.isKickOff())
+      return "kick off";
+    return "restart";
+  };
+
+  const bool isOwnRestart = theGameState.isForOwnTeam() &&
+                            (theGameState.isKickOff() || theGameState.isPenaltyKick() || theGameState.isFreeKick());
+  const bool isSetPlayExecutor = isOwnRestart &&
+                                 theStrategyStatus.acceptedSetPlay != SetPlay::none &&
+                                 theStrategyStatus.setPlayStep >= 0 &&
+                                 (theStrategyStatus.role == ActiveRole::toRole(ActiveRole::startSetPlay) ||
+                                  theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall));
+
+  if(isSetPlayExecutor &&
+     (lastAnnouncedOwnRestartStateStarted != theGameState.timeWhenStateStarted ||
+      lastAnnouncedOwnRestartSetPlay != theStrategyStatus.acceptedSetPlay ||
+      lastAnnouncedOwnRestartPlayer != theGameState.playerNumber))
+  {
+    const std::string announcement = "I am executing " + std::string(ownRestartName()) + " player " +
+                                     std::to_string(theGameState.playerNumber);
+    SystemCall::say(announcement.c_str());
+    lastAnnouncedOwnRestartStateStarted = theGameState.timeWhenStateStarted;
+    lastAnnouncedOwnRestartSetPlay = theStrategyStatus.acceptedSetPlay;
+    lastAnnouncedOwnRestartPlayer = theGameState.playerNumber;
+  }
 
   endFrame();
   theSkillRegistry.postProcess();
+
+  if(RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number))
+  {
+    const int n = theGameState.playerNumber > 0 ? theGameState.playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(n);
+    bool postObs = false;
+    io.lock();
+    io.debugSkillBehaviorSkillRequest = static_cast<int>(theSkillRequest.skill);
+    io.debugSkillBehaviorMotionRequest = static_cast<int>(theMotionRequest.motion);
+    ++io.debugSkillBehaviorCallCount;
+    io.debugSkillBehaviorWalkTargetX = theMotionRequest.walkTarget.translation.x();
+    io.debugSkillBehaviorWalkTargetY = theMotionRequest.walkTarget.translation.y();
+    io.debugSkillBehaviorWalkTargetTheta = static_cast<float>(theMotionRequest.walkTarget.rotation);
+    io.debugMotionObstacleAvoidanceX = theMotionRequest.obstacleAvoidance.avoidance.x();
+    io.debugMotionObstacleAvoidanceY = theMotionRequest.obstacleAvoidance.avoidance.y();
+    io.debugMotionObstaclePathCount = static_cast<int>(theMotionRequest.obstacleAvoidance.path.size());
+    if(!theMotionRequest.obstacleAvoidance.path.empty())
+    {
+      const auto& firstSegment = theMotionRequest.obstacleAvoidance.path.front();
+      io.debugMotionObstacleFirstX = firstSegment.obstacle.center.x();
+      io.debugMotionObstacleFirstY = firstSegment.obstacle.center.y();
+      io.debugMotionObstacleFirstRadius = firstSegment.obstacle.radius;
+      io.debugMotionObstacleFirstClockwise = firstSegment.clockwise;
+    }
+    else
+    {
+      io.debugMotionObstacleFirstX = 0.f;
+      io.debugMotionObstacleFirstY = 0.f;
+      io.debugMotionObstacleFirstRadius = 0.f;
+      io.debugMotionObstacleFirstClockwise = false;
+    }
+    const Vector2f ballOnField = theFieldBall.positionOnField;
+    const Vector2f ballRelative = theFieldBall.positionRelative;
+    const Vector2f ballEndOnField = theFieldBall.endPositionOnField;
+    const Vector2f ballEndRelative = theFieldBall.endPositionRelative;
+    const Vector2f ballVelocity = theBallModel.estimate.velocity;
+    const ObstacleSummary obstacleSummary = summarizeObstacles(theObstacleModel);
+
+    const RLObsExportMode obsExportMode = getRLObsExportMode();
+    const float estimatedRobotX = theRobotPose.translation.x();
+    const float estimatedRobotY = theRobotPose.translation.y();
+    const float estimatedRobotTheta = static_cast<float>(theRobotPose.rotation);
+    const float estimatedBallX = ballOnField.x();
+    const float estimatedBallY = ballOnField.y();
+    float exportedRobotX = estimatedRobotX;
+    float exportedRobotY = estimatedRobotY;
+    float exportedRobotTheta = estimatedRobotTheta;
+    float exportedBallX = estimatedBallX;
+    float exportedBallY = estimatedBallY;
+    Vector2f exportedBallRelative = ballRelative;
+    Vector2f exportedBallEndRelative = ballEndRelative;
+    float exportedTimeSinceBallSeen = static_cast<float>(theFieldBall.timeSinceBallWasSeen);
+    float exportedTimeSinceBallDisappeared = static_cast<float>(theFieldBall.timeSinceBallDisappeared);
+    float exportedBallSeenPercentage = static_cast<float>(theBallModel.seenPercentage);
+    bool exportedBallConsistent = theFieldBall.ballPositionConsistentWithGameState;
+    const float naturalTimeSinceBallSeen = exportedTimeSinceBallSeen;
+    const float naturalBallSeenPercentage = exportedBallSeenPercentage;
+    const bool naturalBallConsistent = exportedBallConsistent;
+    bool correctedRobotPose = false;
+    bool correctedBall = false;
+    int ballExportSource = 0; // 0=estimated, 1=reset fallback, 2=dynamic fallback
+
+    const float simPoseError = std::hypot(estimatedRobotX - io.simRobotX, estimatedRobotY - io.simRobotY);
+    if(obsExportMode == RLObsExportMode::corrected && simPoseError > 500.f)
+    {
+      exportedRobotX = io.simRobotX;
+      exportedRobotY = io.simRobotY;
+      exportedRobotTheta = io.simRobotTheta;
+      correctedRobotPose = true;
+    }
+
+    const bool staleBall = theBallModel.seenPercentage <= 0.f && theFieldBall.timeSinceBallWasSeen > 1000;
+    if(obsExportMode == RLObsExportMode::corrected && staleBall)
+    {
+      exportedBallX = io.dynamicHasBall ? io.dynamicBallX : io.resetBallX;
+      exportedBallY = io.dynamicHasBall ? io.dynamicBallY : io.resetBallY;
+      exportedTimeSinceBallSeen = 0.f;
+      exportedTimeSinceBallDisappeared = 0.f;
+      exportedBallSeenPercentage = 100.f;
+      exportedBallConsistent = true;
+      correctedBall = true;
+      ballExportSource = io.dynamicHasBall ? 2 : 1;
+    }
+
+    const Pose2f exportedRobotPose(exportedRobotTheta, exportedRobotX, exportedRobotY);
+    if(correctedRobotPose || correctedBall)
+    {
+      const Vector2f exportedBallOnField(exportedBallX, exportedBallY);
+      exportedBallRelative = exportedRobotPose.inverse() * exportedBallOnField;
+      exportedBallEndRelative = correctedBall
+                                   ? exportedBallRelative
+                                   : exportedRobotPose.inverse() * ballEndOnField;
+    }
+
+    const Vector2f exportedBallOnField(exportedBallX, exportedBallY);
+    const float exportedShotQualityNoObstacles = theExpectedGoals.xG ? theExpectedGoals.xG(exportedBallOnField) : 0.f;
+    const float exportedShotOpeningWithObstacles = theExpectedGoals.getRating ? theExpectedGoals.getRating(exportedBallOnField) : 0.f;
+
+    io.ballX = exportedBallX;
+    io.ballY = exportedBallY;
+    io.robotX = exportedRobotX;
+    io.robotY = exportedRobotY;
+    io.robotTheta = exportedRobotTheta;
+    io.estimatedBallX = estimatedBallX;
+    io.estimatedBallY = estimatedBallY;
+    io.estimatedRobotX = estimatedRobotX;
+    io.estimatedRobotY = estimatedRobotY;
+    io.estimatedRobotTheta = estimatedRobotTheta;
+    io.ballRelX = exportedBallRelative.x();
+    io.ballRelY = exportedBallRelative.y();
+    io.ballEndRelX = exportedBallEndRelative.x();
+    io.ballEndRelY = exportedBallEndRelative.y();
+    io.obsExportMode = static_cast<int>(obsExportMode);
+    io.correctedExportedRobotPose = correctedRobotPose;
+    io.correctedExportedBall = correctedBall;
+    io.ballExportSource = ballExportSource;
+    io.ballExportFresh = !correctedBall;
+    io.naturalTimeSinceBallSeen = naturalTimeSinceBallSeen;
+    io.naturalBallSeenPercentage = naturalBallSeenPercentage;
+    io.naturalBallConsistentWithGameState = naturalBallConsistent;
+    io.ballVelX = ballVelocity.x();
+    io.ballVelY = ballVelocity.y();
+    io.timeSinceBallSeen = exportedTimeSinceBallSeen;
+    io.timeSinceBallDisappeared = exportedTimeSinceBallDisappeared;
+    io.ballSeenPercentage = exportedBallSeenPercentage;
+    io.ballConsistentWithGameState = exportedBallConsistent;
+    io.canScoreNow = exportedShotOpeningWithObstacles > 0.8f;
+    io.shotQualityNoObstacles = exportedShotQualityNoObstacles;
+    io.shotOpeningWithObstacles = exportedShotOpeningWithObstacles;
+    io.passOptionsCount = static_cast<float>(theTeamData.teammates.size());
+    io.nearestTeammateDist = boundedDistance(obstacleSummary.nearestTeammate, theFieldDimensions);
+    io.nearestOpponentDist = boundedDistance(obstacleSummary.nearestOpponent, theFieldDimensions);
+    io.nearestUncertainObstacleDist = boundedDistance(obstacleSummary.nearestUncertain, theFieldDimensions);
+    io.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, theFieldDimensions);
+    io.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, theFieldDimensions);
+    io.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, theFieldDimensions);
+    io.debugObstacleCount = obstacleSummary.count;
+    io.debugObstacleTeammateCount = obstacleSummary.teammateCount;
+    io.debugObstacleOpponentCount = obstacleSummary.opponentCount;
+    io.debugObstacleUncertainCount = obstacleSummary.uncertainCount;
+    io.debugObstacleFrontCount = obstacleSummary.frontCount;
+    io.debugNearestObstacleDist = boundedDistance(obstacleSummary.nearestObstacle, theFieldDimensions);
+    io.debugNearestObstacleAngle = obstacleSummary.nearestObstacleAngle;
+    io.debugNearestFrontObstacleDist = boundedDistance(obstacleSummary.nearestFrontObstacle, theFieldDimensions);
+    io.debugNearestOpponentAngle = obstacleSummary.nearestOpponentAngle;
+    io.frame = theFrameInfo.time;
+    io.obsReady = true;
+    postObs = true;
+    io.unlock();
+    if(postObs)
+      io.postObs();
+  }
 
   theLibCheck.performCheck();
 }
@@ -132,11 +441,13 @@ void SkillBehaviorControl::executeRequest()
       case SkillRequest::walk:
       {
         const Pose2f targetPose = theRobotPose.inverse() * theSkillRequest.target;
+        const bool rlTeamUsesObstacleAvoidance = RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number);
+        const bool goalkeeperMode = theGameState.isGoalkeeper() && !rlTeamUsesObstacleAvoidance;
         if((theFieldBall.ballWasSeen(7000) || theTeammatesBallModel.isValid) && theFieldBall.isBallPositionConsistentWithGameState())
         {
           theWalkToPointObstacleSkill({.target = theRobotPose.inverse() * theSkillRequest.target,
-                                       .rough = theGameState.isGoalkeeper(),
-                                       .disableObstacleAvoidance = theGameState.isGoalkeeper(),
+                                       .rough = goalkeeperMode,
+                                       .disableObstacleAvoidance = goalkeeperMode,
                                        .targetOfInterest = theFieldBall.recentBallPositionRelative()}); // TODO: set the right parameters and occasionally use WalkPotentialField
           if(theMotionInfo.isMotion(MotionPhase::stand))
             theLookActiveSkill({.withBall = true});
@@ -148,8 +459,8 @@ void SkillBehaviorControl::executeRequest()
         else
         {
           theWalkToPointObstacleSkill({.target = theRobotPose.inverse() * theSkillRequest.target,
-                                       .rough = theGameState.isGoalkeeper(),
-                                       .disableObstacleAvoidance = theGameState.isGoalkeeper()}); // TODO: set the right parameters and occasionally use WalkPotentialField
+                                       .rough = goalkeeperMode,
+                                       .disableObstacleAvoidance = goalkeeperMode}); // TODO: set the right parameters and occasionally use WalkPotentialField
           theLookActiveSkill({.withBall = true});
         }
         break;

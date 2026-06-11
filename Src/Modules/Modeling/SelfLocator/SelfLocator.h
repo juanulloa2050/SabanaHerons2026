@@ -51,7 +51,6 @@ MODULE(SelfLocator,
   REQUIRES(WorldModelPrediction),
   REQUIRES(SetupPoses),
   REQUIRES(StaticInitialPose),
-  REQUIRES(GroundTruthRobotPose),
   PROVIDES(RobotPose),
   PROVIDES(SelfLocalizationHypotheses),
   LOADS_PARAMETERS(
@@ -108,7 +107,6 @@ private:
   float averageWeighting;                       /**< The average of the weightings of all samples in the sample set */
   unsigned lastAlternativePoseTimestamp;        /**< Last time an alternative pose was valid */
   bool validitiesHaveBeenUpdated;               /**< Flag that indicates that the validities of the samples have been changed this frame */
-  Pose2f lastGroundTruthRobotPose;              /**< Remember ground truth of last frame */
 
   int sumOfPerceivedLandmarks;                  /**< Statistics: Sum up number of all perceived landmarks */
   int sumOfPerceivedLines;                      /**< Statistics: Sum up number of all perceived lines */
@@ -143,13 +141,6 @@ private:
    * @return true, if a sample has been replaced
    */
   bool sensorResetting(const RobotPose& robotPose);
-
-  /** Special function for testing (currently only working in simulation).
-   *  Whenever the ground truth robot pose has changed to a certain extent, the samples are
-   *  reinitializes at the new pose. This allows easier testing by moving the robot around without waiting
-   *  for it to relocalize at the new pose.
-   */
-  void resetSamplesToGroundTruth();
 
   /** Some motions lead to low-quality percepts, as the camera pose cannot be computed precisely enough.
    *  This functions performs the necessary checks.

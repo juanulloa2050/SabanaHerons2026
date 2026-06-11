@@ -44,16 +44,6 @@
         <Translation x="0" y="-3"/>
         <Rotation angle="-90degree"/>
       </Body>
-      <Body ref="player" name="robot6">
-        <Set name="playerColor" value="rgb(0,0,0)"/>
-        <Translation x="3" y="-2"/>
-        <Rotation angle="-90degree"/>
-      </Body>
-      <Body ref="player" name="robot7">
-        <Set name="playerColor" value="rgb(0,0,0)"/>
-        <Translation x="2" y="-2"/>
-        <Rotation angle="-90degree"/>
-      </Body>
     </Compound>
 
     <Compound name="extras">

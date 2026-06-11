@@ -1,5 +1,5 @@
 /**
- * @file Keypoints.h
+* @file Keypoints.h
  *
  * This file declares a representation that represents the output of the
  * keypoint detector, i.e. pixel positions and confidences of 17 different

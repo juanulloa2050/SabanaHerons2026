@@ -1,0 +1,13 @@
+call Includes/RLNatural
+
+# Camera image rate for visible training mode.
+# imageDelay = (2000/30 + 1) >> 1 = 33 ms sim time (~3 physics steps).
+# BallPerceptor and SelfLocator still run on real rendered images; only the
+# render frequency drops to 30 fps sim-time (~2x less than default 60 fps).
+# ci 15 (67ms) caused obs_timeout_ms=1000 failures; ci 30 is the safe minimum.
+# Do NOT use this .con for embedded/headless mode — ci activates calculateImage
+# which requires a working OpenGL context.
+ci 30
+
+# Start in play so RLSkillProvider's SkillRequest enters the normal pipeline.
+gc playing

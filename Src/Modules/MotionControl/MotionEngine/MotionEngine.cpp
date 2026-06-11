@@ -12,6 +12,9 @@
 #include "Debugging/Debugging.h"
 #include "Math/BHMath.h"
 #include "Math/Rotation.h"
+#include "Python/Controller/RLSharedState.h"
+#include "Framework/Settings.h"
+#include "Streaming/Global.h"
 #include "Tools/Motion/MotionUtilities.h"
 
 MAKE_MODULE(MotionEngine);
@@ -86,6 +89,7 @@ void MotionEngine::update(JointRequest& jointRequest)
   lastCognitionTime = oldestBehaviorTimestamp;
 
   // Integrate special cases into the motion request.
+  const MotionRequest requestedMotion = theMotionRequest;
   MotionRequest motionRequest = theMotionRequest;
   if(forceSitDown)
     motionRequest.motion = MotionRequest::playDead;
@@ -231,6 +235,31 @@ void MotionEngine::update(JointRequest& jointRequest)
 
   // Set this unused timestamp.
   jointRequest.timestamp = theFrameInfo.time;
+
+  if(RLSharedStateBridge::isEnabledForTeam(Global::getSettings().teamNumber))
+  {
+    const int playerNumber = Global::getSettings().playerNumber > 0 ? Global::getSettings().playerNumber : 1;
+    RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
+    io.lock();
+    io.debugMotionEngineInputRequest = static_cast<int>(requestedMotion.motion);
+    io.debugMotionEngineEffectiveRequest = static_cast<int>(motionRequest.motion);
+    io.debugMotionEnginePhase = static_cast<int>(phase->type);
+    io.debugMotionEngineForceSitDown = forceSitDown;
+    io.debugMotionEngineGyroOffsetFinished = theGyroOffset.offsetCheckFinished;
+    io.debugMotionEngineGyroBad = theGyroOffset.isIMUBad;
+    io.debugMotionEngineInertialAngleX = static_cast<float>(theInertialData.angle.x());
+    io.debugMotionEngineInertialAngleY = static_cast<float>(theInertialData.angle.y());
+    io.debugMotionEngineFallState = static_cast<int>(theFallDownState.state);
+    io.debugMotionEngineGroundContact = theGroundContactState.contact;
+    io.debugLHipPitch = jointRequest.angles[Joints::lHipPitch];
+    io.debugLKneePitch = jointRequest.angles[Joints::lKneePitch];
+    io.debugRHipPitch = jointRequest.angles[Joints::rHipPitch];
+    io.debugRKneePitch = jointRequest.angles[Joints::rKneePitch];
+    for(std::size_t i = 0; i < io.motionJointAngles.size() && i < Joints::numOfJoints; ++i)
+      io.motionJointAngles[i] = jointRequest.angles[static_cast<Joints::Joint>(i)];
+    io.motionJointRequestValid = true;
+    io.unlock();
+  }
 
   // Construct odometry update for this frame.
   if(theFallDownState.state == FallDownState::falling || theFallDownState.state == FallDownState::fallen)

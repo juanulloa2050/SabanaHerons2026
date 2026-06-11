@@ -1,0 +1,5 @@
+call Includes/2D
+
+# Start the RL scene directly in play so Motion can execute the requests
+# produced from RLSkillProvider without depending on manual console input.
+gc playing

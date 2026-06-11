@@ -68,6 +68,7 @@ class WalkToBallAndKickEngine : public WalkToBallAndKickEngineBase
   bool lastPhaseWasKick = false; /**< Was last motion phase a kick phase? */
   bool lastPhaseWasKickPossible = false; /**< Last phase the kick was possible. */
   bool ignoreBallTimestamp = false;
+  bool ignoreBallOdometry = false; /**< Treat externally injected ball positions as relative to the current pose. */
   Vector2f lastStableBall = Vector2f(0.f, 0.f);
 
   OdometryDataPreview lastOdometry;

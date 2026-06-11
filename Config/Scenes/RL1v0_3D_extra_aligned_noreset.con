@@ -1,0 +1,5 @@
+call Includes/RLNatural
+
+# Start directly in play and keep the scene-authored positions. Use this
+# together with --no-reset from the probe.
+gc playing

@@ -22,14 +22,14 @@ void FrictionLearner::update(DummyRepresentation&)
     if(balls.size() >= minObservations + offset)
       determineFrictionCoefficient();
     else
-      OUTPUT_TEXT("Not enough observations (" << static_cast<int>(balls.size()) << "/" << static_cast<int>(minObservations + offset) << ")");
+      {} // OUTPUT_TEXT removed: "Not enough observations" - contaminated ball detection logs
     balls.clear();
   }
 }
 
 void FrictionLearner::determineFrictionCoefficient()
 {
-  OUTPUT_TEXT("Computing ball friction coefficient! Num of percepts: " << static_cast<int>(balls.size()));
+  // OUTPUT_TEXT removed: "Computing ball friction coefficient" - contaminated ball detection logs
   Eigen::MatrixX4f A((balls.size() - offset) * 2, 4);
   Eigen::VectorXf  z((balls.size() - offset) * 2);
   unsigned int t0 = balls[0].time;
@@ -53,10 +53,9 @@ void FrictionLearner::determineFrictionCoefficient()
   }
   Vector4f x;
   x = (A.transpose() * A).inverse() * A.transpose() * z;
-  OUTPUT_TEXT("Result:  v=(" << x(0) << "," << x(1) << ")   a=(" << x(2) << "," << x(3) << ")   abs(a)=" << std::sqrt(x(2) * x(2) + x(3) * x(3)));
+  // OUTPUT_TEXT removed: friction result - contaminated ball detection logs
 
   // Compute residuals and print error on console:
   Eigen::VectorXf residuals = A * x - z;
-  float meanError = residuals.norm() / std::sqrt(static_cast<float>(balls.size() - offset));
-  OUTPUT_TEXT("Mean error: " << meanError * 1000.f << " mm");
+  static_cast<void>(residuals); // residuals computed but OUTPUT_TEXT removed to avoid contaminating ball detection logs
 }

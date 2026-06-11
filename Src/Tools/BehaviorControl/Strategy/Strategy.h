@@ -26,6 +26,8 @@ STREAMABLE(Strategy,
     ataque,
     defensiva,
     Tortuga,
+    s3v3_full,
+    s4v4_full,
   });
 
   template<typename SetPlayType>

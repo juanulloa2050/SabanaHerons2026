@@ -16,12 +16,50 @@
 #include "Representations/Infrastructure/SensorData/FsrSensorData.h"
 #include "Representations/Infrastructure/SensorData/InertialSensorData.h"
 #include "Representations/Infrastructure/SensorData/JointSensorData.h"
+#include "Representations/MotionControl/MotionInfo.h"
+#include "Representations/MotionControl/MotionRequest.h"
 #include "ImageProcessing/ColorModelConversions.h"
 #include "ImageProcessing/AVX.h"
 #include "Math/Pose2f.h"
 #include "Math/Pose3f.h"
 #include "Streaming/InStreams.h"
 #include <SimRobotCore2.h>
+#include <algorithm>
+#include <cstdlib>
+
+namespace
+{
+bool isPyBHHeadless()
+{
+  return std::getenv("PYBH_SIMROBOT_HEADLESS") != nullptr;
+}
+
+bool usePyBHRLAbstractMotion()
+{
+  return std::getenv("PYBH_SIMROBOT_RL_ABSTRACT_MOTION") != nullptr;
+}
+
+Pose2f clampWalkStep(const Pose2f& target, float dt)
+{
+  constexpr float maxForwardSpeed = 300.f;
+  constexpr float maxBackwardSpeed = 180.f;
+  constexpr float maxSideSpeed = 220.f;
+  constexpr float maxTurnSpeed = 1.7453293f;
+
+  return Pose2f(
+    std::clamp(static_cast<float>(target.rotation), -maxTurnSpeed * dt, maxTurnSpeed * dt),
+    std::clamp(target.translation.x(), -maxBackwardSpeed * dt, maxForwardSpeed * dt),
+    std::clamp(target.translation.y(), -maxSideSpeed * dt, maxSideSpeed * dt)
+  );
+}
+
+Vector3f kickVelocity(float robotRotation, Angle targetDirection, float kickLength)
+{
+  const float speed = std::clamp(kickLength / 1400.f, 1.2f, 4.5f);
+  const float angle = robotRotation + targetDirection;
+  return Vector3f(std::cos(angle) * speed, std::sin(angle) * speed, 0.f);
+}
+}
 
 SimRobotCore2::SensorPort* SimulatedRobot3D::activeCameras[SimulatedRobot::robotsPerTeam * 2] = {nullptr};
 unsigned SimulatedRobot3D::activeCameraCount = 0;
@@ -135,6 +173,12 @@ void SimulatedRobot3D::getRobotPose(Pose2f& robotPose) const
   ASSERT(rightFoot && leftFoot);
 
   getPose2f(robot, robotPose);
+  if(isPyBHHeadless())
+  {
+    if(firstTeam)
+      robotPose = Pose2f(pi) + robotPose;
+    return;
+  }
   robotPose.translation = (getPosition(leftFoot) + getPosition(rightFoot)) * 0.5f;
 
   if(firstTeam)
@@ -314,7 +358,16 @@ void SimulatedRobot3D::getSensorData(FsrSensorData& fsrSensorData, InertialSenso
   ASSERT(robot);
 
   // FSR
-  if(leftFoot && rightFoot)
+  if(isPyBHHeadless())
+  {
+    FOREACH_ENUM(Legs::Leg, leg)
+    {
+      fsrSensorData.totals[leg] = 1.f;
+      FOREACH_ENUM(FsrSensors::FsrSensor, sensor)
+        fsrSensorData.pressures[leg][sensor] = 0.25f;
+    }
+  }
+  else if(leftFoot && rightFoot)
   {
     const SimRobot::Object* feet[Legs::numOfLegs] = {leftFoot, rightFoot};
     std::array<Vector2f, FsrSensors::numOfFsrSensors>* fsrPositions[Legs::numOfLegs] = {&robotDimensions.leftFsrPositions, &robotDimensions.rightFsrPositions};
@@ -375,8 +428,99 @@ void SimulatedRobot3D::getSensorData(FsrSensorData& fsrSensorData, InertialSenso
   }
 }
 
-void SimulatedRobot3D::getAndSetMotionData(const MotionRequest&, MotionInfo&)
-{}
+void SimulatedRobot3D::getAndSetMotionData(const MotionRequest& motionRequest, MotionInfo& motionInfo)
+{
+  if(!usePyBHRLAbstractMotion())
+    return;
+
+  const float dt = RoboCupCtrl::controller->simStepLength * 0.001f;
+  Pose2f robotPose;
+  getPose2f(robot, robotPose);
+  Pose3f robotPose3;
+  getPose3f(robot, robotPose3);
+
+  auto moveByLocalTarget = [&](const Pose2f& localTarget)
+  {
+    const Pose2f step = clampWalkStep(localTarget, dt);
+    const Vector2f nextTranslation = robotPose * step.translation;
+    const float nextRotation = Angle::normalize(robotPose.rotation + step.rotation);
+    moveRobot(
+      Vector3f(nextTranslation.x(), nextTranslation.y(), robotPose3.translation.z()),
+      Vector3f(0.f, 0.f, nextRotation),
+      true
+    );
+    static_cast<SimRobotCore2::Body*>(robot)->resetDynamics();
+    motionInfo.executedPhase = MotionPhase::walk;
+    motionInfo.isMotionStable = true;
+    motionInfo.speed = Pose2f(step.rotation / dt, step.translation / dt);
+  };
+
+  switch(motionRequest.motion)
+  {
+    case MotionRequest::playDead:
+      motionInfo.executedPhase = MotionPhase::playDead;
+      motionInfo.isMotionStable = false;
+      break;
+    case MotionRequest::stand:
+      motionInfo.executedPhase = MotionPhase::stand;
+      motionInfo.isMotionStable = true;
+      motionInfo.speed = Pose2f();
+      break;
+    case MotionRequest::walkAtAbsoluteSpeed:
+    case MotionRequest::walkAtRelativeSpeed:
+      moveByLocalTarget(Pose2f(motionRequest.walkSpeed.rotation * dt, motionRequest.walkSpeed.translation * dt));
+      break;
+    case MotionRequest::walkToPose:
+      moveByLocalTarget(motionRequest.walkTarget);
+      break;
+    case MotionRequest::dribble:
+    {
+      const Vector2f& ballTarget = motionRequest.ballEstimate.position;
+      Pose2f target(
+        motionRequest.targetDirection,
+        std::max(0.f, ballTarget.x() - 120.f),
+        ballTarget.y()
+      );
+      moveByLocalTarget(target);
+      motionInfo.isWalkPhaseInWalkKick = false;
+      break;
+    }
+    case MotionRequest::walkToBallAndKick:
+    {
+      const Vector2f& ballTarget = motionRequest.ballEstimate.position;
+      const bool readyToKick = ballTarget.x() > 80.f && ballTarget.x() < 220.f && std::abs(ballTarget.y()) < 120.f;
+      if(readyToKick && ball)
+      {
+        const Vector3f velocity = kickVelocity(
+          static_cast<float>(robotPose.rotation),
+          motionRequest.targetDirection,
+          motionRequest.kickLength > 0.f ? motionRequest.kickLength : 6000.f
+        );
+        RoboCupCtrl::controller->gameController.setLastBallContactRobot(robot);
+        static_cast<SimRobotCore2::Body*>(ball)->setVelocity(velocity.data());
+        motionInfo.executedPhase = MotionPhase::kick;
+        motionInfo.isMotionStable = true;
+        motionInfo.lastKickTimestamp = Time::getCurrentSystemTime();
+        motionInfo.lastKickType = motionRequest.kickType;
+      }
+      else
+      {
+        Pose2f target(
+          motionRequest.targetDirection,
+          std::max(0.f, ballTarget.x() - 140.f),
+          ballTarget.y()
+        );
+        moveByLocalTarget(target);
+        motionInfo.isWalkPhaseInWalkKick = true;
+      }
+      break;
+    }
+    default:
+      motionInfo.executedPhase = MotionPhase::stand;
+      motionInfo.isMotionStable = true;
+      break;
+  }
+}
 
 void SimulatedRobot3D::moveRobot(const Vector3f& pos, const Vector3f& rot, bool changeRotation)
 {

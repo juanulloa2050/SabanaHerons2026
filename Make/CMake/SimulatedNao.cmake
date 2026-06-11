@@ -44,7 +44,7 @@ target_link_libraries(SimulatedNao PRIVATE snappy::snappy)
 target_link_libraries(SimulatedNao PRIVATE Flags::Default)
 target_link_options(SimulatedNao PRIVATE $<${_is_msvc}:$<$<CONFIG:Develop>:/DEBUG>>)
 
-source_group(TREE "${SIMULATEDNAO_ROOT_DIR}" FILES ${SIMULATEDNAO_SOURCES})
+source_group(TREE "${BHUMAN_PREFIX}/Src/Libs" FILES ${SIMULATEDNAO_SOURCES})
 
 if(WINDOWS)
   add_custom_command(TARGET SimRobot POST_BUILD
