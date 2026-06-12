@@ -69,9 +69,13 @@ MODULE(StrategyBehaviorControl,
     (Strategy::Type) strategy, /**< The strategy to play. */
     (bool)(false) enableEmbeddedPPO, /**< Enable the embedded PPO policy override. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
+    (std::string)("striker") embeddedPPORole, /**< PPO role decoder: striker or defender. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOStrikerModelPath, /**< Striker PPO model for the dynamic playBall robot. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026_param_repair.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
+    (std::vector<int>) embeddedPPODefenderPlayers, /**< Player numbers that use the defender PPO when not assigned playBall. */
     (int)(0) embeddedPPOStandWatchdogMs, /**< Disable PPO or force walk if PPO stand dominates this time window. 0 disables. */
     (int)(3000) embeddedPPOStandWatchdogCooldownMs, /**< Time to keep PPO disabled after the stand watchdog fires. */
     (bool)(false) embeddedPPOStandWatchdogForceWalk, /**< If true, force walk instead of falling back to B-Human when the watchdog fires. */
@@ -98,6 +102,13 @@ private:
     embeddedWaiting,
     embeddedFallback,
     embeddedActive,
+  };
+
+  enum class EmbeddedPPORole
+  {
+    none,
+    striker,
+    defender,
   };
 
   /**
@@ -139,9 +150,12 @@ private:
 
   bool usesEmbeddedPPO(const GameState& gameState) const;
   std::string embeddedPPOStatusReason(const GameState& gameState) const;
-  std::string configuredEmbeddedPPOModelPath() const;
+  EmbeddedPPORole selectedEmbeddedPPORole(const GameState& gameState) const;
+  std::string configuredEmbeddedPPOModelPath(EmbeddedPPORole role) const;
   bool updateEmbeddedPPO(SkillRequest& skillRequest);
-  bool ensureEmbeddedPPOLoaded();
+  bool ensureEmbeddedPPOLoaded(EmbeddedPPORole role);
+  int selectDefenderPPOPassTarget() const;
+  bool shouldDefenderPPOEngageBall(const RL::PPOGateObservation& rawObservation) const;
   void logRLModeIfChanged(RLRuntimeMode mode, const std::string& reason);
   void logEmbeddedPPODecisionIfChanged(
     int skillIndex,
@@ -157,12 +171,16 @@ private:
   StrategyStatus theStrategyStatus; /**< The strategy status which is provided later. */
   RL::PPOSkillGate ppoSkillGate;
   RL::PPOObservationEncoder ppoObservationEncoder;
-  RL::PPOPolicyModel ppoPolicyModel;
+  RL::PPOPolicyModel strikerPPOPolicyModel;
+  RL::PPOPolicyModel defenderPPOPolicyModel;
   RL::PPOActionDecoder ppoActionDecoder;
-  bool ppoLoadAttempted = false;
-  bool ppoLoadErrorReported = false;
+  bool strikerPPOLoadAttempted = false;
+  bool defenderPPOLoadAttempted = false;
+  bool strikerPPOLoadErrorReported = false;
+  bool defenderPPOLoadErrorReported = false;
   bool ppoInferErrorReported = false;
-  std::string ppoRequestedModelPath;
+  std::string strikerPPORequestedModelPath;
+  std::string defenderPPORequestedModelPath;
   unsigned ppoStandWatchdogWindowStarted = 0;
   int ppoStandWatchdogStandFrames = 0;
   int ppoStandWatchdogTotalFrames = 0;
