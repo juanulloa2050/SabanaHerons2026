@@ -31,6 +31,7 @@ namespace RL
       const FieldDimensions& fieldDimensions);
 
     PPOObservation encode(const PPOGateObservation& rawObservation, const PPOGateDecision& gateDecision) const;
+    PPOObservation encodeDefender(const PPOGateObservation& rawObservation, const PPOGateDecision& gateDecision) const;
 
     PPOObservation encode(
       const FrameInfo& frameInfo,

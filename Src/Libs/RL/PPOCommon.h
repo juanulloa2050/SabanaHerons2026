@@ -55,7 +55,10 @@ namespace RL
   {
     bool shootArmed = false;
     bool dribbleArmed = false;
+    bool passArmed = false;
+    bool engageArmed = false;
     float shootArmProgress = 0.f;
+    float passArmProgress = 0.f;
 
     bool finishArmed() const
     {
