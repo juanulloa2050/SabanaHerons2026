@@ -183,6 +183,15 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(const PPOGateObservation& r
   return observation;
 }
 
+RL::PPOObservation RL::PPOObservationEncoder::encodeDefender(const PPOGateObservation& rawObservation, const PPOGateDecision& gateDecision) const
+{
+  PPOObservation observation = encode(rawObservation, PPOGateDecision{});
+  observation.values[23] = gateDecision.passArmed ? 1.f : 0.f;
+  observation.values[24] = gateDecision.engageArmed ? 1.f : 0.f;
+  observation.values[25] = clamp01(gateDecision.passArmProgress);
+  return observation;
+}
+
 RL::PPOObservation RL::PPOObservationEncoder::encode(
   const FrameInfo& frameInfo,
   const RobotPose& robotPose,

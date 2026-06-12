@@ -16,8 +16,10 @@
 #include "Streaming/Output.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 
 MAKE_MODULE(StrategyBehaviorControl, StrategyBehaviorControl::getExtModuleInfo);
 
@@ -117,6 +119,21 @@ std::array<bool, RL::ppoSkillCount> buildStage4SkillMask()
   return mask;
 }
 
+std::array<bool, RL::ppoSkillCount> buildDefenderSkillMask()
+{
+  std::array<bool, RL::ppoSkillCount> mask{};
+  mask[static_cast<std::size_t>(RL::SkillType::stand)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::walk)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::pass)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::block)] = true;
+  return mask;
+}
+
+bool isDefenderPPO(const std::string& role)
+{
+  return role == "defender" || role == "defensa";
+}
+
 int argmax(const std::array<float, RL::ppoSkillCount>& logits)
 {
   return static_cast<int>(std::distance(logits.begin(), std::max_element(logits.begin(), logits.end())));
@@ -172,54 +189,71 @@ std::vector<ModuleBase::Info> StrategyBehaviorControl::getExtModuleInfo()
   return result;
 }
 
-std::string StrategyBehaviorControl::configuredEmbeddedPPOModelPath() const
+StrategyBehaviorControl::EmbeddedPPORole StrategyBehaviorControl::selectedEmbeddedPPORole(const GameState& gameState) const
+{
+  if(!enableEmbeddedPPO)
+    return EmbeddedPPORole::none;
+
+  const int teamNumber = parseEnvInt(ppoTeamEnv, embeddedPPOTeamNumber >= 0 ? embeddedPPOTeamNumber : gameState.ownTeam.number);
+  if(gameState.ownTeam.number != teamNumber)
+    return EmbeddedPPORole::none;
+
+  const int playerNumber = gameState.playerNumber;
+  if(playerNumber < 1 || playerNumber > RLSharedStateBridge::maxWorldPlayersPerTeam)
+    return EmbeddedPPORole::none;
+
+  const auto configuredPlayers = std::getenv(ppoPlayersEnv) ? parsePlayerListEnv<RLSharedStateBridge::maxWorldPlayersPerTeam>(ppoPlayersEnv) : std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>{};
+  if(playerListHasAnyEnabled(configuredPlayers) && !configuredPlayers[static_cast<std::size_t>(playerNumber)])
+    return EmbeddedPPORole::none;
+
+  if(playerListContains(embeddedPPODefenderPlayers, playerNumber))
+    return EmbeddedPPORole::defender;
+
+  if(embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
+    return EmbeddedPPORole::striker;
+
+  if(!playerListHasAnyEnabled(configuredPlayers) &&
+     !embeddedPPODynamicPlayBall &&
+     playerListHasAnyEnabled(embeddedPPOPlayers) &&
+     playerListContains(embeddedPPOPlayers, playerNumber))
+    return isDefenderPPO(embeddedPPORole) ? EmbeddedPPORole::defender : EmbeddedPPORole::striker;
+
+  if(playerListHasAnyEnabled(configuredPlayers))
+    return isDefenderPPO(embeddedPPORole) ? EmbeddedPPORole::defender : EmbeddedPPORole::striker;
+
+  return EmbeddedPPORole::none;
+}
+
+std::string StrategyBehaviorControl::configuredEmbeddedPPOModelPath(const EmbeddedPPORole role) const
 {
   const char* envModelPath = std::getenv(ppoModelEnv);
   if(envModelPath && *envModelPath)
     return envModelPath;
 
-  if(!enableEmbeddedPPO)
-    return {};
-
-  return embeddedPPOModelPath;
+  switch(role)
+  {
+    case EmbeddedPPORole::striker:
+      return embeddedPPOStrikerModelPath.empty() ? embeddedPPOModelPath : embeddedPPOStrikerModelPath;
+    case EmbeddedPPORole::defender:
+      return embeddedPPODefenderModelPath.empty() ? embeddedPPOModelPath : embeddedPPODefenderModelPath;
+    case EmbeddedPPORole::none:
+    default:
+      return {};
+  }
 }
 
 bool StrategyBehaviorControl::usesEmbeddedPPO(const GameState& gameState) const
 {
-  if(configuredEmbeddedPPOModelPath().empty())
+  const EmbeddedPPORole role = selectedEmbeddedPPORole(gameState);
+  if(configuredEmbeddedPPOModelPath(role).empty())
     return false;
-
-  const int teamNumber = parseEnvInt(ppoTeamEnv, embeddedPPOTeamNumber >= 0 ? embeddedPPOTeamNumber : gameState.ownTeam.number);
-  if(gameState.ownTeam.number != teamNumber)
-    return false;
-
-  const int playerNumber = gameState.playerNumber;
-  if(playerNumber < 1 || playerNumber > RLSharedStateBridge::maxWorldPlayersPerTeam)
-    return false;
-
-  const auto configuredPlayers = std::getenv(ppoPlayersEnv) ? parsePlayerListEnv<RLSharedStateBridge::maxWorldPlayersPerTeam>(ppoPlayersEnv) : std::array<bool, RLSharedStateBridge::maxWorldPlayersPerTeam + 1>{};
-  if(playerListHasAnyEnabled(configuredPlayers) && !configuredPlayers[static_cast<std::size_t>(playerNumber)])
-    return false;
-
-  if(!playerListHasAnyEnabled(configuredPlayers))
-  {
-    if(embeddedPPODynamicPlayBall)
-    {
-      if(!isPlayBallRole(theStrategyStatus.role))
-        return false;
-    }
-    else if(playerListHasAnyEnabled(embeddedPPOPlayers) &&
-            !playerListContains(embeddedPPOPlayers, playerNumber))
-      return false;
-  }
-
   return true;
 }
 
 std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& gameState) const
 {
-  if(configuredEmbeddedPPOModelPath().empty())
-    return enableEmbeddedPPO ? "no PPO model configured" : "embedded PPO disabled";
+  if(!enableEmbeddedPPO)
+    return "embedded PPO disabled";
 
   const int teamNumber = parseEnvInt(ppoTeamEnv, embeddedPPOTeamNumber >= 0 ? embeddedPPOTeamNumber : gameState.ownTeam.number);
   if(gameState.ownTeam.number != teamNumber)
@@ -233,17 +267,12 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
   if(playerListHasAnyEnabled(configuredPlayers) && !configuredPlayers[static_cast<std::size_t>(playerNumber)])
     return "player not enabled";
 
-  if(!playerListHasAnyEnabled(configuredPlayers))
-  {
-    if(embeddedPPODynamicPlayBall)
-    {
-      if(!isPlayBallRole(theStrategyStatus.role))
-        return "role not playBall";
-    }
-    else if(playerListHasAnyEnabled(embeddedPPOPlayers) &&
-            !playerListContains(embeddedPPOPlayers, playerNumber))
-      return "player not enabled";
-  }
+  const EmbeddedPPORole role = selectedEmbeddedPPORole(gameState);
+  if(role == EmbeddedPPORole::none)
+    return embeddedPPODynamicPlayBall ? "role not playBall or defender PPO player" : "player not enabled";
+
+  if(configuredEmbeddedPPOModelPath(role).empty())
+    return role == EmbeddedPPORole::defender ? "no defender PPO model configured" : "no striker PPO model configured";
 
   if(gameState.playerState != GameState::active)
     return "player not active";
@@ -254,7 +283,7 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
   if(gameState.ownTeam.isGoalkeeper(playerNumber))
     return "goalkeeper excluded";
 
-  return "ready";
+  return role == EmbeddedPPORole::defender ? "ready defender" : "ready striker";
 }
 
 void StrategyBehaviorControl::update(SkillRequest& skillRequest)
@@ -406,8 +435,14 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     ppoStandWatchdogCooldownActive = false;
   }
 
-  if(!ensureEmbeddedPPOLoaded())
+  const EmbeddedPPORole ppoRole = selectedEmbeddedPPORole(theGameState);
+  if(ppoRole == EmbeddedPPORole::none)
     return false;
+
+  if(!ensureEmbeddedPPOLoaded(ppoRole))
+    return false;
+
+  RL::PPOPolicyModel& policyModel = ppoRole == EmbeddedPPORole::defender ? defenderPPOPolicyModel : strikerPPOPolicyModel;
 
   const RL::PPOGateObservation rawObservation = ppoObservationEncoder.buildRawObservation(
     theFrameInfo,
@@ -419,12 +454,16 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     theExpectedGoals,
     theTeamData,
     theFieldDimensions);
-  const RL::PPOGateDecision gateDecision = ppoSkillGate.step(rawObservation);
-  const RL::PPOObservation observation = ppoObservationEncoder.encode(rawObservation, gateDecision);
+  const bool defenderPPO = ppoRole == EmbeddedPPORole::defender;
+  const int defenderPassTarget = defenderPPO ? selectDefenderPPOPassTarget() : -1;
+  const bool defenderEngageAllowed = defenderPPO && shouldDefenderPPOEngageBall(rawObservation);
+  const RL::PPOGateDecision gateDecision = defenderPPO ? ppoSkillGate.stepDefender(rawObservation, defenderPassTarget > 0, defenderEngageAllowed) : ppoSkillGate.step(rawObservation);
+  const RL::PPOObservation observation = defenderPPO ? ppoObservationEncoder.encodeDefender(rawObservation, gateDecision) :
+                                                       ppoObservationEncoder.encode(rawObservation, gateDecision);
 
   RL::PPOPolicyOutput output;
   std::string error;
-  if(!ppoPolicyModel.infer(observation.values, output, &error) || !output.valid)
+  if(!policyModel.infer(observation.values, output, &error) || !output.valid)
   {
     if(!ppoInferErrorReported)
     {
@@ -438,18 +477,29 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 
   std::array<float, RL::ppoSkillCount> maskedLogits = output.skillLogits;
   static const std::array<bool, RL::ppoSkillCount> stage4Mask = buildStage4SkillMask();
+  static const std::array<bool, RL::ppoSkillCount> defenderMask = buildDefenderSkillMask();
+  const auto& activeMask = defenderPPO ? defenderMask : stage4Mask;
   for(std::size_t i = 0; i < maskedLogits.size(); ++i)
-    if(!stage4Mask[i])
+    if(!activeMask[i])
       maskedLogits[i] = disabledLogit;
 
-  if(!gateDecision.shootArmed)
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::shoot)] = disabledLogit;
-  if(!gateDecision.dribbleArmed)
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::dribble)] = disabledLogit;
-  if(gateDecision.finishArmed())
+  if(!defenderPPO)
   {
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
+    if(!gateDecision.shootArmed)
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::shoot)] = disabledLogit;
+    if(!gateDecision.dribbleArmed)
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::dribble)] = disabledLogit;
+    if(gateDecision.finishArmed())
+    {
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
+    }
+  }
+  else if(defenderPPO && !gateDecision.passArmed && !gateDecision.engageArmed)
+  {
+    for(std::size_t i = 0; i < maskedLogits.size(); ++i)
+      if(i != static_cast<std::size_t>(RL::SkillType::stand) && i != static_cast<std::size_t>(RL::SkillType::walk))
+        maskedLogits[i] = disabledLogit;
   }
 
   const bool anyValidSkill = std::any_of(maskedLogits.begin(), maskedLogits.end(), [](const float logit)
@@ -506,47 +556,119 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     ppoStandWatchdogTotalFrames = 0;
   }
 
-  skillRequest = ppoActionDecoder.decode(rawObservation, selectedSkill, output.paramMean);
-  logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded PPO controlling skill requests");
+  skillRequest = defenderPPO ?
+                 ppoActionDecoder.decodeDefender(rawObservation, selectedSkill, defenderPassTarget) :
+                 ppoActionDecoder.decode(rawObservation, selectedSkill, output.paramMean);
+  logRLModeIfChanged(RLRuntimeMode::embeddedActive, defenderPPO ? "embedded defender PPO controlling skill requests" : "embedded striker PPO controlling skill requests");
   logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits, output.paramMean, skillRequest);
   ppoInferErrorReported = false;
   return true;
 }
 
-bool StrategyBehaviorControl::ensureEmbeddedPPOLoaded()
+bool StrategyBehaviorControl::ensureEmbeddedPPOLoaded(const EmbeddedPPORole role)
 {
-  if(ppoPolicyModel.isLoaded())
+  RL::PPOPolicyModel& model = role == EmbeddedPPORole::defender ? defenderPPOPolicyModel : strikerPPOPolicyModel;
+  bool& loadAttempted = role == EmbeddedPPORole::defender ? defenderPPOLoadAttempted : strikerPPOLoadAttempted;
+  bool& loadErrorReported = role == EmbeddedPPORole::defender ? defenderPPOLoadErrorReported : strikerPPOLoadErrorReported;
+  std::string& requestedModelPath = role == EmbeddedPPORole::defender ? defenderPPORequestedModelPath : strikerPPORequestedModelPath;
+  const char* roleName = role == EmbeddedPPORole::defender ? "defender" : "striker";
+
+  if(model.isLoaded())
     return true;
-  if(ppoLoadAttempted)
+  if(loadAttempted)
     return false;
 
-  const std::string modelPath = configuredEmbeddedPPOModelPath();
+  const std::string modelPath = configuredEmbeddedPPOModelPath(role);
   if(modelPath.empty())
     return false;
 
-  ppoLoadAttempted = true;
-  ppoRequestedModelPath = modelPath;
+  loadAttempted = true;
+  requestedModelPath = modelPath;
 
   std::string error;
-  if(!ppoPolicyModel.load(ppoRequestedModelPath, &error))
+  if(!model.load(requestedModelPath, &error))
   {
-    if(!ppoLoadErrorReported)
+    if(!loadErrorReported)
     {
       OUTPUT_WARNING("[RL] Embedded PPO model load failed"
+                     << " role=" << roleName
                      << " player=" << theGameState.playerNumber
-                     << " path=" << ppoRequestedModelPath
+                     << " path=" << requestedModelPath
                      << " error=" << error);
-      ppoLoadErrorReported = true;
+      loadErrorReported = true;
     }
     return false;
   }
 
-  ppoLoadErrorReported = false;
+  loadErrorReported = false;
   ppoInferErrorReported = false;
   OUTPUT_WARNING("[RL] Embedded PPO model loaded"
+                 << " role=" << roleName
                  << " player=" << theGameState.playerNumber
-                 << " path=" << ppoRequestedModelPath);
+                 << " path=" << requestedModelPath);
   return true;
+}
+
+int StrategyBehaviorControl::selectDefenderPPOPassTarget() const
+{
+  int fallbackTarget = -1;
+  float fallbackX = -std::numeric_limits<float>::max();
+  int forwardTarget = -1;
+  float forwardX = -std::numeric_limits<float>::max();
+  for(const Agent& agent : agents)
+  {
+    if(agent.number == theGameState.playerNumber || agent.isGoalkeeper)
+      continue;
+    const float x = agent.currentPosition.x();
+    if(x > fallbackX)
+    {
+      fallbackX = x;
+      fallbackTarget = agent.number;
+    }
+    if(x > theRobotPose.translation.x() + 500.f && x > forwardX)
+    {
+      forwardX = x;
+      forwardTarget = agent.number;
+    }
+  }
+  return forwardTarget > 0 ? forwardTarget : fallbackTarget;
+}
+
+bool StrategyBehaviorControl::shouldDefenderPPOEngageBall(const RL::PPOGateObservation& rawObservation) const
+{
+  if(rawObservation.timeSinceBallSeenMs > 1200.f || rawObservation.ballX > -500.f)
+    return false;
+
+  const Vector2f ball(rawObservation.ballX, rawObservation.ballY);
+  const float selfBallDistance = (theRobotPose.translation - ball).norm();
+  const bool criticalOwnGoalThreat = rawObservation.ballX < -3000.f && std::abs(rawObservation.ballY) < 1800.f;
+  const bool localEmergency = rawObservation.ballX < -1200.f && selfBallDistance < 1100.f;
+  float bestTeammateDistance = std::numeric_limits<float>::max();
+  bool teammateClearlyOwnsBall = false;
+
+  for(const Agent& agent : agents)
+  {
+    if(agent.number == theGameState.playerNumber || agent.isGoalkeeper)
+      continue;
+
+    const float teammateDistance = (agent.currentPosition - ball).norm();
+    bestTeammateDistance = std::min(bestTeammateDistance, teammateDistance);
+    if(teammateDistance + 350.f < selfBallDistance && agent.currentPosition.x() > rawObservation.ballX - 500.f)
+      teammateClearlyOwnsBall = true;
+  }
+
+  if(criticalOwnGoalThreat)
+    return true;
+  if(teammateClearlyOwnsBall)
+    return false;
+  if(localEmergency)
+    return true;
+
+  const bool defensiveThreat = rawObservation.ballX < -1600.f &&
+                               (rawObservation.nearestOpponentDist <= 0.f || rawObservation.nearestOpponentDist < 2200.f);
+  const bool noBetterTeammate = bestTeammateDistance == std::numeric_limits<float>::max() ||
+                                selfBallDistance <= bestTeammateDistance + 250.f;
+  return defensiveThreat && noBetterTeammate;
 }
 
 void StrategyBehaviorControl::logRLModeIfChanged(const RLRuntimeMode mode, const std::string& reason)
