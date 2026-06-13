@@ -538,12 +538,13 @@ void LocalConsole::applyPendingRLDynamicWorld()
       for(int i = 0; i < teammateCount; ++i)
       {
         const RLWorldPlayer& player = teammates[static_cast<std::size_t>(i)];
-        simulatedRobot->moveRobotByNumberPerTeam(
-          player.number,
-          false,
-          Vector3f(player.x, player.y, ctrl->is2D ? 0.f : 320.f),
-          Vector3f(0.f, 0.f, player.theta),
-          true);
+        if(simulatedRobot->isRobotUprightByNumberPerTeam(player.number, false))
+          simulatedRobot->moveRobotByNumberPerTeam(
+            player.number,
+            false,
+            Vector3f(player.x, player.y, ctrl->is2D ? 0.f : 320.f),
+            Vector3f(0.f, 0.f, player.theta),
+            true);
       }
     }
     if(applyOpponents)
@@ -551,12 +552,13 @@ void LocalConsole::applyPendingRLDynamicWorld()
       for(int i = 0; i < opponentCount; ++i)
       {
         const RLWorldPlayer& player = opponents[static_cast<std::size_t>(i)];
-        simulatedRobot->moveRobotByNumberPerTeam(
-          player.number,
-          true,
-          Vector3f(player.x, player.y, ctrl->is2D ? 0.f : 320.f),
-          Vector3f(0.f, 0.f, player.theta),
-          true);
+        if(simulatedRobot->isRobotUprightByNumberPerTeam(player.number, true))
+          simulatedRobot->moveRobotByNumberPerTeam(
+            player.number,
+            true,
+            Vector3f(player.x, player.y, ctrl->is2D ? 0.f : 320.f),
+            Vector3f(0.f, 0.f, player.theta),
+            true);
       }
     }
     simulatedRobot->enablePhysics(true);

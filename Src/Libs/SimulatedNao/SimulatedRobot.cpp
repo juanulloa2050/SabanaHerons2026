@@ -221,6 +221,25 @@ bool SimulatedRobot::moveRobotByNumberPerTeam(int number, bool opponentTeam, con
   return true;
 }
 
+bool SimulatedRobot::isRobotUprightByNumberPerTeam(int number, bool opponentTeam) const
+{
+  if(number < 1 || number > robotsPerTeam)
+    return false;
+
+  const auto& robots = opponentTeam ? (firstTeam ? secondTeamRobots : firstTeamRobots) : (firstTeam ? firstTeamRobots : secondTeamRobots);
+  for(SimRobot::Object* candidate : robots)
+  {
+    const int absoluteNumber = getNumber(candidate);
+    const int relativeNumber = absoluteNumber > robotsPerTeam ? absoluteNumber - robotsPerTeam : absoluteNumber;
+    if(relativeNumber == number)
+    {
+      Pose2f pose;
+      return getPose2f(candidate, pose);
+    }
+  }
+  return false;
+}
+
 void SimulatedRobot::moveBallPerTeam(const Vector3f& pos, bool resetDynamics)
 {
   moveBall(firstTeam ? (Vector3f() << -pos.head<2>(), pos.z()).finished() : pos, resetDynamics);

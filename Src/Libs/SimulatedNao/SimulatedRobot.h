@@ -163,6 +163,11 @@ public:
   bool moveRobotByNumberPerTeam(int number, bool opponentTeam, const Vector3f& pos, const Vector3f& rot, bool changeRotation);
 
   /**
+   * Checks whether another robot identified by relative team number is currently upright.
+   */
+  bool isRobotUprightByNumberPerTeam(int number, bool opponentTeam) const;
+
+  /**
    * Checks whether another robot identified by relative team number exists in the loaded scene.
    */
   bool hasRobotByNumberPerTeam(int number, bool opponentTeam) const;
