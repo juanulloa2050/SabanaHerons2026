@@ -1,0 +1,11 @@
+call Includes/RLNatural
+
+# Visible multi-agent RL stage 6. The scene intentionally contains the superset
+# of bodies the reset bridge may address: Herons robot1..robot4 and opponents
+# robot21..robot23. Stage 6 only controls players 1 and 2; the others are moved
+# by reset requests or B-Human.
+ci 30
+gc playing
+ar kickOffDelay off
+ar penalizeIllegalPosition off
+ar penalizeIllegalPositionInSet off

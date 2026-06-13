@@ -1,0 +1,9 @@
+call Includes/RLNatural
+
+# Visible multi-agent RL stages 7 and 8. Stage 8 defensive worlds address
+# Herons robot1..robot4 and opponents robot21..robot23 through RLSharedState.
+ci 30
+gc playing
+ar kickOffDelay off
+ar penalizeIllegalPosition off
+ar penalizeIllegalPositionInSet off
