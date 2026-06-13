@@ -1,0 +1,29 @@
+{
+  "active_skills": [
+    "stand",
+    "walk",
+    "dribble",
+    "shoot"
+  ],
+  "checkpoint": "/home/rafael/Documentos/Robocup2026/RL/.deps/obs26-base/runs/production_param_repair_v1/checkpoint_stage4_param_repair.pt",
+  "checkpoint_sha256": "d9b1b79ee3f5d73c12ab658d63ff7d913ae4f37c940bd27cd564ca9bc4e7ed15",
+  "compatibility": "SabanaHerons CompiledNN static batch opset11",
+  "deterministic": true,
+  "format": "onnx",
+  "normalization_contract": "ppo_obs_v26_hsl2026",
+  "obs_size_env": 26,
+  "obs_size_input": 26,
+  "obs_size_model_trained": 26,
+  "onnx_sha256": "2870181793a4675a81ca1f3a2cef5dd8632292ebca06163ea0b071939cc76a4c",
+  "repair": "stand_repair + param_repair",
+  "skill_order": [
+    "stand",
+    "walk",
+    "shoot",
+    "pass",
+    "dribble",
+    "block",
+    "mark",
+    "observe"
+  ]
+}
