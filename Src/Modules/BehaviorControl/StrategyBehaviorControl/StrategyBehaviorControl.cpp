@@ -107,14 +107,47 @@ bool isPlayBallRole(const Role::Type role)
   return role == ActiveRole::toRole(ActiveRole::playBall);
 }
 
-std::array<bool, RL::ppoSkillCount> buildStage4SkillMask()
+RL::PPORole toPPORole(const int configuredRole)
 {
-  std::array<bool, RL::ppoSkillCount> mask{};
-  mask[static_cast<std::size_t>(RL::SkillType::stand)] = true;
-  mask[static_cast<std::size_t>(RL::SkillType::walk)] = true;
-  mask[static_cast<std::size_t>(RL::SkillType::shoot)] = true;
-  mask[static_cast<std::size_t>(RL::SkillType::dribble)] = true;
-  return mask;
+  switch(configuredRole)
+  {
+    case static_cast<int>(RL::PPORole::striker):
+      return RL::PPORole::striker;
+    case static_cast<int>(RL::PPORole::openSupport):
+      return RL::PPORole::openSupport;
+    default:
+      return RL::PPORole::offBallSupport;
+  }
+}
+
+// Combined production stage mask AND role-conditioned forbid-invalid mask.
+// Exact port of (active_skill_mask stage-8) AND (train.py:gate_skill_mask_from_obs) for the
+// obs47 multi-agent contract. Multiplies disabled logits to -inf before argmax (Design A).
+// stand and walk are never forbidden (never-block-all-skills invariant).
+void applyRoleConditionedMask(std::array<float, RL::ppoSkillCount>& logits, const RL::PPOGateDecision& gate)
+{
+  const auto forbid = [&](const RL::SkillType s) { logits[static_cast<std::size_t>(s)] = disabledLogit; };
+
+  // Stage mask: mark and observe are never part of the production active-skill set.
+  forbid(RL::SkillType::mark);
+  forbid(RL::SkillType::observe);
+
+  const bool striker = gate.isStriker;
+  const bool offBall = gate.isOffBallSupport;
+
+  // shoot: only the striker, when shoot-armed.
+  if(!(gate.shootArmed && striker))
+    forbid(RL::SkillType::shoot);
+  // pass: only the striker, when pass-armed.
+  if(!(gate.passArmed && striker))
+    forbid(RL::SkillType::pass);
+  // dribble: striker or off-ball-support, when dribble-armed.
+  if(!(gate.dribbleArmed && (striker || offBall)))
+    forbid(RL::SkillType::dribble);
+  // block: any non-striker role, when dribble-armed (off-ball defensive engage).
+  if(!(gate.dribbleArmed && !striker))
+    forbid(RL::SkillType::block);
+  // stand and walk remain always allowed.
 }
 
 int argmax(const std::array<float, RL::ppoSkillCount>& logits)
@@ -418,8 +451,12 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     theObstacleModel,
     theExpectedGoals,
     theTeamData,
+    theTeammatesBallModel,
     theFieldDimensions);
-  const RL::PPOGateDecision gateDecision = ppoSkillGate.step(rawObservation);
+  RL::PPOGateDecision gateDecision = ppoSkillGate.step(rawObservation);
+  // Set the fixed deployment role one-hot (obs[44:46]); the validated defender is offBallSupport.
+  // passArmed/observeArmed stay false (the pass/clear gate fix is pending, non-blocking).
+  gateDecision.setRole(toPPORole(embeddedPPORole));
   const RL::PPOObservation observation = ppoObservationEncoder.encode(rawObservation, gateDecision);
 
   RL::PPOPolicyOutput output;
@@ -437,20 +474,7 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
   }
 
   std::array<float, RL::ppoSkillCount> maskedLogits = output.skillLogits;
-  static const std::array<bool, RL::ppoSkillCount> stage4Mask = buildStage4SkillMask();
-  for(std::size_t i = 0; i < maskedLogits.size(); ++i)
-    if(!stage4Mask[i])
-      maskedLogits[i] = disabledLogit;
-
-  if(!gateDecision.shootArmed)
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::shoot)] = disabledLogit;
-  if(!gateDecision.dribbleArmed)
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::dribble)] = disabledLogit;
-  if(gateDecision.finishArmed())
-  {
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
-    maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
-  }
+  applyRoleConditionedMask(maskedLogits, gateDecision);
 
   const bool anyValidSkill = std::any_of(maskedLogits.begin(), maskedLogits.end(), [](const float logit)
   {

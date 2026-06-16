@@ -10,6 +10,7 @@
 #include "Representations/Modeling/BallModel.h"
 #include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
+#include "Representations/Modeling/TeammatesBallModel.h"
 #include "Representations/Perception/BallPercepts/BallPercept.h"
 
 namespace RL
@@ -28,6 +29,7 @@ namespace RL
       const ObstacleModel& obstacleModel,
       const ExpectedGoals& expectedGoals,
       const TeamData& teamData,
+      const TeammatesBallModel& teammatesBallModel,
       const FieldDimensions& fieldDimensions);
 
     PPOObservation encode(const PPOGateObservation& rawObservation, const PPOGateDecision& gateDecision) const;
@@ -41,6 +43,7 @@ namespace RL
       const ObstacleModel& obstacleModel,
       const ExpectedGoals& expectedGoals,
       const TeamData& teamData,
+      const TeammatesBallModel& teammatesBallModel,
       const FieldDimensions& fieldDimensions,
       const PPOGateDecision& gateDecision);
 
