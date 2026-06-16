@@ -68,7 +68,8 @@ MODULE(StrategyBehaviorControl,
   {,
     (Strategy::Type) strategy, /**< The strategy to play. */
     (bool)(false) enableEmbeddedPPO, /**< Enable the embedded PPO policy override. */
-    (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. obs47 role-conditioned defender. */
+    (int)(2) embeddedPPORole, /**< Role one-hot for obs[44:46]: 0=striker, 1=openSupport, 2=offBallSupport (validated defender). */
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */

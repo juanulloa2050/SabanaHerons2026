@@ -38,6 +38,9 @@ namespace
         return {0.f, 1.f, 1.f, 0.f};
       case RL::SkillType::dribble:
         return {0.f, 1.f, 0.f, 0.f};
+      case RL::SkillType::block:
+      case RL::SkillType::mark:
+        return {0.f, 1.f, 0.f, 0.f};
       case RL::SkillType::pass:
         return {0.f, 0.f, 0.f, 1.f};
       default:
@@ -52,7 +55,10 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
   if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
     skill = static_cast<SkillType>(skillIndex);
 
-  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot && skill != SkillType::dribble)
+  // Skills the policy can legally emit under the production stage + role mask. Anything
+  // else (mark, observe, pass) is projected to walk, mirroring environment.py:project_action.
+  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot &&
+     skill != SkillType::dribble && skill != SkillType::block)
     skill = SkillType::walk;
 
   const auto mask = paramMaskForSkill(skill);
@@ -106,6 +112,10 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
       return SkillRequest::Builder::shoot();
     case SkillType::dribble:
       return SkillRequest::Builder::dribbleTo(targetTheta);
+    case SkillType::block:
+      // block anchor is (0, 0, goalHeading) with the target_y residual only, so the
+      // blocking point is (0, residualY * residualYRange) in field coordinates.
+      return SkillRequest::Builder::block(Vector2f(targetX, targetY));
     case SkillType::walk:
     default:
       return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
