@@ -43,5 +43,7 @@ public:
    * @param send Send outgoing queue?
    */
   void communicate(bool send);
+
+  using TcpConnection::isConnected;
 };
 #endif
