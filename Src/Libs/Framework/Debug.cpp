@@ -169,7 +169,14 @@ bool Debug::main()
 
   // If there is still data to be sent, immediately start a new cycle.
   // Otherwise, wait for the next packet to arrive.
+#ifdef TARGET_ROBOT
+  // Without a connected debug client the backlog cannot be flushed, so
+  // spinning only burns a core. Waiting is safe: on the robot, wait() has a
+  // 100 ms timeout, so new connections are still accepted promptly.
+  if(debugSender->size() > 0 && debugHandler.isConnected())
+#else
   if(debugSender->size() > 0)
+#endif
   {
     Thread::yield();
     return false;

@@ -142,6 +142,15 @@ void SkillBehaviorControl::update(ActivationGraph&)
   theBehaviorStatus.walkingTo = Vector2f::Zero();
   theBehaviorStatus.speed = 0.f;
   theBehaviorStatus.shootingTo.reset();
+  theBehaviorStatus.restartMemoryType = theRestartBallSearchContext.restartType;
+  theBehaviorStatus.restartMemoryRegionIndex = theRestartBallSearchContext.regionIndex;
+  theBehaviorStatus.restartMemoryPositionOnField = theRestartBallSearchContext.rememberedPositionOnField;
+  theBehaviorStatus.restartMemoryTimestamp = theRestartBallSearchContext.sourceTimestamp;
+  theBehaviorStatus.restartMemorySourceRobot = theRestartBallSearchContext.sourceRobotNumber;
+  theBehaviorStatus.restartMemoryValid = theRestartBallSearchContext.valid;
+  theBehaviorStatus.restartMemoryFrozen = theRestartBallSearchContext.frozenForCurrentRestart;
+  theBehaviorStatus.restartMemoryFromLiveBall = theRestartBallSearchContext.fromLiveBall;
+  theBehaviorStatus.restartMemoryFromDropInFallback = theRestartBallSearchContext.fromDropInFallback;
 
   theArmMotionRequest.armMotion[Arms::left] = ArmMotionRequest::none;
   theArmMotionRequest.armMotion[Arms::right] = ArmMotionRequest::none;

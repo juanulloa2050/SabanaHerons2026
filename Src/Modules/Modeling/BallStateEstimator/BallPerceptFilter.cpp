@@ -68,14 +68,16 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
   // Do some first checks
   if(theBallPercept.status == BallPercept::notSeen)
   {
-    OUTPUT_TEXT("[BallPerceptFilter] No ball percept this frame");
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+      OUTPUT_TEXT("[BallPerceptFilter] No ball percept this frame");
     return;
   }
   if(perceptCanBeExcludedByLocalization() ||
      perceptIsInsideTeammateAndCanBeExcludedByTeamBall() ||
      (disableBallInOtherHalfForTesting && perceptIsInOtherHalf()))
   {
-    OUTPUT_TEXT("[BallPerceptFilter] Percept EXCLUDED | status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | reason: localization/teammate/otherHalf");
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+      OUTPUT_TEXT("[BallPerceptFilter] Percept EXCLUDED | status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | reason: localization/teammate/otherHalf");
     ANNOTATION("BallPerceptFilter", "EXCLUDED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm");
     {
       static unsigned lastExcludedLogTime = 0;
@@ -96,7 +98,9 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
                                 theBallPercept.covarianceOnField, theBallPercept.radiusOnField, theFrameInfo.time);
   bufferedBalls.push_front(fbp);
 
-  OUTPUT_TEXT("[BallPerceptFilter] Processing percept: status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | dist=" << theBallPercept.positionOnField.norm() << "mm | bufferedSeen=" << static_cast<unsigned>(bufferedSeenBalls.size()) << " bufferedAll=" << static_cast<unsigned>(bufferedBalls.size()));
+  DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+
+    OUTPUT_TEXT("[BallPerceptFilter] Processing percept: status=" << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ") | dist=" << theBallPercept.positionOnField.norm() << "mm | bufferedSeen=" << static_cast<unsigned>(bufferedSeenBalls.size()) << " bufferedAll=" << static_cast<unsigned>(bufferedBalls.size()));
 
   // Analyze new percept
   if(theBallPercept.status == BallPercept::seen ||  // The ball was seen and the perceptor seems to be quite sure.
@@ -116,7 +120,8 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
 
     if(!ballCanBeUsed)
     {
-      OUTPUT_TEXT("[BallPerceptFilter] Seen ball failed verification (not enough consistent nearby percepts)");
+      DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+        OUTPUT_TEXT("[BallPerceptFilter] Seen ball failed verification (not enough consistent nearby percepts)");
       ANNOTATION("BallPerceptFilter", "VERIFY_FAIL fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm bufferedSeen=" << static_cast<unsigned>(bufferedSeenBalls.size()));
       return;
     }
@@ -127,7 +132,8 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
        theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) < farBallIgnoreTimeout &&
        theBallPercept.positionOnField.norm() > farBallIgnoreDistance)
     {
-      OUTPUT_TEXT("[BallPerceptFilter] Far ball in upper camera ignored (dist=" << theBallPercept.positionOnField.norm() << "mm > " << farBallIgnoreDistance << "mm, lower cam seen " << theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) << "ms ago)");
+      DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+        OUTPUT_TEXT("[BallPerceptFilter] Far ball in upper camera ignored (dist=" << theBallPercept.positionOnField.norm() << "mm > " << farBallIgnoreDistance << "mm, lower cam seen " << theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) << "ms ago)");
       ANNOTATION("BallPerceptFilter", "FAR_IGNORED dist=" << static_cast<int>(theBallPercept.positionOnField.norm()) << "mm lowerSeen=" << theFrameInfo.getTimeSince(timeBallWasBeenSeenInLowerCameraImage) << "ms ago");
       return;
     }
@@ -151,7 +157,9 @@ void BallPerceptFilter::update(FilteredBallPercepts& filteredBallPercepts)
     // Save point of time of last percept transmission
     timeOfLastFilteredPercept = theFrameInfo.time;
 
-    OUTPUT_TEXT("[BallPerceptFilter] ACCEPTED: " << static_cast<unsigned>(filteredBallPercepts.percepts.size()) << " percept(s) passed to estimator | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ")");
+    DEBUG_RESPONSE("module:BallPerceptFilter:verbose")
+
+      OUTPUT_TEXT("[BallPerceptFilter] ACCEPTED: " << static_cast<unsigned>(filteredBallPercepts.percepts.size()) << " percept(s) passed to estimator | fieldPos=(" << theBallPercept.positionOnField.x() << ", " << theBallPercept.positionOnField.y() << ")");
     ANNOTATION("BallPerceptFilter", "ACCEPTED " << (theBallPercept.status == BallPercept::seen ? "seen" : "guessed") << " fieldPos=(" << static_cast<int>(theBallPercept.positionOnField.x()) << "," << static_cast<int>(theBallPercept.positionOnField.y()) << ")mm dist=" << static_cast<int>(theBallPercept.positionOnField.norm()) << "mm percepts=" << static_cast<unsigned>(filteredBallPercepts.percepts.size()));
     {
       static unsigned lastAcceptedLogTime = 0;

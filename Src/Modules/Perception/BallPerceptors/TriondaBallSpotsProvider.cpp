@@ -16,6 +16,7 @@
  */
 
 #include "TriondaBallSpotsProvider.h"
+#include "Debugging/Debugging.h"
 #include "Streaming/Output.h"
 #include <algorithm>
 #include <cmath>
@@ -172,8 +173,11 @@ void TriondaBallSpotsProvider::update(BallSpots& ballSpots)
       ballSpots.addBallSpot(b.cx(), b.cy());
   }
 
-  OUTPUT_TEXT("[TriondaBallSpotsProvider] cam="
-              << (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower")
-              << " blobs=" << static_cast<unsigned int>(blobs.size())
-              << " emitted=" << static_cast<unsigned int>(ballSpots.ballSpots.size()));
+  // Per-frame text floods the Debug thread's queue on the robot (it can never
+  // drain without a connected client) — only emit when explicitly requested.
+  DEBUG_RESPONSE("module:TriondaBallSpotsProvider:stats")
+    OUTPUT_TEXT("[TriondaBallSpotsProvider] cam="
+                << (theCameraInfo.camera == CameraInfo::upper ? "Upper" : "Lower")
+                << " blobs=" << static_cast<unsigned int>(blobs.size())
+                << " emitted=" << static_cast<unsigned int>(ballSpots.ballSpots.size()));
 }

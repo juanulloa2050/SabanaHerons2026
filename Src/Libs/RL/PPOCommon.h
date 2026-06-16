@@ -95,12 +95,9 @@ namespace RL
   {
     bool shootArmed = false;
     bool dribbleArmed = false;
-    float shootArmProgress = 0.f;
-
-    // ---- obs47 extended gate bits, encoded into obs[41:43] ----
-    // For the validated defender these stay 0 (the pass/clear gate fix is pending and
-    // non-blocking per RL/HANDOFF.md); the role mask still reads them.
     bool passArmed = false;
+    bool engageArmed = false;
+    float shootArmProgress = 0.f;
     bool observeArmed = false;
     float passArmProgress = 0.f;
 

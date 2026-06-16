@@ -13,6 +13,7 @@
 #include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/GoaliePose.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/Libraries/LibPosition.h"
 #include "Representations/BehaviorControl/PassEvaluation.h"
 #include "Representations/Configuration/BallSpecification.h"
@@ -39,6 +40,7 @@
   _(FrameInfo) \
   _(GameState) \
   _(GoaliePose) \
+  _(RestartBallSearchContext) \
   _(LibPosition) \
   _(MotionInfo) \
   _(PassEvaluation) \
