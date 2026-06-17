@@ -27,13 +27,15 @@
 #include <random>
 
 Behavior::Behavior(const BallDropInModel& theBallDropInModel, const ExtendedGameState& theExtendedGameState, const FieldBall& theFieldBall, const FieldDimensions& theFieldDimensions,
-                   const FrameInfo& theFrameInfo, const GameState& theGameState, const TeammatesBallModel& theTeammatesBallModel) :
+                   const FrameInfo& theFrameInfo, const GameState& theGameState, const RestartBallSearchContext& theRestartBallSearchContext,
+                   const TeammatesBallModel& theTeammatesBallModel) :
   theBallDropInModel(theBallDropInModel),
   theExtendedGameState(theExtendedGameState),
   theFieldBall(theFieldBall),
   theFieldDimensions(theFieldDimensions),
   theFrameInfo(theFrameInfo),
   theGameState(theGameState),
+  theRestartBallSearchContext(theRestartBallSearchContext),
   theTeammatesBallModel(theTeammatesBallModel)
 {
   activeRoles[ActiveRole::playBall] = new PlayBall;
@@ -740,8 +742,15 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
     if(SetPlay::isFreeKick(setPlay) && theGameState.isFreeKick() && static_cast<const FreeKick*>(setPlays[setPlay])->ballSide != FreeKick::irrelevant)
     {
       const FreeKick& freeKick = *static_cast<const FreeKick*>(setPlays[setPlay]);
-      if((freeKick.ballSide == FreeKick::left && theFieldBall.recentBallPositionOnField().y() < 0.f) ||
-         (freeKick.ballSide == FreeKick::right && theFieldBall.recentBallPositionOnField().y() > 0.f))
+      // If nobody has seen the ball since the restart started, the rule-based placement
+      // candidate decides the side instead of a possibly stale ball model.
+      const bool useRestartCandidate = !(theTeammatesBallModel.isValid || theFieldBall.ballWasSeen(8000)) &&
+                                       theRestartBallSearchContext.valid &&
+                                       !theRestartBallSearchContext.candidates.empty();
+      const float ballY = useRestartCandidate ? theRestartBallSearchContext.candidates.front().y() :
+                          theFieldBall.recentBallPositionOnField().y();
+      if((freeKick.ballSide == FreeKick::left && ballY < 0.f) ||
+         (freeKick.ballSide == FreeKick::right && ballY > 0.f))
         proposedMirror = true;
       else
         proposedMirror = false;
@@ -847,10 +856,12 @@ SkillRequest Behavior::execute(const Agent& agent, const Agents& otherAgents)
     return SkillRequest::Builder::walkTo(agent.basePose);
   else if(theGameState.isSet())
     return SkillRequest::Builder::stand();
-  else if((theGameState.isCornerKick() || theGameState.isGoalKick()) &&
-          (!ballSearch->teammatesBallModelInCorner &&
-           agent.timeWhenBallLastSeen < theGameState.timeWhenStateStarted + (ballSearch->ballModelIsInOneCorner ? 0 : ballSearch->refereeBallPlacementDelay)))
+  else if((theGameState.isCornerKick() || theGameState.isGoalKick() || theGameState.isKickIn()) &&
+          (!ballSearch->teamBallNearRestartCandidate &&
+           agent.timeWhenBallLastSeen < theGameState.timeWhenStateStarted + (ballSearch->ownBallNearRestartCandidate ? 0 : ballSearch->refereeBallPlacementDelay)))
   {
+    // The referee has (re)placed the ball for this restart: only sightings after the
+    // placement count, so search the rule-based candidates until someone confirms it.
     ballSearch->ballUnknown = false;
     return ballSearch->execute(agent, otherAgents);
   }
@@ -949,9 +960,13 @@ bool Behavior::checkSetPlayStartConditions(SetPlay::Type setPlay, const std::vec
                                         (theGameState.state == GameState::ownCornerKick || theGameState.state == GameState::opponentCornerKick));
     if(!isCompatibleGameState)
       return false;
-    const bool useBallDropInModel = !(theTeammatesBallModel.isValid || theFieldBall.ballWasSeen(8000)) && theBallDropInModel.isValid && !theBallDropInModel.dropInPositions.empty();
+    const bool ballIsStale = !(theTeammatesBallModel.isValid || theFieldBall.ballWasSeen(8000));
+    const bool useRestartCandidate = ballIsStale && theRestartBallSearchContext.valid && !theRestartBallSearchContext.candidates.empty();
+    const bool useBallDropInModel = ballIsStale && !useRestartCandidate && theBallDropInModel.isValid && !theBallDropInModel.dropInPositions.empty();
     // It doesn't matter which drop in position is used because the sign of the y coordinate is not important.
-    const Vector2f ballPosition = useBallDropInModel ? theBallDropInModel.dropInPositions[0] : theFieldBall.recentBallPositionOnField(8000);
+    const Vector2f ballPosition = useRestartCandidate ? theRestartBallSearchContext.candidates.front() :
+                                  useBallDropInModel ? theBallDropInModel.dropInPositions[0] :
+                                  theFieldBall.recentBallPositionOnField(8000);
     const Vector2f opponentGoal(theFieldDimensions.xPosOpponentGroundLine, 0.f);
     const float ballToOpponentGoalDistance = (opponentGoal - ballPosition).norm();
     const Angle ballToOpponentGoalAbsAngle = std::abs((opponentGoal - ballPosition).angle());

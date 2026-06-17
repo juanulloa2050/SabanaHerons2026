@@ -12,6 +12,11 @@ namespace
   constexpr float residualYRange = 450.f;
   constexpr float residualThetaRange = 0.75f;
   constexpr float approachOffsetX = -210.f;
+  constexpr float ownGoalX = -fieldXHalf;
+  constexpr float defenderMinX = -3950.f;
+  constexpr float defenderMaxX = -900.f;
+  constexpr float defenderMaxAbsY = 2200.f;
+  constexpr float defenderMinWalkStep = 550.f;
   const float repairTargetRadiusLimit = 1.05f * std::hypot(residualXRange, residualYRange);
   constexpr float repairThetaLimit = 1.05f * residualThetaRange;
 
@@ -38,11 +43,56 @@ namespace
         return {0.f, 1.f, 1.f, 0.f};
       case RL::SkillType::dribble:
         return {0.f, 1.f, 0.f, 0.f};
+      case RL::SkillType::block:
+      case RL::SkillType::mark:
+        return {0.f, 1.f, 0.f, 0.f};
       case RL::SkillType::pass:
         return {0.f, 0.f, 0.f, 1.f};
       default:
         return {0.f, 0.f, 0.f, 0.f};
     }
+  }
+
+  Pose2f defenderGuardTarget(const RL::PPOGateObservation& observation)
+  {
+    const float threat = std::clamp((defenderMaxX - observation.ballX) / (defenderMaxX - ownGoalX), 0.f, 1.f);
+    float x = defenderMinX + (defenderMaxX - defenderMinX) * (1.f - threat);
+    if(observation.ballX > 600.f)
+      x = -1700.f;
+    float y = std::clamp(observation.ballY * 0.65f, -defenderMaxAbsY, defenderMaxAbsY);
+    if(std::hypot(x - observation.robotX, y - observation.robotY) < defenderMinWalkStep)
+    {
+      const float side = observation.ballY >= 0.f ? -1.f : 1.f;
+      x = clampFieldX(x - 450.f);
+      y = clampFieldY(y + side * 650.f);
+    }
+    const float theta = std::atan2(observation.ballY - y, observation.ballX - x);
+    return Pose2f(wrapAngle(theta), clampFieldX(x), clampFieldY(y));
+  }
+
+  Pose2f defenderObserveTarget(const RL::PPOGateObservation& observation)
+  {
+    const float x = clampFieldX(observation.ballX);
+    const float y = clampFieldY(observation.ballY);
+    const float theta = std::atan2(y - observation.robotY, x - observation.robotX);
+    return Pose2f(wrapAngle(theta), x, y);
+  }
+
+  Pose2f defenderBlockTarget(const RL::PPOGateObservation& observation)
+  {
+    const float x = clampFieldX(observation.ballX - 250.f);
+    const float y = clampFieldY(observation.ballY * 0.85f);
+    const float theta = std::atan2(observation.ballY - y, observation.ballX - x);
+    return Pose2f(wrapAngle(theta), x, y);
+  }
+
+  Pose2f defenderMarkTarget(const RL::PPOGateObservation& observation)
+  {
+    const float side = observation.ballY >= 0.f ? 1.f : -1.f;
+    const float x = clampFieldX(observation.ballX - 350.f);
+    const float y = clampFieldY(observation.ballY + side * 450.f);
+    const float theta = std::atan2(observation.ballY - y, observation.ballX - x);
+    return Pose2f(wrapAngle(theta), x, y);
   }
 }
 
@@ -52,7 +102,10 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
   if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
     skill = static_cast<SkillType>(skillIndex);
 
-  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot && skill != SkillType::dribble)
+  // Skills the policy can legally emit under the production stage + role mask. Anything
+  // else (mark, observe, pass) is projected to walk, mirroring environment.py:project_action.
+  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot &&
+     skill != SkillType::dribble && skill != SkillType::block)
     skill = SkillType::walk;
 
   const auto mask = paramMaskForSkill(skill);
@@ -106,8 +159,39 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
       return SkillRequest::Builder::shoot();
     case SkillType::dribble:
       return SkillRequest::Builder::dribbleTo(targetTheta);
+    case SkillType::block:
+      // block anchor is (0, 0, goalHeading) with the target_y residual only, so the
+      // blocking point is (0, residualY * residualYRange) in field coordinates.
+      return SkillRequest::Builder::block(Vector2f(targetX, targetY));
     case SkillType::walk:
     default:
       return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
+  }
+}
+
+SkillRequest RL::PPOActionDecoder::decodeDefender(const PPOGateObservation& observation, int skillIndex, int passTarget) const
+{
+  SkillType skill = SkillType::walk;
+  if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
+    skill = static_cast<SkillType>(skillIndex);
+
+  switch(skill)
+  {
+    case SkillType::stand:
+      return SkillRequest::Builder::stand();
+    case SkillType::pass:
+      return passTarget > 0 ? SkillRequest::Builder::passTo(passTarget) : SkillRequest::Builder::walkTo(defenderGuardTarget(observation));
+    case SkillType::shoot:
+      return SkillRequest::Builder::shoot();
+    case SkillType::block:
+      return SkillRequest::Builder::block(defenderBlockTarget(observation).translation);
+    case SkillType::mark:
+      return SkillRequest::Builder::mark(defenderMarkTarget(observation).translation);
+    case SkillType::observe:
+      return SkillRequest::Builder::observe(defenderObserveTarget(observation).translation);
+    case SkillType::walk:
+      return SkillRequest::Builder::walkTo(defenderGuardTarget(observation));
+    default:
+      return SkillRequest::Builder::walkTo(defenderGuardTarget(observation));
   }
 }
