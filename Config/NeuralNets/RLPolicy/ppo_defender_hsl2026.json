@@ -1,0 +1,39 @@
+{
+  "format": "onnx",
+  "obs_size_input": 47,
+  "obs_size_env": 47,
+  "obs_size_model_trained": 47,
+  "skill_order": [
+    "stand",
+    "walk",
+    "shoot",
+    "pass",
+    "dribble",
+    "block",
+    "mark",
+    "observe"
+  ],
+  "active_skills": [
+    "stand",
+    "walk",
+    "dribble",
+    "shoot",
+    "pass",
+    "block"
+  ],
+  "specialization": "team",
+  "gate_config": {
+    "shoot_open_enter": 0.3,
+    "shoot_open_exit": 0.2
+  },
+  "role_onehot_indices": {
+    "is_striker": 44,
+    "is_open_support": 45,
+    "is_off_ball_support": 46
+  },
+  "checkpoint": "runs/defender_47_v2/checkpoint_stage8_step2500.pt",
+  "checkpoint_sha256": "bac93e800a1637bcaef2eaa22fc8edbefbbb8df5de84c5c91e20cb1f7b6b5746",
+  "onnx_sha256": "9f94f2aaabfd2d3958a71da1c3905dabd8ce4d464de9fdbbc1c607e37e9e331e",
+  "normalization_contract": "ppo_obs_v47_team_hsl2026",
+  "deterministic": true
+}

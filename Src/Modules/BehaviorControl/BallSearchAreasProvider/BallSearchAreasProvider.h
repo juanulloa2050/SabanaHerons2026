@@ -19,6 +19,7 @@
 #include "Representations/Infrastructure/CameraInfo.h"
 #include "Representations/BehaviorControl/BallSearchAreas.h"
 #include "Representations/BehaviorControl/IllegalAreas.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/Libraries/LibTeammates.h"
 #include "Representations/Configuration/BallSpecification.h"
 #include "Representations/Configuration/FieldDimensions.h"
@@ -36,6 +37,7 @@ MODULE(BallSearchAreasProvider,
   REQUIRES(CameraInfo),
   REQUIRES(CameraMatrix),
   REQUIRES(ObstacleModel),
+  REQUIRES(RestartBallSearchContext),
   REQUIRES(TeammatesBallModel),
   PROVIDES(BallSearchAreas),
   DEFINES_PARAMETERS(
@@ -46,6 +48,12 @@ MODULE(BallSearchAreasProvider,
     (unsigned)(200) obstacleOffset, /**< offset to be added to the obstacle width in the sector wheel*/
     (float)(1200.f) teamBallSearchRadius, /**< Radius around the last shared team ball that should be searched with priority. */
     (float)(4.f) teamBallPriorityBoost, /**< Multiplier for search score around the remembered team ball position. */
+    (unsigned)(8) restartRegionPriority,
+    (unsigned)(5) restartNeighborPriority,
+    (unsigned)(12) restartPointPriority,
+    (float)(700.f) restartPointBoostRadius,
+    (unsigned)(6000) restartPhaseOneDuration,
+    (unsigned)(12000) restartPhaseTwoDuration,
   }),
 });
 
@@ -133,4 +141,6 @@ private:
    * If the type is obstacle, the section between the robot and the obstacle will be updated.
    */
   void updateCells();
+  Geometry::Rect regionRect(int regionIndex) const;
+  bool cellIsInNeighborRegion(const BallSearchAreas::Cell& cell, int regionIndex) const;
 };

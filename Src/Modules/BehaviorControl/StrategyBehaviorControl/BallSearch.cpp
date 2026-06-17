@@ -17,20 +17,20 @@ BallSearch::BallSearch() :
 void BallSearch::preProcess()
 {
   const float usedRefereeBallPlacementAccuracy = refereeBallPlacementAccuracy + (ballUnknown ? 0.f : 200.f);
-  const auto& ballPositions = theGameState.isCornerKick() ? (theGameState.isForOwnTeam() ? opponentCorners : ownCorners) : (theGameState.isForOwnTeam() ? ownGoalCorners : opponentGoalCorners);
-  if(theTeammatesBallModel.isValid)
+
+  teamBallNearRestartCandidate = false;
+  ownBallNearRestartCandidate = false;
+  if(theRestartBallSearchContext.valid)
   {
-    const float distanceLeftSquared = (ballPositions[0] - theTeammatesBallModel.position).squaredNorm();
-    const float distanceRightSquared = (ballPositions[1] - theTeammatesBallModel.position).squaredNorm();
-
-    const bool teammatesBallModelIsInCorner = distanceLeftSquared < sqr(usedRefereeBallPlacementAccuracy) || distanceRightSquared < sqr(usedRefereeBallPlacementAccuracy);
-
-    if(teammatesBallModelIsInCorner)
-      teammatesBallModelInCorner = true;
-    else
-      teammatesBallModelInCorner = false;
+    for(const Vector2f& candidate : theRestartBallSearchContext.candidates)
+    {
+      if(theTeammatesBallModel.isValid &&
+         (candidate - theTeammatesBallModel.position).squaredNorm() < sqr(usedRefereeBallPlacementAccuracy))
+        teamBallNearRestartCandidate = true;
+      if((candidate - theFieldBall.positionOnField).squaredNorm() < sqr(usedRefereeBallPlacementAccuracy))
+        ownBallNearRestartCandidate = true;
+    }
   }
-  ballModelIsInOneCorner = ((ballPositions[0] - theFieldBall.positionOnField).squaredNorm() < sqr(usedRefereeBallPlacementAccuracy)) || ((ballPositions[1] - theFieldBall.positionOnField).squaredNorm() < sqr(usedRefereeBallPlacementAccuracy));
 
   beginFrame(theFrameInfo.time);
 }
