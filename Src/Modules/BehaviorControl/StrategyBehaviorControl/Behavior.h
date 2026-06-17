@@ -128,6 +128,8 @@ private:
    * @return The selected agent (can be empty).
    */
   const Agent* determineActiveAgent(Agent& self, const std::vector<const Agent*>& otherAgents, bool assign = false) const;
+  const Agent* determineRestartSearchOwner(std::vector<Agent>& agents, Agent& self, bool assign = false) const;
+  bool restartSearchIsActive() const;
 
   /**
    * Performs a majority vote among all agents on a specific topic.
