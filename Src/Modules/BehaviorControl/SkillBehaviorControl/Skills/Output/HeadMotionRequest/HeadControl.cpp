@@ -48,6 +48,9 @@ SKILL_IMPLEMENTATION(HeadControlImpl,
     (int)(100) minTimeBetweenTargetSwitch,
     (int)(200) minTimeLookingAtBall,
     (Angle)(100_deg) maxHeadYawSpeed,
+    (Angle)(45_deg) ballTrackingHeadSpeed, /**< Conservative speed limit to protect the head during ball tracking. */
+    (int)(250) ballTrackingSmoothingTimeConstant, /**< Low-pass filter time constant in milliseconds for ball-tracking targets. */
+    (int)(500) ballTrackingSmoothingResetTime, /**< Reset the filter after longer interruptions to avoid stale targets. */
   }),
 });
 
@@ -72,7 +75,7 @@ class HeadControlImpl : public HeadControlImplBase
       const Vector2f ballPosition = useOwnEstimate ?
                                     (p.mirrored ? (theRobotPose.inverse() * (theRobotPose * theBallModel.estimate.position).rotated(pi)) : theBallModel.estimate.position) :
                                     (theRobotPose.inverse() * (p.mirrored ? theTeammatesBallModel.position.rotated(pi) : theTeammatesBallModel.position));
-      setTargetOnGroundRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius), 180_deg);
+      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius));
     }
     else
     {
@@ -86,7 +89,7 @@ class HeadControlImpl : public HeadControlImplBase
     if(theTeammatesBallModel.isValid)
     {
       const Vector2f ballPosition = theRobotPose.inverse() * (p.mirrored ? theTeammatesBallModel.position.rotated(pi) : theTeammatesBallModel.position);
-      setTargetOnGroundRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius), 180_deg);
+      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius));
     }
     else
     {
@@ -144,7 +147,8 @@ class HeadControlImpl : public HeadControlImplBase
     else
       nextTurnedAngle = walkingAngle;
 
-    setPanTiltRequest(HeadMotionRequest::autoCamera, nextTurnedAngle, p.tilt, 500_deg);
+    const Angle trackingSpeed = p.speed < ballTrackingHeadSpeed ? p.speed : ballTrackingHeadSpeed;
+    setPanTiltRequest(HeadMotionRequest::autoCamera, nextTurnedAngle, p.tilt, trackingSpeed);
     lastHeadYawAngle = theJointAngles.angles[Joints::headYaw];
     lastJointAnglesTime = theJointAngles.timestamp;
   }
@@ -190,6 +194,25 @@ class HeadControlImpl : public HeadControlImplBase
     theLibCheck.inc(LibCheck::headMotionRequest);
   }
 
+  void setSmoothedBallTargetRequest(HeadMotionRequest::CameraControlMode camera, const Vector3f& target)
+  {
+    const unsigned resetTime = ballTrackingSmoothingResetTime > 0 ? static_cast<unsigned>(ballTrackingSmoothingResetTime) : 0u;
+    if(!hasSmoothedBallTarget || static_cast<unsigned>(theFrameInfo.getTimeSince(lastBallTargetUpdate)) > resetTime)
+      smoothedBallTarget = target;
+    else
+    {
+      const float dtMs = static_cast<float>(theFrameInfo.getTimeSince(lastBallTargetUpdate));
+      const float alpha = ballTrackingSmoothingTimeConstant > 0 ?
+                          Rangef::OneRange().limit(dtMs / static_cast<float>(ballTrackingSmoothingTimeConstant)) :
+                          1.f;
+      smoothedBallTarget += alpha * (target - smoothedBallTarget);
+    }
+
+    hasSmoothedBallTarget = true;
+    lastBallTargetUpdate = theFrameInfo.time;
+    setTargetOnGroundRequest(camera, smoothedBallTarget, ballTrackingHeadSpeed);
+  }
+
   float lookLeftAndRightSign; /**< The side to which LookLeftAndRight currently turns the head. */
   bool lookAtBallFirst; /**< If true, then look at the ball first. */
   Angle nextTurnedAngle; /**< the last angle the head in LookAtBallTarget was turned */
@@ -197,6 +220,9 @@ class HeadControlImpl : public HeadControlImplBase
   Angle lastHeadYawAngle = 0_deg;
   unsigned int lookingAtBallSince = 0;
   unsigned int lastJointAnglesTime = 0;
+  Vector3f smoothedBallTarget = Vector3f::Zero();
+  unsigned int lastBallTargetUpdate = 0;
+  bool hasSmoothedBallTarget = false;
 };
 
 MAKE_SKILL_IMPLEMENTATION(HeadControlImpl);
