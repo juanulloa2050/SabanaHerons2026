@@ -1,5 +1,6 @@
 {
   "format": "onnx",
+  "opset_version": 15,
   "obs_size_input": 47,
   "obs_size_env": 47,
   "obs_size_model_trained": 47,
@@ -21,7 +22,7 @@
     "pass",
     "block"
   ],
-  "specialization": "team",
+  "specialization": "defender",
   "gate_config": {
     "shoot_open_enter": 0.3,
     "shoot_open_exit": 0.2
@@ -33,7 +34,7 @@
   },
   "checkpoint": "runs/defender_47_v2/checkpoint_stage8_step2500.pt",
   "checkpoint_sha256": "bac93e800a1637bcaef2eaa22fc8edbefbbb8df5de84c5c91e20cb1f7b6b5746",
-  "onnx_sha256": "9f94f2aaabfd2d3958a71da1c3905dabd8ce4d464de9fdbbc1c607e37e9e331e",
+  "onnx_sha256": "0ee16953befa83b7c3f6e2c912fefbe842fa5066275bbb96514f4450711f779b",
   "normalization_contract": "ppo_obs_v47_team_hsl2026",
   "deterministic": true
 }
