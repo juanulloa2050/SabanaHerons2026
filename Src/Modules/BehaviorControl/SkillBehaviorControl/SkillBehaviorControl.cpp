@@ -483,6 +483,13 @@ void SkillBehaviorControl::executeRequest()
       case SkillRequest::observe:
         theObservePointSkill({.target = theRobotPose.inverse() * theSkillRequest.target.translation});
         break;
+      case SkillRequest::interceptBall:
+        theInterceptBallSkill({.interceptionMethods = theSkillRequest.interceptionMethods,
+                               .allowDive = theSkillRequest.allowDive});
+        break;
+      case SkillRequest::keeperDive:
+        theDiveSkill({.request = theSkillRequest.diveRequest});
+        break;
       default:
         FAIL("Unknown skill request.");
     }

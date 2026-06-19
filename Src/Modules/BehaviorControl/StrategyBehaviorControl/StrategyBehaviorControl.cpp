@@ -10,6 +10,7 @@
 #include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
 #include "Representations/Communication/TeamData.h"
+#include "Tools/BehaviorControl/Interception.h"
 #include "Tools/BehaviorControl/Strategy/BehaviorBase.h"
 #include "Tools/Modeling/BallPhysics.h"
 #include "Debugging/DebugDrawings.h"
@@ -403,6 +404,32 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
       skillRequest = SkillRequest::Builder::observe(Vector2f(tx, ty));
       setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::stand));
     }
+    else if(skill == "gk_center")
+    {
+      skillRequest = SkillRequest::Builder::interceptBall(bit(Interception::stand), true);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::stand));
+    }
+    else if(skill == "gk_lat")
+    {
+      skillRequest = SkillRequest::Builder::interceptBall(bit(Interception::walk), true);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::walkToPose));
+    }
+    else if(skill == "gk_low_l" || skill == "gk_low_r")
+    {
+      skillRequest = SkillRequest::Builder::keeperDive(
+        skill == "gk_low_l" ? MotionRequest::Dive::squatWideArmsBackLeft : MotionRequest::Dive::squatWideArmsBackRight);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::dive));
+    }
+    else if(skill == "gk_jump_l")
+    {
+      skillRequest = SkillRequest::Builder::keeperDive(MotionRequest::Dive::jumpLeft);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::dive));
+    }
+    else if(skill == "gk_jump_r")
+    {
+      skillRequest = SkillRequest::Builder::keeperDive(MotionRequest::Dive::jumpRight);
+      setProviderDebug(io, tx, ty, tt, static_cast<int>(MotionRequest::dive));
+    }
     else
     {
       skillRequest = SkillRequest::Builder::stand();
@@ -461,6 +488,11 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
     else
       logRLModeIfChanged(RLRuntimeMode::bhuman, embeddedPPOStatusReason(theGameState));
   }
+
+  // Keeper override: the embedded goalkeeper RL policy controls the keeper robot
+  // (updateEmbeddedPPO already excludes the goalkeeper, so this is the complement).
+  // Returns false (no-op) on field players and when GK is disabled/not playing.
+  updateEmbeddedGK(skillRequest);
 
   theBehavior.postProcess();
 }
@@ -1200,6 +1232,128 @@ void StrategyBehaviorControl::resetEmbeddedPPO()
   emaOpenLaneInited = false;
   emaTriangleInited = false;
   triangleForcedSideSet = false;
+}
+
+// ===================== Embedded goalkeeper RL policy =====================
+// Separate 64-dim / 12-skill head-free network. Runs ONLY on the keeper robot
+// (the complement of the field-player embedded PPO, which excludes the keeper).
+std::string StrategyBehaviorControl::configuredEmbeddedGKModelPath() const
+{
+  if(!enableEmbeddedGK)
+    return {};
+  return embeddedGKModelPath;
+}
+
+bool StrategyBehaviorControl::usesEmbeddedGK(const GameState& gameState) const
+{
+  if(configuredEmbeddedGKModelPath().empty())
+    return false;
+  if(gameState.playerState != GameState::active || gameState.state != GameState::playing)
+    return false;
+  return gameState.ownTeam.isGoalkeeper(gameState.playerNumber);
+}
+
+bool StrategyBehaviorControl::ensureEmbeddedGKLoaded()
+{
+  if(gkPolicyModel.isLoaded())
+    return true;
+  if(gkLoadAttempted)
+    return false;
+
+  const std::string modelPath = configuredEmbeddedGKModelPath();
+  if(modelPath.empty())
+    return false;
+
+  gkLoadAttempted = true;
+  gkRequestedModelPath = modelPath;
+
+  std::string error;
+  if(!gkPolicyModel.load(gkRequestedModelPath, &error))
+  {
+    if(!gkLoadErrorReported)
+    {
+      OUTPUT_WARNING("[RL] Embedded GK model load failed"
+                     << " player=" << theGameState.playerNumber
+                     << " path=" << gkRequestedModelPath
+                     << " error=" << error);
+      gkLoadErrorReported = true;
+    }
+    return false;
+  }
+
+  gkLoadErrorReported = false;
+  gkInferErrorReported = false;
+  OUTPUT_WARNING("[RL] Embedded GK model loaded"
+                 << " player=" << theGameState.playerNumber
+                 << " path=" << gkRequestedModelPath);
+  return true;
+}
+
+int StrategyBehaviorControl::chooseGKPassTarget() const
+{
+  // The policy does not pick the pass target; choose the most-forward teammate.
+  int bestNumber = -1;
+  float bestX = -1e9f;
+  for(const Teammate& mate : theTeamData.teammates)
+  {
+    const float x = mate.theRobotPose.translation.x();
+    if(x > bestX)
+    {
+      bestX = x;
+      bestNumber = mate.number;
+    }
+  }
+  return bestNumber;
+}
+
+bool StrategyBehaviorControl::updateEmbeddedGK(SkillRequest& skillRequest)
+{
+  if(usesExternalRLOverride(theGameState) || !usesEmbeddedGK(theGameState))
+    return false;
+  if(!ensureEmbeddedGKLoaded())
+    return false;
+
+  const RLGK::GKRawObservation raw = gkObservationEncoder.buildRawObservation(
+    theFrameInfo, theRobotPose, theFieldBall, theBallModel, theBallPercept,
+    theObstacleModel, theTeamData, theTeammatesBallModel, theFallDownState,
+    theGroundContactState, theFieldDimensions);
+  const RLGK::GKObservation observation = gkObservationEncoder.encode(raw);
+
+  RLGK::GKPolicyOutput output;
+  std::string error;
+  if(!gkPolicyModel.infer(observation.values, output, &error) || !output.valid)
+  {
+    if(!gkInferErrorReported)
+    {
+      OUTPUT_WARNING("[RL] Embedded GK inference failed"
+                     << " player=" << theGameState.playerNumber
+                     << " error=" << error);
+      gkInferErrorReported = true;
+    }
+    return false;
+  }
+
+  // Apply the legal-action mask BEFORE argmax (Design-A).
+  const std::array<float, RLGK::gkSkillCount> mask = gkSkillGate.mask(observation.values);
+  std::array<float, RLGK::gkSkillCount> maskedLogits = output.skillLogits;
+  for(std::size_t i = 0; i < maskedLogits.size(); ++i)
+    if(mask[i] <= 0.f)
+      maskedLogits[i] = disabledLogit;
+
+  int selectedSkill = 0;
+  float bestLogit = maskedLogits[0];
+  for(std::size_t i = 1; i < maskedLogits.size(); ++i)
+    if(maskedLogits[i] > bestLogit)
+    {
+      bestLogit = maskedLogits[i];
+      selectedSkill = static_cast<int>(i);
+    }
+
+  const int passTarget = (selectedSkill == static_cast<int>(RLGK::GKSkillType::pass)) ? chooseGKPassTarget() : -1;
+  skillRequest = gkActionDecoder.decode(raw, selectedSkill, output.paramMean, passTarget);
+  logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded GK controlling skill requests");
+  gkInferErrorReported = false;
+  return true;
 }
 
 RL::PPOTeamContext StrategyBehaviorControl::buildTeamContext(const RL::PPOGateDecision& /*gateDecision*/, const bool isStriker) const
