@@ -123,57 +123,40 @@ std::vector<int> parsePlayerList(const QString& value)
   return players;
 }
 
-QString normalizeEmbeddedModelPath(QString path)
-{
-  path = path.trimmed();
-  if(path.startsWith('"') && path.endsWith('"') && path.size() >= 2)
-    path = path.mid(1, path.size() - 2);
-  return path;
-}
-
-void ensureRLConfigInitialized(Presets::Preset* preset)
+void ensureRLModesInitialized(Presets::Preset* preset)
 {
   if(preset->rlModes.size() == preset->players.size())
-  {
-    // already sized correctly
-  }
-  else
-    preset->rlModes.assign(preset->players.size(), "off");
+    return;
 
-  const QString defaultStrikerModel = normalizeEmbeddedModelPath(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOStrikerModelPath"));
-  const QString defaultDefenderModel = normalizeEmbeddedModelPath(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderModelPath"));
-  if(preset->rlStrikerModel.empty())
-    preset->rlStrikerModel = defaultStrikerModel.toStdString();
-  if(preset->rlDefenderModel.empty())
-    preset->rlDefenderModel = defaultDefenderModel.toStdString();
+  preset->rlModes.assign(preset->players.size(), "off");
 
   const QString enabled = readStrategyBehaviorControlValue(preset->scenario, "enableEmbeddedPPO");
-  if(enabled == "true")
-  {
-    const auto strikerPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOPlayers"));
-    const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
-    for(const int player : strikerPlayers)
-      if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-        preset->rlModes[static_cast<size_t>(player - 1)] = "striker";
-    for(const int player : defenderPlayers)
-      if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-        preset->rlModes[static_cast<size_t>(player - 1)] = "defender";
+  if(enabled != "true")
+    return;
 
-    if(!strikerPlayers.empty() || !defenderPlayers.empty())
-      return;
+  const auto strikerPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOPlayers"));
+  const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
+  for(const int player : strikerPlayers)
+    if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
+      preset->rlModes[static_cast<size_t>(player - 1)] = "striker";
+  for(const int player : defenderPlayers)
+    if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
+      preset->rlModes[static_cast<size_t>(player - 1)] = "defender";
 
-    const QString dynamicPlayBall = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODynamicPlayBall");
-    if(dynamicPlayBall == "true")
-      return;
+  if(!strikerPlayers.empty() || !defenderPlayers.empty())
+    return;
 
-    const QString configuredRole = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"');
-    if(configuredRole != "striker" && configuredRole != "defender")
-      return;
+  const QString dynamicPlayBall = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODynamicPlayBall");
+  if(dynamicPlayBall == "true")
+    return;
 
-    for(size_t i = 1; i < preset->players.size(); ++i)
-      if(preset->players[i] != "_")
-        preset->rlModes[i] = configuredRole.toStdString();
-  }
+  const QString configuredRole = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"');
+  if(configuredRole != "striker" && configuredRole != "defender")
+    return;
+
+  for(size_t i = 1; i < preset->players.size(); ++i)
+    if(preset->players[i] != "_")
+      preset->rlModes[i] = configuredRole.toStdString();
 }
 }
 
@@ -199,10 +182,6 @@ SettingsArea::SettingsArea(Presets& presets, QDialog* dialog, RobotsTable* table
   for(const Teams::Team& team : teams.teams)
     if(team.number)
       this->teams[team.name] = team.number;
-
-  const QStringList rlModels = QDir("NeuralNets/RLPolicy").entryList(QStringList() << "*.onnx", QDir::Files, QDir::Name);
-  for(const QString& rlModel : rlModels)
-    rlModelPaths << QString("Config/NeuralNets/RLPolicy/%1").arg(rlModel);
 
   QVBoxLayout* layout = new QVBoxLayout(this);
   layout->addWidget(createPresetTabs());
@@ -375,7 +354,7 @@ QWidget* SettingsArea::createPresetTabs()
 
 QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
 {
-  ensureRLConfigInitialized(preset);
+  ensureRLModesInitialized(preset);
 
   QWidget* widget = new QWidget();
   QFormLayout* layout = new QFormLayout(widget);
@@ -461,8 +440,6 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   connect(volumeSelector, &QSlider::valueChanged, [=](int volume) {preset->volume = volume;});
   layout->addRow("Volume", volumeSelector);
 
-  ensureRLConfigInitialized(preset);
-
   bool hasAssignedPlayers = false;
   for(const std::string& player : preset->players)
     if(player != "_")
@@ -474,27 +451,6 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   if(hasAssignedPlayers)
   {
     layout->addRow(new Line(this));
-
-    if(!rlModelPaths.isEmpty())
-    {
-      QComboBox* strikerModelSelector = new QComboBox();
-      strikerModelSelector->setFocusPolicy(Qt::StrongFocus);
-      strikerModelSelector->addItems(rlModelPaths);
-      strikerModelSelector->setEditable(true);
-      strikerModelSelector->setCurrentText(preset->rlStrikerModel.c_str());
-      strikerModelSelector->setMaximumWidth(settingsFieldWidth * 2);
-      connect(strikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model) {preset->rlStrikerModel = model.toStdString();});
-      layout->addRow("RL striker model", strikerModelSelector);
-
-      QComboBox* defenderModelSelector = new QComboBox();
-      defenderModelSelector->setFocusPolicy(Qt::StrongFocus);
-      defenderModelSelector->addItems(rlModelPaths);
-      defenderModelSelector->setEditable(true);
-      defenderModelSelector->setCurrentText(preset->rlDefenderModel.c_str());
-      defenderModelSelector->setMaximumWidth(settingsFieldWidth * 2);
-      connect(defenderModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model) {preset->rlDefenderModel = model.toStdString();});
-      layout->addRow("RL defender model", defenderModelSelector);
-    }
 
     const QStringList rlModes = {"off", "striker", "defender"};
     for(size_t i = 0; i < preset->players.size(); ++i)
@@ -622,7 +578,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
 
   std::vector<int> strikerPlayers;
   std::vector<int> defenderPlayers;
-  ensureRLConfigInitialized(selectedPreset);
+  ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
     if(selectedPreset->rlModes[i] == "striker")
@@ -660,11 +616,6 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
     writePlayerList("--rl-striker", strikerPlayers);
     writePlayerList("--rl-defender", defenderPlayers);
   }
-
-  if(!selectedPreset->rlStrikerModel.empty())
-    stream << " --rl-striker-model " << selectedPreset->rlStrikerModel;
-  if(!selectedPreset->rlDefenderModel.empty())
-    stream << " --rl-defender-model " << selectedPreset->rlDefenderModel;
 
   if(mode == image)
   {
