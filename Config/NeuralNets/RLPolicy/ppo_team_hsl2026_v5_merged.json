@@ -1,0 +1,55 @@
+{
+  "format": "onnx",
+  "obs_size_input": 47,
+  "obs_size_env": 47,
+  "obs_size_model_trained": 47,
+  "skill_order": [
+    "stand",
+    "walk",
+    "shoot",
+    "pass",
+    "dribble",
+    "block",
+    "mark",
+    "observe"
+  ],
+  "active_skills": [
+    "stand",
+    "walk",
+    "shoot",
+    "pass",
+    "dribble",
+    "block",
+    "mark"
+  ],
+  "specialization": "merged",
+  "gate_config": {
+    "shoot_open_enter": 0.30,
+    "shoot_open_exit": 0.20
+  },
+  "role_onehot_indices": {
+    "is_striker": 44,
+    "is_open_support": 45,
+    "is_off_ball_support": 46
+  },
+  "normalization_contract": "ppo_obs_v47_team_hsl2026",
+  "residual_ranges": {
+    "x_mm": 0.0,
+    "y_mm": 450.0,
+    "theta_rad": 0.75
+  },
+  "block_mark_lateral_scale_mm": 900.0,
+  "checkpoint": "runs/multiagent_v5_merged/checkpoint_stage8_step10000.pt",
+  "onnx_sha256": "abee6a5cff3966d66b46d395ffd5a5479e9510568948878a588b1325c44bc09c",
+  "deterministic": true,
+  "role_coordinator": {
+    "hysteresis_frames": 7,
+    "min_distance_gap_mm": 200.0,
+    "ball_control_radius_mm": 350.0,
+    "ema_alpha_open_lane": 0.15,
+    "ema_alpha_triangle": 0.10,
+    "defense_phase_enter_x": -300.0,
+    "defense_phase_exit_x": 300.0
+  },
+  "notes": "Merged striker+defender v5: role is INPUT (obs[44:47] one-hot). Role coordinator runs on all field players each frame. Support/defender walk anchors on EMA coordination target, not ball. Block-priority wrapper: if off_ball and argmax==mark and block armed and ball_front<opp_front -> choose block. See doc-38."
+}

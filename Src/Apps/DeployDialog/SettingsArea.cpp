@@ -115,7 +115,9 @@ std::string normalizeRLMode(const std::string& mode)
     return "baseline_attack";
   if(mode == "team" || mode == "team_v4_2" || mode == "team-v4_2" || mode == "team-v4.2" || mode == "teamStriker")
     return "team_v4_2";
-  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "off")
+  if(mode == "merged" || mode == "merged_v5" || mode == "merged-v5" || mode == "mergedTeam")
+    return "merged_v5";
+  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "merged_v5" || mode == "off")
     return mode;
   return "off";
 }
@@ -155,6 +157,17 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   const QString enabled = readStrategyBehaviorControlValue(preset->scenario, "enableEmbeddedPPO");
   if(enabled != "true")
     return;
+
+  const bool mergedConfigured =
+    !readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOMergedTeamModelPath").remove('"').trimmed().isEmpty();
+  if(mergedConfigured)
+  {
+    // Merged brain v5 controls every field player (the goalkeeper, slot 0, is excluded).
+    for(size_t i = 1; i < preset->players.size(); ++i)
+      if(preset->players[i] != "_")
+        preset->rlModes[i] = "merged_v5";
+    return;
+  }
 
   const auto strikerPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOPlayers"));
   const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
@@ -483,7 +496,7 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   {
     layout->addRow(new Line(this));
 
-    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2"};
+    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2", "merged_v5"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -613,6 +626,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
   std::vector<int> strikerPlayers;
   std::vector<int> defenderPlayers;
   std::vector<int> teamPlayers;
+  std::vector<int> mergedPlayers;
   ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
@@ -622,6 +636,8 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
       defenderPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "team_v4_2")
       teamPlayers.push_back(static_cast<int>(i + 1));
+    else if(selectedPreset->rlModes[i] == "merged_v5")
+      mergedPlayers.push_back(static_cast<int>(i + 1));
   }
 
   stream <<  "-t " << selectedPreset->number
@@ -633,7 +649,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
          << " -w " << selectedPreset->wlanConfig
          << " -v " << selectedPreset->volume;
 
-  if(strikerPlayers.empty() && defenderPlayers.empty() && teamPlayers.empty())
+  if(strikerPlayers.empty() && defenderPlayers.empty() && teamPlayers.empty() && mergedPlayers.empty())
     stream << " --rl-disable";
   else
   {
@@ -653,6 +669,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
     writePlayerList("--rl-striker", strikerPlayers);
     writePlayerList("--rl-defender", defenderPlayers);
     writePlayerList("--rl-team-v42", teamPlayers);
+    writePlayerList("--rl-merged", mergedPlayers);
   }
 
   stream << " --goalkeeper-dive " << (selectedPreset->goalkeeperDivingEnabled ? "on" : "off");
