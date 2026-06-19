@@ -179,7 +179,7 @@ const char* ppoSkillName(const int skillIndex)
 
 StrategyBehaviorControl::StrategyBehaviorControl() :
   theBehavior(theBallDropInModel, theExtendedGameState, theFieldBall, theFieldDimensions, theFrameInfo,
-              theGameState, theTeammatesBallModel)
+              theGameState, theRestartBallSearchContext, theTeammatesBallModel)
 {
   // v4.2 team model was trained with shoot_open enter=0.30 / exit=0.20
   // (recorded in the ONNX manifest gate_config). Use a dedicated gate instance.
