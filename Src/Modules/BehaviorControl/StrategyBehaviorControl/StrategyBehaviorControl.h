@@ -13,6 +13,10 @@
 #include "Libs/RL/PPOObservationEncoder.h"
 #include "Libs/RL/PPOPolicyModel.h"
 #include "Libs/RL/PPOSkillGate.h"
+#include "Libs/RL/GKActionDecoder.h"
+#include "Libs/RL/GKObservationEncoder.h"
+#include "Libs/RL/GKPolicyModel.h"
+#include "Libs/RL/GKSkillGate.h"
 #include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
@@ -75,6 +79,8 @@ MODULE(StrategyBehaviorControl,
     (int)(0) embeddedPPOStandWatchdogMs, /**< Disable PPO or force walk if PPO stand dominates this time window. 0 disables. */
     (int)(3000) embeddedPPOStandWatchdogCooldownMs, /**< Time to keep PPO disabled after the stand watchdog fires. */
     (bool)(false) embeddedPPOStandWatchdogForceWalk, /**< If true, force walk instead of falling back to B-Human when the watchdog fires. */
+    (bool)(false) enableEmbeddedGK, /**< Enable the embedded goalkeeper RL policy (runs ONLY on the keeper robot). */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_goalkeeper_hsl2026_gk_closedloop_elite.onnx") embeddedGKModelPath, /**< GK ONNX file, relative to the repo root unless absolute. Head-free closed-loop policy. */
   }),
 });
 
@@ -142,6 +148,12 @@ private:
   std::string configuredEmbeddedPPOModelPath() const;
   bool updateEmbeddedPPO(SkillRequest& skillRequest);
   bool ensureEmbeddedPPOLoaded();
+  // Embedded goalkeeper RL policy (separate 64-dim/12-skill net; runs only on the keeper).
+  bool usesEmbeddedGK(const GameState& gameState) const;
+  std::string configuredEmbeddedGKModelPath() const;
+  bool updateEmbeddedGK(SkillRequest& skillRequest);
+  bool ensureEmbeddedGKLoaded();
+  int chooseGKPassTarget() const;
   void logRLModeIfChanged(RLRuntimeMode mode, const std::string& reason);
   void logEmbeddedPPODecisionIfChanged(
     int skillIndex,
@@ -159,6 +171,14 @@ private:
   RL::PPOObservationEncoder ppoObservationEncoder;
   RL::PPOPolicyModel ppoPolicyModel;
   RL::PPOActionDecoder ppoActionDecoder;
+  RLGK::GKPolicyModel gkPolicyModel;
+  RLGK::GKObservationEncoder gkObservationEncoder;
+  RLGK::GKSkillGate gkSkillGate;
+  RLGK::GKActionDecoder gkActionDecoder;
+  bool gkLoadAttempted = false;
+  bool gkLoadErrorReported = false;
+  bool gkInferErrorReported = false;
+  std::string gkRequestedModelPath;
   bool ppoLoadAttempted = false;
   bool ppoLoadErrorReported = false;
   bool ppoInferErrorReported = false;
