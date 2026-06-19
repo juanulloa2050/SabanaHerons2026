@@ -19,6 +19,7 @@
 #include <QDropEvent>
 #include <QHeaderView>
 #include <QTableWidget>
+#include <ostream>
 #include "Presets.h"
 #include "Robot.h"
 
@@ -121,7 +122,7 @@ public:
    * @param robots Network information about all robots.
    * @param justIPs Just write the IPs of the robots.
    */
-  void writeOutput(std::map<std::string, Robot>& robots, bool justIPs) const;
+  void writeOutput(std::map<std::string, Robot>& robots, bool justIPs, std::ostream& stream) const;
 
   /**
    * Return the names of the robots used as substitutes in the order they

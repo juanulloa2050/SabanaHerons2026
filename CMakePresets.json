@@ -1,0 +1,112 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 17,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "Debug",
+      "displayName": "Debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/Build/Linux/CMake/Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "Develop",
+      "displayName": "Develop",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/Build/Linux/CMake/Develop",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Develop"
+      }
+    },
+    {
+      "name": "Release",
+      "displayName": "Release",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/Build/Linux/CMake/Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "Debug-SimRobot",
+      "configurePreset": "Debug",
+      "targets": [
+        "SimRobot"
+      ]
+    },
+    {
+      "name": "Debug-Tests",
+      "configurePreset": "Debug",
+      "targets": [
+        "Tests"
+      ]
+    },
+    {
+      "name": "Develop-SimRobot",
+      "configurePreset": "Develop",
+      "targets": [
+        "SimRobot"
+      ]
+    },
+    {
+      "name": "Develop-Tests",
+      "configurePreset": "Develop",
+      "targets": [
+        "Tests"
+      ]
+    },
+    {
+      "name": "Develop-DeployDialog",
+      "configurePreset": "Develop",
+      "targets": [
+        "DeployDialog"
+      ]
+    },
+    {
+      "name": "Develop-Nao",
+      "configurePreset": "Develop",
+      "targets": [
+        "Nao"
+      ]
+    },
+    {
+      "name": "Develop-Python",
+      "configurePreset": "Develop",
+      "targets": [
+        "PythonLogs",
+        "PythonController"
+      ]
+    },
+    {
+      "name": "Release-SimRobot",
+      "configurePreset": "Release",
+      "targets": [
+        "SimRobot"
+      ]
+    },
+    {
+      "name": "Release-Tests",
+      "configurePreset": "Release",
+      "targets": [
+        "Tests"
+      ]
+    }
+  ]
+}

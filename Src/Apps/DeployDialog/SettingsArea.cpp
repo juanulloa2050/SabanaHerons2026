@@ -14,10 +14,12 @@
 #include <QDir>
 #include <QEvent>
 #include <QFormLayout>
+#include <QFile>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabWidget>
@@ -84,6 +86,79 @@ public:
     return QLineEdit::eventFilter(source, event);
   }
 };
+
+namespace
+{
+QString readStrategyBehaviorControlValue(const std::string& scenario, const char* key)
+{
+  QFile file(QString("Scenarios/%1/strategyBehaviorControl.cfg").arg(scenario.c_str()));
+  if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    return {};
+
+  const QString content = QString::fromUtf8(file.readAll());
+  const QRegularExpression lineRegex(QString(R"(^\s*%1\s*=\s*(.+?)\s*;\s*$)").arg(QRegularExpression::escape(key)),
+                                     QRegularExpression::MultilineOption);
+  const QRegularExpressionMatch match = lineRegex.match(content);
+  return match.hasMatch() ? match.captured(1).trimmed() : QString();
+}
+
+std::vector<int> parsePlayerList(const QString& value)
+{
+  std::vector<int> players;
+  const QString trimmed = value.trimmed();
+  if(!trimmed.startsWith('[') || !trimmed.endsWith(']'))
+    return players;
+
+  const QString inner = trimmed.mid(1, trimmed.size() - 2).trimmed();
+  if(inner.isEmpty())
+    return players;
+
+  for(const QString& token : inner.split(',', Qt::SkipEmptyParts))
+  {
+    bool ok = false;
+    const int number = token.trimmed().toInt(&ok);
+    if(ok)
+      players.push_back(number);
+  }
+  return players;
+}
+
+void ensureRLModesInitialized(Presets::Preset* preset)
+{
+  if(preset->rlModes.size() == preset->players.size())
+    return;
+
+  preset->rlModes.assign(preset->players.size(), "off");
+
+  const QString enabled = readStrategyBehaviorControlValue(preset->scenario, "enableEmbeddedPPO");
+  if(enabled != "true")
+    return;
+
+  const auto strikerPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOPlayers"));
+  const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
+  for(const int player : strikerPlayers)
+    if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
+      preset->rlModes[static_cast<size_t>(player - 1)] = "striker";
+  for(const int player : defenderPlayers)
+    if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
+      preset->rlModes[static_cast<size_t>(player - 1)] = "defender";
+
+  if(!strikerPlayers.empty() || !defenderPlayers.empty())
+    return;
+
+  const QString dynamicPlayBall = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODynamicPlayBall");
+  if(dynamicPlayBall == "true")
+    return;
+
+  const QString configuredRole = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"');
+  if(configuredRole != "striker" && configuredRole != "defender")
+    return;
+
+  for(size_t i = 1; i < preset->players.size(); ++i)
+    if(preset->players[i] != "_")
+      preset->rlModes[i] = configuredRole.toStdString();
+}
+}
 
 SettingsArea::SettingsArea(Presets& presets, QDialog* dialog, RobotsTable* table, const QSettings& settings)
   : presets(presets), table(table)
@@ -279,6 +354,8 @@ QWidget* SettingsArea::createPresetTabs()
 
 QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
 {
+  ensureRLModesInitialized(preset);
+
   QWidget* widget = new QWidget();
   QFormLayout* layout = new QFormLayout(widget);
 
@@ -362,6 +439,34 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   connect(volumeSelector, &QSlider::sliderMoved, [&](int volume) {QToolTip::showText(QCursor::pos(), QString("%1").arg(volume));});
   connect(volumeSelector, &QSlider::valueChanged, [=](int volume) {preset->volume = volume;});
   layout->addRow("Volume", volumeSelector);
+
+  bool hasAssignedPlayers = false;
+  for(const std::string& player : preset->players)
+    if(player != "_")
+    {
+      hasAssignedPlayers = true;
+      break;
+    }
+
+  if(hasAssignedPlayers)
+  {
+    layout->addRow(new Line(this));
+
+    const QStringList rlModes = {"off", "striker", "defender"};
+    for(size_t i = 0; i < preset->players.size(); ++i)
+    {
+      if(preset->players[i] == "_")
+        continue;
+
+      QComboBox* rlModeSelector = new QComboBox();
+      rlModeSelector->setFocusPolicy(Qt::StrongFocus);
+      rlModeSelector->addItems(rlModes);
+      rlModeSelector->setCurrentText(preset->rlModes[i].c_str());
+      rlModeSelector->setMaximumWidth(settingsFieldWidth);
+      connect(rlModeSelector, &QComboBox::currentTextChanged, this, [=](const QString& mode) {preset->rlModes[i] = mode.toStdString();});
+      layout->addRow(QString("RL P%1 (%2)").arg(i + 1).arg(preset->players[i].c_str()), rlModeSelector);
+    }
+  }
 
   return widget;
 }
@@ -453,51 +558,82 @@ QWidget* SettingsArea::createLogsTab(const std::function<void()>& updateDeployBu
   return widget;
 }
 
-void SettingsArea::writeOutput(std::map<std::string, Robot>& robots) const
+void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostream& stream) const
 {
   if(mode == logs)
   {
-    std::cout << "logs ";
-    table->writeOutput(robots, true);
+    stream << "logs ";
+    table->writeOutput(robots, true, stream);
     if(logsMode == downloadAndDelete)
-      std::cout << "-d";
+      stream << "-d";
     else if(logsMode == justDelete)
-      std::cout << "-D";
-    std::cout << std::endl;
+      stream << "-D";
+    stream << std::endl;
     return;
   }
   else if(mode == image)
-    std::cout << "-i -p " << playerNumber << " ";
+    stream << "-i -p " << playerNumber << " ";
   else
-    table->writeOutput(robots, false);
+    table->writeOutput(robots, false, stream);
 
-  std::cout <<  "-nc"
-            << " -t " << selectedPreset->number
-            << " -c " << selectedPreset->fieldPlayerColor
-            << " -g " << selectedPreset->goalkeeperColor
-            << " -s " << selectedPreset->scenario
-            << " -l " << selectedPreset->location
-            << " -m " << selectedPreset->magicNumber
-            << " -w " << selectedPreset->wlanConfig
-            << " -v " << selectedPreset->volume;
+  std::vector<int> strikerPlayers;
+  std::vector<int> defenderPlayers;
+  ensureRLModesInitialized(selectedPreset);
+  for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
+  {
+    if(selectedPreset->rlModes[i] == "striker")
+      strikerPlayers.push_back(static_cast<int>(i + 1));
+    else if(selectedPreset->rlModes[i] == "defender")
+      defenderPlayers.push_back(static_cast<int>(i + 1));
+  }
+
+  stream <<  "-t " << selectedPreset->number
+         << " -c " << selectedPreset->fieldPlayerColor
+         << " -g " << selectedPreset->goalkeeperColor
+         << " -s " << selectedPreset->scenario
+         << " -l " << selectedPreset->location
+         << " -m " << selectedPreset->magicNumber
+         << " -w " << selectedPreset->wlanConfig
+         << " -v " << selectedPreset->volume;
+
+  if(strikerPlayers.empty() && defenderPlayers.empty())
+    stream << " --rl-disable";
+  else
+  {
+    auto writePlayerList = [&stream](const char* option, const std::vector<int>& players)
+    {
+      if(players.empty())
+        return;
+      stream << ' ' << option << ' ';
+      for(size_t i = 0; i < players.size(); ++i)
+      {
+        if(i)
+          stream << ',';
+        stream << players[i];
+      }
+    };
+
+    writePlayerList("--rl-striker", strikerPlayers);
+    writePlayerList("--rl-defender", defenderPlayers);
+  }
 
   if(mode == image)
   {
     if(usbCheck)
-      std::cout << " -u";
+      stream << " -u";
     if(date)
-      std::cout << " -d";
+      stream << " -d";
     if(reboot)
-      std::cout << " -b";
+      stream << " -b";
   }
   else
   {
     if(deleteLogs)
-      std::cout << " -d";
+      stream << " -d";
     if(restart)
-      std::cout << " -b";
+      stream << " -b";
   }
-  std::cout << std::endl;
+  stream << std::endl;
 }
 
 bool SettingsArea::modified(const QSettings& settings) const

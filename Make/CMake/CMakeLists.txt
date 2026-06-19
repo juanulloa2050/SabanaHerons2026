@@ -4,8 +4,11 @@ if(BUILD_NAO)
   set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../CMake/NaoToolchain.cmake")
 endif()
 
-if(NOT BUILD_NAO AND CMAKE_HOST_UNIX)
-  set(CMAKE_CXX_COMPILER clang++)
+if(NOT BUILD_NAO AND CMAKE_HOST_UNIX AND NOT CMAKE_CXX_COMPILER)
+  find_program(CLANGXX_EXECUTABLE NAMES clang++)
+  if(CLANGXX_EXECUTABLE)
+    set(CMAKE_CXX_COMPILER "${CLANGXX_EXECUTABLE}" CACHE FILEPATH "" FORCE)
+  endif()
 endif()
 
 project(B-Human LANGUAGES CXX)
@@ -122,9 +125,11 @@ else()
       -Wno-unknown-warning-option
       -Wno-sign-conversion
       -Wno-implicit-int-float-conversion
-      -Wunreachable-code
-      -Xclang
-      -fno-pch-timestamp)
+      -Wunreachable-code)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Xclang
+        -fno-pch-timestamp)
+  endif()
   if(BUILD_DESKTOP)
     if(NOT ARM AND NOT ROSETTA)
       add_compile_options(-march=native)

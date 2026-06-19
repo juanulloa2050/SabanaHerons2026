@@ -27,7 +27,9 @@ STREAMABLE_WITH_BASE(OwnKickOff, KickOff,
     attackKickOff,
     soloKickOff,
     attackKickOff_full,
+    attackKickOff_3v3_full,
     soloKickOff_full,
+    soloKickOff_3v3_full,
   });
 
   static SetPlay::Type toSetPlay(Type type)
@@ -43,6 +45,7 @@ STREAMABLE_WITH_BASE(OpponentKickOff, KickOff,
     kiteKickOff,
     defenseKickOff,
     kiteKickOff_full,
+    kiteKickOff_3v3_full,
 
   });
 

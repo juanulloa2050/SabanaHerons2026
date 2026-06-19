@@ -10,10 +10,13 @@
 #include "DeployDialog.h"
 #include <regex>
 #include <set>
+#include <iostream>
+#include <sstream>
 #include <QApplication>
 #include <QDir>
 #include <QMenu>
 #include <QMessageBox>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QVBoxLayout>
 #include "Platform/File.h"
@@ -402,10 +405,18 @@ void DeployDialog::done(int reason)
 {
   QSettings settings("B-Human", "DeployDialog");
   bool save = reason == QDialog::Accepted;
+  std::string deployArgs;
 
   if(save)
-    settingsArea->writeOutput(robots);
-  else
+  {
+    std::ostringstream stream;
+    settingsArea->writeOutput(robots, stream);
+    deployArgs = stream.str();
+    if(!deployArgs.empty() && deployArgs.back() == '\n')
+      deployArgs.pop_back();
+  }
+
+  if(!save)
   {
     Presets originalPresets;
     InMapFile presetsStream("teams.cfg");
@@ -457,6 +468,21 @@ void DeployDialog::done(int reason)
   // Save settings if requested to do so.
   if(save)
   {
+    const bool wrapped = !qEnvironmentVariableIsEmpty("DEPLOY_DIALOG_WRAPPED");
+    if(!deployArgs.empty())
+    {
+      if(wrapped)
+        std::cout << deployArgs << std::endl;
+      else
+      {
+        const QString configuration = QFileInfo(QCoreApplication::applicationFilePath()).dir().dirName();
+        const std::string command = deployArgs.starts_with("logs ")
+                                  ? "../Make/Common/downloadLogs " + deployArgs.substr(5)
+                                  : "../Make/Common/deploy " + configuration.toStdString() + " " + deployArgs;
+        QProcess::startDetached("bash", QStringList() << "-lc" << command.c_str(), QDir::currentPath());
+      }
+    }
+
     settings.setValue("substitutes", table->getSubstitutes());
     OutMapFile stream("teams.cfg");
     stream << presets;
