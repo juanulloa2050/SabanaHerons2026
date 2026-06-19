@@ -39,6 +39,7 @@ class SettingsArea : public QWidget
   enum LogsMode {download, downloadAndDelete, justDelete} logsMode; /**< The mode for downloading logs. */
   bool close; /**< Close dialog after action. */
   std::map<std::string, int> teams; /**< All team names with their team number. */
+  QStringList rlModelPaths; /**< Available PPO model paths for deployment. */
   Presets::Preset* selectedPreset = nullptr; /**< The currently selected preset. */
 
   /**

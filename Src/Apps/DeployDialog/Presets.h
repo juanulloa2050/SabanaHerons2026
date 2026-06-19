@@ -27,7 +27,9 @@ struct Presets : public Streamable
         && volume == other.volume
         && magicNumber == other.magicNumber
         && players == other.players
-        && rlModes == other.rlModes;
+        && rlModes == other.rlModes
+        && rlStrikerModel == other.rlStrikerModel
+        && rlDefenderModel == other.rlDefenderModel;
     },
 
     (std::string) name, /**< The name of the preset. */
@@ -41,6 +43,8 @@ struct Presets : public Streamable
     (int) magicNumber, /**< The magic number to set when deploying. */
     (std::vector<std::string>) players, /**< The names of the robots for the different player numbers ("_" for no robot). */
     (std::vector<std::string>) rlModes, /**< RL mode per player slot: off, striker, or defender. */
+    (std::string) rlStrikerModel, /**< Striker PPO model path to deploy into the selected scenario. */
+    (std::string) rlDefenderModel, /**< Defender PPO model path to deploy into the selected scenario. */
   });
 
   std::vector<Preset*> teams; /**< The presets for the teams.*/
