@@ -214,6 +214,11 @@ StrategyBehaviorControl::EmbeddedPPORole StrategyBehaviorControl::selectedEmbedd
   if(playerListContains(embeddedPPODefenderPlayers, playerNumber))
     return EmbeddedPPORole::defender;
 
+  // Merged brain v5: all field players use the same policy with role coordinator.
+  // GK is excluded in updateEmbeddedPPO. Takes highest priority when configured.
+  if(!embeddedPPOMergedTeamModelPath.empty())
+    return EmbeddedPPORole::mergedTeam;
+
   // Team striker v4.2: if the team model path is configured and this robot is playBall,
   // use the 47-dim model.  Takes priority over the legacy 26-dim striker path.
   if(!embeddedPPOTeamStrikerModelPath.empty() && embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
@@ -248,6 +253,8 @@ std::string StrategyBehaviorControl::configuredEmbeddedPPOModelPath(const Embedd
       return embeddedPPODefenderModelPath.empty() ? embeddedPPOModelPath : embeddedPPODefenderModelPath;
     case EmbeddedPPORole::teamStriker:
       return embeddedPPOTeamStrikerModelPath;
+    case EmbeddedPPORole::mergedTeam:
+      return embeddedPPOMergedTeamModelPath;
     case EmbeddedPPORole::none:
     default:
       return {};
@@ -289,6 +296,8 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
       return "no defender PPO model configured";
     if(role == EmbeddedPPORole::teamStriker)
       return "no team striker PPO model configured";
+    if(role == EmbeddedPPORole::mergedTeam)
+      return "no merged team PPO model configured";
     return "no striker PPO model configured";
   }
 
@@ -305,6 +314,8 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
     return "ready defender";
   if(role == EmbeddedPPORole::teamStriker)
     return "ready team striker (v4.2, 47-dim)";
+  if(role == EmbeddedPPORole::mergedTeam)
+    return "ready merged team (v5, 47-dim, role coordinator)";
   return "ready striker";
 }
 
@@ -465,6 +476,7 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     return false;
 
   RL::PPOPolicyModel& policyModel = ppoRole == EmbeddedPPORole::defender ? defenderPPOPolicyModel : strikerPPOPolicyModel;
+  // (teamStriker and mergedTeam handle their own models in dedicated branches below)
 
   const RL::PPOGateObservation rawObservation = ppoObservationEncoder.buildRawObservation(
     theFrameInfo,
@@ -572,6 +584,179 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 
     skillRequest = ppoActionDecoder.decodeTeam(rawObservation, selectedSkill, output.paramMean, passTarget);
     logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded team striker PPO v4.2 controlling skill requests");
+    logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits, output.paramMean, skillRequest);
+    ppoInferErrorReported = false;
+    return true;
+  }
+
+  // === MERGED BRAIN (47-dim, v5) PATH: all field roles with role coordinator ===
+  const bool mergedTeamPPO = ppoRole == EmbeddedPPORole::mergedTeam;
+  if(mergedTeamPPO)
+  {
+    const RL::PPOGateDecision gateDecision = ppoSkillGateV47.step(rawObservation);
+
+    // R1: assign roles via D1+TTRB hysteresis (mutates mergedTeamRoleAssignment)
+    const int selfRole = assignTeamRoles(rawObservation);  // 0=striker, 1=open, 2=off_ball
+
+    // Update sticky attack/defense phase from team ball
+    {
+      float tbx = rawObservation.ballX;
+      if(theTeammatesBallModel.isValid)
+        tbx = theTeammatesBallModel.position.x();
+      if(tbx < -300.f)      mergedTeamPhase = 1;
+      else if(tbx > 300.f)  mergedTeamPhase = 0;
+    }
+
+    // Gather positions of the other roles for coordination target computation.
+    float strikerX = rawObservation.robotX, strikerY = rawObservation.robotY;
+    float openX = rawObservation.robotX, openY = rawObservation.robotY;
+    float ballX = rawObservation.ballX, ballY = rawObservation.ballY;
+    if(theTeammatesBallModel.isValid) { ballX = theTeammatesBallModel.position.x(); ballY = theTeammatesBallModel.position.y(); }
+    for(const auto& tm : theTeamData.teammates)
+    {
+      if(tm.number == theGameState.playerNumber || tm.isGoalkeeper) continue;
+      const int tmRole = (tm.number >= 1 && tm.number <= 7) ? mergedTeamRoleAssignment[tm.number] : -1;
+      const float tx = tm.theRobotPose.translation.x(), ty = tm.theRobotPose.translation.y();
+      if(tmRole == 0) { strikerX = tx; strikerY = ty; }
+      if(tmRole == 1) { openX = tx; openY = ty; }
+    }
+    if(selfRole == 0) { strikerX = rawObservation.robotX; strikerY = rawObservation.robotY; }
+    if(selfRole == 1) { openX = rawObservation.robotX; openY = rawObservation.robotY; }
+
+    // Compute EMA coordination target for this robot's role.
+    float coordX = rawObservation.robotX, coordY = rawObservation.robotY;
+    if(selfRole == 1)  // open_support
+    {
+      const auto raw = computeMergedOpenLaneTarget(ballX, ballY, strikerX, strikerY);
+      const float alpha = 0.15f;
+      if(!emaOpenLaneInited) { emaOpenLaneX = raw.first; emaOpenLaneY = raw.second; emaOpenLaneInited = true; }
+      else { emaOpenLaneX += alpha * (raw.first - emaOpenLaneX); emaOpenLaneY += alpha * (raw.second - emaOpenLaneY); }
+      coordX = emaOpenLaneX; coordY = emaOpenLaneY;
+    }
+    else if(selfRole == 2)  // off_ball_support
+    {
+      if(!triangleForcedSideSet) { triangleForcedSide = openY >= 0.f ? -1.f : 1.f; triangleForcedSideSet = true; }
+      const auto raw = computeMergedTriangleTarget(ballX, ballY, strikerX, strikerY, openX, openY);
+      const float alpha = 0.10f;
+      if(!emaTriangleInited) { emaTriangleX = raw.first; emaTriangleY = raw.second; emaTriangleInited = true; }
+      else { emaTriangleX += alpha * (raw.first - emaTriangleX); emaTriangleY += alpha * (raw.second - emaTriangleY); }
+      coordX = emaTriangleX; coordY = emaTriangleY;
+    }
+
+    // Compute anchor theta (face coordination target from current robot position)
+    const float anchorTheta = std::atan2(coordY - rawObservation.robotY, coordX - rawObservation.robotX);
+
+    // R2: pass-arm for striker only
+    int passTarget = -1;
+    const bool passArmed = (selfRole == 0) && gateDecision.finishArmed() && computeStrikerPassArmed(rawObservation, passTarget);
+
+    // Build PPOTeamContext with role one-hot and gate bits
+    RL::PPOTeamContext teamCtx = buildTeamContext(gateDecision, selfRole == 0);
+    teamCtx.isStriker = (selfRole == 0);
+    teamCtx.isOpenSupport = (selfRole == 1);
+    teamCtx.isOffBallSupport = (selfRole == 2);
+    teamCtx.passArmed = passArmed;
+    teamCtx.passArmProgress = passArmed ? 1.f : 0.f;
+    teamCtx.observeArmed = false;
+
+    const std::array<float, RL::ppoObsSize47> obs47 = ppoObservationEncoder.encode47(rawObservation, gateDecision, teamCtx);
+
+    RL::PPOPolicyOutput output;
+    std::string error;
+    if(!mergedTeamPPOPolicyModel.infer(obs47, output, &error) || !output.valid)
+    {
+      if(!ppoInferErrorReported)
+      {
+        OUTPUT_WARNING("[RL] Merged team PPO inference failed"
+                       << " player=" << theGameState.playerNumber
+                       << " role=" << selfRole
+                       << " error=" << error);
+        ppoInferErrorReported = true;
+      }
+      return false;
+    }
+
+    // Role-conditioned gate mask (§4.4)
+    const std::array<bool, RL::ppoSkillCount> mergedMask = buildMergedTeamMask(
+      gateDecision, selfRole, passArmed, rawObservation.ballRelX, rawObservation.nearestOpponentFrontDist);
+    std::array<float, RL::ppoSkillCount> maskedLogits = output.skillLogits;
+    for(std::size_t i = 0; i < maskedLogits.size(); ++i)
+      if(!mergedMask[i])
+        maskedLogits[i] = disabledLogit;
+
+    // Striker: mute stand/walk when finish_armed (same as v4.2 path)
+    if(selfRole == 0 && gateDecision.finishArmed())
+    {
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
+    }
+
+    const bool anyValid = std::any_of(maskedLogits.begin(), maskedLogits.end(),
+                                      [](const float l){ return l > disabledLogit * 0.5f; });
+    if(!anyValid)
+      return false;
+
+    int selectedSkill = argmax(maskedLogits);
+
+    // §4.8 Block-priority wrapper: if off_ball and argmax==mark and block armed
+    // and ball is nearer threat than opponent → override to block
+    if(selfRole == 2 &&
+       selectedSkill == static_cast<int>(RL::SkillType::mark) &&
+       mergedMask[static_cast<std::size_t>(RL::SkillType::block)] &&
+       rawObservation.ballRelX > 0.f &&
+       rawObservation.ballRelX < rawObservation.nearestOpponentFrontDist)
+    {
+      selectedSkill = static_cast<int>(RL::SkillType::block);
+    }
+
+    // Stand watchdog (shared with other paths)
+    if(embeddedPPOStandWatchdogMs > 0)
+    {
+      if(ppoStandWatchdogWindowStarted == 0)
+        ppoStandWatchdogWindowStarted = theFrameInfo.time;
+      ++ppoStandWatchdogTotalFrames;
+      if(selectedSkill == static_cast<int>(RL::SkillType::stand))
+        ++ppoStandWatchdogStandFrames;
+      const int windowMs = theFrameInfo.getTimeSince(ppoStandWatchdogWindowStarted);
+      if(windowMs >= embeddedPPOStandWatchdogMs)
+      {
+        const float standRatio = ppoStandWatchdogTotalFrames > 0 ?
+          static_cast<float>(ppoStandWatchdogStandFrames) / static_cast<float>(ppoStandWatchdogTotalFrames) : 0.f;
+        const bool standDominates = standRatio >= standWatchdogRatioThreshold && ppoStandWatchdogStandFrames >= 3;
+        ppoStandWatchdogWindowStarted = theFrameInfo.time;
+        ppoStandWatchdogStandFrames = 0;
+        ppoStandWatchdogTotalFrames = 0;
+        if(standDominates)
+        {
+          OUTPUT_WARNING("[RL] Merged team PPO stand watchdog fired"
+                         << " player=" << theGameState.playerNumber
+                         << " role=" << selfRole
+                         << " standRatio=" << standRatio);
+          if(embeddedPPOStandWatchdogForceWalk)
+            selectedSkill = static_cast<int>(RL::SkillType::walk);
+          else
+          {
+            ppoStandWatchdogCooldownActive = true;
+            ppoStandWatchdogCooldownStarted = theFrameInfo.time;
+            return false;
+          }
+        }
+      }
+    }
+    else
+    {
+      ppoStandWatchdogWindowStarted = 0;
+      ppoStandWatchdogStandFrames = 0;
+      ppoStandWatchdogTotalFrames = 0;
+    }
+
+    // Decode action: striker uses ball-anchored decode; support/defender uses coord-target anchor.
+    if(selfRole == 0)
+      skillRequest = ppoActionDecoder.decodeTeam(rawObservation, selectedSkill, output.paramMean, passTarget);
+    else
+      skillRequest = ppoActionDecoder.decodeTeamWalkWithAnchor(rawObservation, selectedSkill, output.paramMean, coordX, coordY, anchorTheta, passTarget);
+
+    logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded merged team PPO v5 controlling skill requests");
     logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits, output.paramMean, skillRequest);
     ppoInferErrorReported = false;
     return true;
@@ -693,22 +878,27 @@ bool StrategyBehaviorControl::ensureEmbeddedPPOLoaded(const EmbeddedPPORole role
   RL::PPOPolicyModel& model =
     role == EmbeddedPPORole::defender    ? defenderPPOPolicyModel :
     role == EmbeddedPPORole::teamStriker ? teamStrikerPPOPolicyModel :
+    role == EmbeddedPPORole::mergedTeam  ? mergedTeamPPOPolicyModel :
                                            strikerPPOPolicyModel;
   bool& loadAttempted =
     role == EmbeddedPPORole::defender    ? defenderPPOLoadAttempted :
     role == EmbeddedPPORole::teamStriker ? teamStrikerPPOLoadAttempted :
+    role == EmbeddedPPORole::mergedTeam  ? mergedTeamPPOLoadAttempted :
                                            strikerPPOLoadAttempted;
   bool& loadErrorReported =
     role == EmbeddedPPORole::defender    ? defenderPPOLoadErrorReported :
     role == EmbeddedPPORole::teamStriker ? teamStrikerPPOLoadErrorReported :
+    role == EmbeddedPPORole::mergedTeam  ? mergedTeamPPOLoadErrorReported :
                                            strikerPPOLoadErrorReported;
   std::string& requestedModelPath =
     role == EmbeddedPPORole::defender    ? defenderPPORequestedModelPath :
     role == EmbeddedPPORole::teamStriker ? teamStrikerPPORequestedModelPath :
+    role == EmbeddedPPORole::mergedTeam  ? mergedTeamPPORequestedModelPath :
                                            strikerPPORequestedModelPath;
   const char* roleName =
     role == EmbeddedPPORole::defender    ? "defender" :
     role == EmbeddedPPORole::teamStriker ? "team_striker_v4.2" :
+    role == EmbeddedPPORole::mergedTeam  ? "merged_team_v5" :
                                            "striker";
 
   if(model.isLoaded())
@@ -945,6 +1135,12 @@ void StrategyBehaviorControl::resetEmbeddedPPO()
   ppoSkillGate.reset();
   ppoSkillGateV47.reset();
   ppoObservationEncoder.reset();
+  // Clear merged brain coordinator state
+  for(int i = 0; i < 8; ++i) { mergedTeamRoleAssignment[i] = -1; mergedTeamCandidateStreak[i] = 0; }
+  mergedTeamPhase = 0;
+  emaOpenLaneInited = false;
+  emaTriangleInited = false;
+  triangleForcedSideSet = false;
 }
 
 RL::PPOTeamContext StrategyBehaviorControl::buildTeamContext(const RL::PPOGateDecision& /*gateDecision*/, const bool isStriker) const
@@ -1038,6 +1234,285 @@ std::array<bool, RL::ppoSkillCount> StrategyBehaviorControl::buildTeamStrikerMas
   mask[static_cast<std::size_t>(RL::SkillType::block)] = false;
   mask[static_cast<std::size_t>(RL::SkillType::mark)] = false;
   mask[static_cast<std::size_t>(RL::SkillType::observe)] = false;
+  return mask;
+}
+
+// ---------------------------------------------------------------------------
+// Merged brain v5 helpers — ports of multiagent_teacher.py
+// ---------------------------------------------------------------------------
+
+namespace
+{
+  // Constants (single source of truth — mirrors multiagent_teacher.py §14.12.1)
+  constexpr float MERGED_ROLE_HYSTERESIS_FRAMES = 7.f;
+  constexpr float MERGED_ROLE_MIN_GAP_MM = 200.f;
+  constexpr float MERGED_TEAMMATE_FRESH_MS = 1000.f;
+  constexpr float MERGED_BALL_CONTROL_RADIUS_MM = 350.f;
+  constexpr float MERGED_SIGMA_TEAM_MM = 800.f;
+  constexpr float MERGED_MIN_PASS_MM = 400.f;
+  constexpr float MERGED_MAX_PASS_MM = 4000.f;
+  constexpr float MERGED_GOAL_X_MM = 4500.f;
+
+  // forward_rating: port of Forward::rating (PositionRoles/Forward.cpp:24-38)
+  float mergedForwardRatingXY(const float cx, const float cy, const float bx, const float by)
+  {
+    const float passDist = std::hypot(cx - bx, cy - by);
+    if(passDist < MERGED_MIN_PASS_MM || passDist > MERGED_MAX_PASS_MM)
+      return 0.f;
+    return std::clamp(cx / MERGED_GOAL_X_MM, 0.f, 1.f);
+  }
+
+  // separation_penalty: port of Midfielder::rating Gaussian (Midfielder.cpp:60-72)
+  float mergedSepPenalty(const float cx, const float cy, const float t1x, const float t1y, const float t2x, const float t2y)
+  {
+    const float d1sq = (cx - t1x) * (cx - t1x) + (cy - t1y) * (cy - t1y);
+    const float d2sq = (cx - t2x) * (cx - t2x) + (cy - t2y) * (cy - t2y);
+    const float minDsq = std::min(d1sq, d2sq);
+    return 1.f - std::exp(-0.5f * minDsq / (MERGED_SIGMA_TEAM_MM * MERGED_SIGMA_TEAM_MM));
+  }
+
+  // SUPPORT_SLOT_CANDIDATE_GRID (field-frame xy; y mirrored by ball_y_sign)
+  constexpr std::array<std::pair<float, float>, 6> mergedSupportSlots{{
+    {800.f, 1200.f}, {1200.f, 800.f}, {400.f, 1400.f}, {-400.f, 1200.f}, {2000.f, 1300.f}, {2800.f, 1200.f}
+  }};
+}
+
+int StrategyBehaviorControl::assignTeamRoles(const RL::PPOGateObservation& rawObs)
+{
+  // Collect field agents: self + non-GK teammates from TeamData
+  struct AgentInfo
+  {
+    int number;
+    float x, y;
+    float ballDist;
+    float ballRelDist;   // direct ego ball dist (for D1 ball-control check)
+    float ballTimeSinceMs;
+  };
+  std::vector<AgentInfo> fieldAgents;
+
+  // Team ball (prefer teammates ball model if valid)
+  float tbx = rawObs.ballX, tby = rawObs.ballY;
+  bool tbValid = rawObs.timeSinceBallSeenMs < MERGED_TEAMMATE_FRESH_MS;
+  if(theTeammatesBallModel.isValid)
+  {
+    tbx = theTeammatesBallModel.position.x();
+    tby = theTeammatesBallModel.position.y();
+    tbValid = true;
+  }
+
+  // Self
+  const float selfBallRelDist = std::hypot(rawObs.ballRelX, rawObs.ballRelY);
+  const float selfBallDist = std::hypot(rawObs.robotX - tbx, rawObs.robotY - tby);
+  fieldAgents.push_back({theGameState.playerNumber, rawObs.robotX, rawObs.robotY,
+                         selfBallDist, selfBallRelDist, rawObs.timeSinceBallSeenMs});
+
+  // Teammates (non-GK only)
+  for(const auto& tm : theTeamData.teammates)
+  {
+    if(tm.number == theGameState.playerNumber || tm.isGoalkeeper)
+      continue;
+    const float ageMs = static_cast<float>(theFrameInfo.getTimeSince(tm.theFrameInfo.time));
+    const float tx = tm.theRobotPose.translation.x(), ty = tm.theRobotPose.translation.y();
+    const float dist = std::hypot(tx - tbx, ty - tby);
+    const float tmBallRel = tm.theBallModel.estimate.position.norm();
+    fieldAgents.push_back({tm.number, tx, ty, dist, tmBallRel, ageMs});
+  }
+
+  if(fieldAgents.empty())
+    return 0;  // only robot on field → striker
+
+  // Sort by (ballDist, number) for tie-breaking consistency
+  std::sort(fieldAgents.begin(), fieldAgents.end(), [](const AgentInfo& a, const AgentInfo& b)
+  {
+    if(a.ballDist != b.ballDist) return a.ballDist < b.ballDist;
+    return a.number < b.number;
+  });
+
+  const int candidate = fieldAgents[0].number;
+
+  // D1: ball-control override (physical possession bypasses TTRB hysteresis)
+  const bool candidateHasBall = (fieldAgents[0].ballRelDist < MERGED_BALL_CONTROL_RADIUS_MM &&
+                                  fieldAgents[0].ballTimeSinceMs <= MERGED_TEAMMATE_FRESH_MS);
+
+  // Find previous striker
+  int prevStriker = -1;
+  for(int i = 1; i <= 7; ++i)
+    if(mergedTeamRoleAssignment[i] == 0) { prevStriker = i; break; }
+
+  // TTRB hysteresis
+  int committedStriker = candidate;
+  if(prevStriker >= 0 && prevStriker != candidate && !candidateHasBall)
+  {
+    float prevDist = 1e9f, candDist = 1e9f;
+    for(const auto& a : fieldAgents)
+    {
+      if(a.number == prevStriker) prevDist = a.ballDist;
+      if(a.number == candidate)  candDist = a.ballDist;
+    }
+    const float gap = prevDist - candDist;
+    if(gap < MERGED_ROLE_MIN_GAP_MM)
+    {
+      committedStriker = prevStriker;
+      for(int i = 0; i < 8; ++i) mergedTeamCandidateStreak[i] = 0;
+    }
+    else
+    {
+      int& streak = mergedTeamCandidateStreak[candidate < 8 ? candidate : 0];
+      ++streak;
+      if(streak < static_cast<int>(MERGED_ROLE_HYSTERESIS_FRAMES))
+        committedStriker = prevStriker;
+      else
+      {
+        committedStriker = candidate;
+        for(int i = 0; i < 8; ++i) mergedTeamCandidateStreak[i] = 0;
+      }
+    }
+  }
+  else
+  {
+    for(int i = 0; i < 8; ++i) mergedTeamCandidateStreak[i] = 0;
+  }
+
+  // Clear and set roles
+  for(int i = 0; i < 8; ++i) mergedTeamRoleAssignment[i] = -1;
+  mergedTeamRoleAssignment[committedStriker < 8 ? committedStriker : 0] = 0;
+
+  std::vector<int> nonStrikers;
+  for(const auto& a : fieldAgents)
+    if(a.number != committedStriker) nonStrikers.push_back(a.number);
+
+  if(nonStrikers.size() == 1)
+  {
+    const int id = nonStrikers[0];
+    if(id >= 0 && id < 8) mergedTeamRoleAssignment[id] = (mergedTeamPhase == 1) ? 2 : 1;
+  }
+  else if(!nonStrikers.empty())
+  {
+    if(mergedTeamPhase == 1)
+    {
+      // Defense: deepest (min x) = off_ball_support, rest = open_support
+      int deepest = nonStrikers[0];
+      float deepestX = std::numeric_limits<float>::max();
+      for(int id : nonStrikers)
+        for(const auto& a : fieldAgents)
+          if(a.number == id && a.x < deepestX) { deepestX = a.x; deepest = id; }
+      for(int id : nonStrikers)
+        if(id >= 0 && id < 8) mergedTeamRoleAssignment[id] = (id == deepest) ? 2 : 1;
+    }
+    else
+    {
+      // Attack: open_support = highest forward rating
+      int openSup = nonStrikers[0];
+      float bestRating = -1.f;
+      for(int id : nonStrikers)
+        for(const auto& a : fieldAgents)
+          if(a.number == id)
+          {
+            const float r = mergedForwardRatingXY(a.x, a.y, tbx, tby);
+            if(r > bestRating || (r == bestRating && id < openSup)) { bestRating = r; openSup = id; }
+          }
+      for(int id : nonStrikers)
+        if(id >= 0 && id < 8) mergedTeamRoleAssignment[id] = (id == openSup) ? 1 : 2;
+    }
+  }
+
+  const int selfNum = theGameState.playerNumber;
+  return (selfNum >= 0 && selfNum < 8 && mergedTeamRoleAssignment[selfNum] >= 0)
+         ? mergedTeamRoleAssignment[selfNum] : 2;
+}
+
+std::pair<float, float> StrategyBehaviorControl::computeMergedOpenLaneTarget(
+  const float ballX, const float ballY, const float strikerX, const float strikerY) const
+{
+  // Port of multiagent_teacher.compute_open_lane_target + support_target.
+  // Score 6 candidates: forward_rating(cand, ball) × separation_penalty(cand, [striker, self]).
+  // Mirror y by ball_y_sign.
+  const float ySign = (ballY >= 0.f) ? 1.f : -1.f;
+  float bestScore = -1.f;
+  float bestX = 800.f, bestY = ySign * 1200.f;
+  for(const auto& slot : mergedSupportSlots)
+  {
+    const float cx = slot.first, cy = slot.second * ySign;
+    const float fwd = mergedForwardRatingXY(cx, cy, ballX, ballY);
+    // Separate from striker only (compute_open_lane_target passes other_support=None in Python)
+    const float sep = mergedSepPenalty(cx, cy, strikerX, strikerY, strikerX, strikerY);
+    const float score = fwd * sep;
+    if(score > bestScore) { bestScore = score; bestX = cx; bestY = cy; }
+  }
+  return {bestX, bestY};
+}
+
+std::pair<float, float> StrategyBehaviorControl::computeMergedTriangleTarget(
+  const float ballX, const float ballY, const float strikerX, const float strikerY,
+  const float openX, const float openY) const
+{
+  // Port of multiagent_teacher.compute_triangle_target.
+  // Mirror y to OPPOSITE side from open_support, using triangleForcedSide.
+  const float ySignFlipped = triangleForcedSideSet ? (triangleForcedSide >= 0.f ? 1.f : -1.f)
+                                                   : (openY >= 0.f ? -1.f : 1.f);
+  float bestScore = -1.f;
+  float bestX = 800.f, bestY = ySignFlipped * 1200.f;
+  for(const auto& slot : mergedSupportSlots)
+  {
+    const float cx = slot.first, cy = slot.second * ySignFlipped;
+    const float fwd = mergedForwardRatingXY(cx, cy, ballX, ballY);
+    const float sep = mergedSepPenalty(cx, cy, strikerX, strikerY, openX, openY);
+    const float score = fwd * sep;
+    if(score > bestScore) { bestScore = score; bestX = cx; bestY = cy; }
+  }
+  return {bestX, bestY};
+}
+
+std::array<bool, RL::ppoSkillCount> StrategyBehaviorControl::buildMergedTeamMask(
+  const RL::PPOGateDecision& gateDecision,
+  const int role,
+  const bool passArmed,
+  const float ballRelX,
+  const float oppFront) const
+{
+  // Port of train.py::gate_skill_mask_from_obs — role-conditioned forbid-invalid.
+  // role: 0=striker, 1=open_support, 2=off_ball_support
+  // Thresholds: block 1800mm, mark 1500mm; normalized by X_RANGE=4500.
+  constexpr float xRange = 4500.f;
+  std::array<bool, RL::ppoSkillCount> mask{};
+  mask[static_cast<std::size_t>(RL::SkillType::stand)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::walk)] = true;
+
+  if(role == 0)
+  {
+    // Striker: shoot/dribble follow arm flags; pass requires passArmed; block/mark/observe forbidden.
+    mask[static_cast<std::size_t>(RL::SkillType::shoot)] = gateDecision.shootArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::pass)] = passArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::dribble)] = gateDecision.dribbleArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::block)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::mark)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::observe)] = false;
+  }
+  else if(role == 1)
+  {
+    // open_support: mostly walk; block iff dribble_armed; observe iff armed; no shoot/pass/mark.
+    const bool blockAllowed = gateDecision.dribbleArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::shoot)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::pass)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::dribble)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::block)] = blockAllowed;
+    mask[static_cast<std::size_t>(RL::SkillType::mark)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::observe)] = false;  // observe_armed not tracked yet
+  }
+  else
+  {
+    // off_ball_support (defender): block/mark/dribble(escape) armed from obs columns.
+    const float ballRelXNorm = ballRelX / xRange;
+    const float oppFrontNorm = oppFront / xRange;
+    const bool blockThreat = (ballRelXNorm > 0.f) && (ballRelXNorm < (1800.f / xRange));
+    const bool markThreat = (oppFrontNorm > 0.f) && (oppFrontNorm < (1500.f / xRange));
+    mask[static_cast<std::size_t>(RL::SkillType::shoot)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::pass)] = false;
+    mask[static_cast<std::size_t>(RL::SkillType::dribble)] = gateDecision.dribbleArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::block)] = blockThreat || gateDecision.dribbleArmed;
+    mask[static_cast<std::size_t>(RL::SkillType::mark)] = markThreat;
+    mask[static_cast<std::size_t>(RL::SkillType::observe)] = false;
+  }
   return mask;
 }
 
