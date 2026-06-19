@@ -16,8 +16,9 @@ namespace
   constexpr float shootExitAngleRad = 35.f * pi / 180.f;
   constexpr float shootGoalEnterMm = 3000.f;
   constexpr float shootGoalExitMm = 3200.f;
-  constexpr float shootOpenEnter = 0.6f;
-  constexpr float shootOpenExit = 0.45f;
+  // Note: shootOpenEnter / shootOpenExit are now per-instance members (set by caller).
+  // The local constants below are only kept for legacy reference; the step() method
+  // reads the instance members instead.
   constexpr float shootAlignEnterRad = 30.f * pi / 180.f;
   constexpr float shootAlignExitRad = 45.f * pi / 180.f;
   constexpr int shootArmFrames = 3;

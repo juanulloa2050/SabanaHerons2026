@@ -45,6 +45,15 @@ namespace RL
       const FieldDimensions& fieldDimensions,
       const PPOGateDecision& gateDecision);
 
+    // Encode 47-dim observation for the v4.2+ team model.
+    // obs[0:26] = same as encode(); obs[26:47] = team context + gate team bits + role.
+    // The caller (StrategyBehaviorControl) builds teamContext from TeamData /
+    // TeammatesBallModel each frame and sets passArmed / role bits inside it.
+    std::array<float, ppoObsSize47> encode47(
+      const PPOGateObservation& rawObservation,
+      const PPOGateDecision& gateDecision,
+      const PPOTeamContext& teamContext) const;
+
   private:
     unsigned lastNaturalBallSeenTimestamp = 0;
     bool hasNaturalBallSeenTimestamp = false;

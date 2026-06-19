@@ -180,7 +180,12 @@ const char* ppoSkillName(const int skillIndex)
 StrategyBehaviorControl::StrategyBehaviorControl() :
   theBehavior(theBallDropInModel, theExtendedGameState, theFieldBall, theFieldDimensions, theFrameInfo,
               theGameState, theTeammatesBallModel)
-{}
+{
+  // v4.2 team model was trained with shoot_open enter=0.30 / exit=0.20
+  // (recorded in the ONNX manifest gate_config). Use a dedicated gate instance.
+  ppoSkillGateV47.shootOpenEnter = 0.30f;
+  ppoSkillGateV47.shootOpenExit = 0.20f;
+}
 
 std::vector<ModuleBase::Info> StrategyBehaviorControl::getExtModuleInfo()
 {
@@ -209,6 +214,11 @@ StrategyBehaviorControl::EmbeddedPPORole StrategyBehaviorControl::selectedEmbedd
   if(playerListContains(embeddedPPODefenderPlayers, playerNumber))
     return EmbeddedPPORole::defender;
 
+  // Team striker v4.2: if the team model path is configured and this robot is playBall,
+  // use the 47-dim model.  Takes priority over the legacy 26-dim striker path.
+  if(!embeddedPPOTeamStrikerModelPath.empty() && embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
+    return EmbeddedPPORole::teamStriker;
+
   if(embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
     return EmbeddedPPORole::striker;
 
@@ -236,6 +246,8 @@ std::string StrategyBehaviorControl::configuredEmbeddedPPOModelPath(const Embedd
       return embeddedPPOStrikerModelPath.empty() ? embeddedPPOModelPath : embeddedPPOStrikerModelPath;
     case EmbeddedPPORole::defender:
       return embeddedPPODefenderModelPath.empty() ? embeddedPPOModelPath : embeddedPPODefenderModelPath;
+    case EmbeddedPPORole::teamStriker:
+      return embeddedPPOTeamStrikerModelPath;
     case EmbeddedPPORole::none:
     default:
       return {};
@@ -272,7 +284,13 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
     return embeddedPPODynamicPlayBall ? "role not playBall or defender PPO player" : "player not enabled";
 
   if(configuredEmbeddedPPOModelPath(role).empty())
-    return role == EmbeddedPPORole::defender ? "no defender PPO model configured" : "no striker PPO model configured";
+  {
+    if(role == EmbeddedPPORole::defender)
+      return "no defender PPO model configured";
+    if(role == EmbeddedPPORole::teamStriker)
+      return "no team striker PPO model configured";
+    return "no striker PPO model configured";
+  }
 
   if(gameState.playerState != GameState::active)
     return "player not active";
@@ -283,7 +301,11 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
   if(gameState.ownTeam.isGoalkeeper(playerNumber))
     return "goalkeeper excluded";
 
-  return role == EmbeddedPPORole::defender ? "ready defender" : "ready striker";
+  if(role == EmbeddedPPORole::defender)
+    return "ready defender";
+  if(role == EmbeddedPPORole::teamStriker)
+    return "ready team striker (v4.2, 47-dim)";
+  return "ready striker";
 }
 
 void StrategyBehaviorControl::update(SkillRequest& skillRequest)
@@ -455,6 +477,107 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
     theTeamData,
     theFieldDimensions);
   const bool defenderPPO = ppoRole == EmbeddedPPORole::defender;
+  const bool teamStrikerPPO = ppoRole == EmbeddedPPORole::teamStriker;
+
+  // === TEAM STRIKER (47-dim, v4.2) PATH ===
+  if(teamStrikerPPO)
+  {
+    const RL::PPOGateDecision gateDecision = ppoSkillGateV47.step(rawObservation);
+
+    int passTarget = -1;
+    const bool passArmed = gateDecision.finishArmed() && computeStrikerPassArmed(rawObservation, passTarget);
+
+    RL::PPOTeamContext teamCtx = buildTeamContext(gateDecision, true);
+    teamCtx.passArmed = passArmed;
+    teamCtx.passArmProgress = passArmed ? 1.f : 0.f;
+
+    const std::array<float, RL::ppoObsSize47> obs47 = ppoObservationEncoder.encode47(rawObservation, gateDecision, teamCtx);
+
+    RL::PPOPolicyOutput output;
+    std::string error;
+    if(!teamStrikerPPOPolicyModel.infer(obs47, output, &error) || !output.valid)
+    {
+      if(!ppoInferErrorReported)
+      {
+        OUTPUT_WARNING("[RL] Team striker PPO inference failed"
+                       << " player=" << theGameState.playerNumber
+                       << " error=" << error);
+        ppoInferErrorReported = true;
+      }
+      return false;
+    }
+
+    const std::array<bool, RL::ppoSkillCount> teamMask = buildTeamStrikerMask(gateDecision, passArmed);
+    std::array<float, RL::ppoSkillCount> maskedLogits = output.skillLogits;
+    for(std::size_t i = 0; i < maskedLogits.size(); ++i)
+      if(!teamMask[i])
+        maskedLogits[i] = disabledLogit;
+
+    if(gateDecision.finishArmed())
+    {
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::stand)] = disabledLogit;
+      maskedLogits[static_cast<std::size_t>(RL::SkillType::walk)] = disabledLogit;
+    }
+
+    const bool anyValid = std::any_of(maskedLogits.begin(), maskedLogits.end(),
+                                      [](const float l){ return l > disabledLogit * 0.5f; });
+    if(!anyValid)
+      return false;
+
+    int selectedSkill = argmax(maskedLogits);
+
+    if(embeddedPPOStandWatchdogMs > 0)
+    {
+      if(ppoStandWatchdogWindowStarted == 0)
+        ppoStandWatchdogWindowStarted = theFrameInfo.time;
+      ++ppoStandWatchdogTotalFrames;
+      if(selectedSkill == static_cast<int>(RL::SkillType::stand))
+        ++ppoStandWatchdogStandFrames;
+
+      const int windowMs = theFrameInfo.getTimeSince(ppoStandWatchdogWindowStarted);
+      if(windowMs >= embeddedPPOStandWatchdogMs)
+      {
+        const float standRatio = ppoStandWatchdogTotalFrames > 0 ?
+                                 static_cast<float>(ppoStandWatchdogStandFrames) / static_cast<float>(ppoStandWatchdogTotalFrames) :
+                                 0.f;
+        const bool standDominates = standRatio >= standWatchdogRatioThreshold && ppoStandWatchdogStandFrames >= 3;
+        ppoStandWatchdogWindowStarted = theFrameInfo.time;
+        ppoStandWatchdogStandFrames = 0;
+        ppoStandWatchdogTotalFrames = 0;
+        if(standDominates)
+        {
+          OUTPUT_WARNING("[RL] Team striker PPO stand watchdog fired"
+                         << " player=" << theGameState.playerNumber
+                         << " windowMs=" << windowMs
+                         << " standRatio=" << standRatio
+                         << " action=" << (embeddedPPOStandWatchdogForceWalk ? "forceWalk" : "fallbackBHuman")
+                         << " cooldownMs=" << embeddedPPOStandWatchdogCooldownMs);
+          if(embeddedPPOStandWatchdogForceWalk)
+            selectedSkill = static_cast<int>(RL::SkillType::walk);
+          else
+          {
+            ppoStandWatchdogCooldownActive = true;
+            ppoStandWatchdogCooldownStarted = theFrameInfo.time;
+            return false;
+          }
+        }
+      }
+    }
+    else
+    {
+      ppoStandWatchdogWindowStarted = 0;
+      ppoStandWatchdogStandFrames = 0;
+      ppoStandWatchdogTotalFrames = 0;
+    }
+
+    skillRequest = ppoActionDecoder.decodeTeam(rawObservation, selectedSkill, output.paramMean, passTarget);
+    logRLModeIfChanged(RLRuntimeMode::embeddedActive, "embedded team striker PPO v4.2 controlling skill requests");
+    logEmbeddedPPODecisionIfChanged(selectedSkill, gateDecision, rawObservation, maskedLogits, output.paramMean, skillRequest);
+    ppoInferErrorReported = false;
+    return true;
+  }
+
+  // === LEGACY STRIKER / DEFENDER PATH (26-dim) ===
   const int defenderPassTarget = defenderPPO ? selectDefenderPPOPassTarget() : -1;
   const bool defenderEngageAllowed = defenderPPO && shouldDefenderPPOEngageBall(rawObservation);
   const RL::PPOGateDecision gateDecision = defenderPPO ? ppoSkillGate.stepDefender(rawObservation, defenderPassTarget > 0, defenderEngageAllowed) : ppoSkillGate.step(rawObservation);
@@ -567,11 +690,26 @@ bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 
 bool StrategyBehaviorControl::ensureEmbeddedPPOLoaded(const EmbeddedPPORole role)
 {
-  RL::PPOPolicyModel& model = role == EmbeddedPPORole::defender ? defenderPPOPolicyModel : strikerPPOPolicyModel;
-  bool& loadAttempted = role == EmbeddedPPORole::defender ? defenderPPOLoadAttempted : strikerPPOLoadAttempted;
-  bool& loadErrorReported = role == EmbeddedPPORole::defender ? defenderPPOLoadErrorReported : strikerPPOLoadErrorReported;
-  std::string& requestedModelPath = role == EmbeddedPPORole::defender ? defenderPPORequestedModelPath : strikerPPORequestedModelPath;
-  const char* roleName = role == EmbeddedPPORole::defender ? "defender" : "striker";
+  RL::PPOPolicyModel& model =
+    role == EmbeddedPPORole::defender    ? defenderPPOPolicyModel :
+    role == EmbeddedPPORole::teamStriker ? teamStrikerPPOPolicyModel :
+                                           strikerPPOPolicyModel;
+  bool& loadAttempted =
+    role == EmbeddedPPORole::defender    ? defenderPPOLoadAttempted :
+    role == EmbeddedPPORole::teamStriker ? teamStrikerPPOLoadAttempted :
+                                           strikerPPOLoadAttempted;
+  bool& loadErrorReported =
+    role == EmbeddedPPORole::defender    ? defenderPPOLoadErrorReported :
+    role == EmbeddedPPORole::teamStriker ? teamStrikerPPOLoadErrorReported :
+                                           strikerPPOLoadErrorReported;
+  std::string& requestedModelPath =
+    role == EmbeddedPPORole::defender    ? defenderPPORequestedModelPath :
+    role == EmbeddedPPORole::teamStriker ? teamStrikerPPORequestedModelPath :
+                                           strikerPPORequestedModelPath;
+  const char* roleName =
+    role == EmbeddedPPORole::defender    ? "defender" :
+    role == EmbeddedPPORole::teamStriker ? "team_striker_v4.2" :
+                                           "striker";
 
   if(model.isLoaded())
     return true;
@@ -805,7 +943,102 @@ void StrategyBehaviorControl::logEmbeddedPPODecisionIfChanged(
 void StrategyBehaviorControl::resetEmbeddedPPO()
 {
   ppoSkillGate.reset();
+  ppoSkillGateV47.reset();
   ppoObservationEncoder.reset();
+}
+
+RL::PPOTeamContext StrategyBehaviorControl::buildTeamContext(const RL::PPOGateDecision& /*gateDecision*/, const bool isStriker) const
+{
+  RL::PPOTeamContext ctx;
+  ctx.isStriker = isStriker;
+  ctx.isOpenSupport = false;
+  ctx.isOffBallSupport = false;
+
+  int count = 0;
+  for(const auto& teammate : theTeamData.teammates)
+  {
+    if(count >= RL::PPOTeamContext::maxTeammates)
+      break;
+    if(teammate.number == theGameState.playerNumber || teammate.isGoalkeeper)
+      continue;
+    const float ageMs = static_cast<float>(theFrameInfo.getTimeSince(teammate.theFrameInfo.time));
+    ctx.teammates[count].fieldX = teammate.theRobotPose.translation.x();
+    ctx.teammates[count].fieldY = teammate.theRobotPose.translation.y();
+    ctx.teammates[count].ageMs = ageMs;
+    const float tmBallDist = teammate.theBallModel.estimate.position.norm();
+    ctx.teammates[count].isEngaging =
+      ageMs < RL::PPOTeamContext::teammateStaleMsThreshold &&
+      tmBallDist < RL::PPOTeamContext::engagingDistanceMm;
+    ++count;
+  }
+  ctx.teammateCount = count;
+
+  if(theTeammatesBallModel.isValid &&
+     !std::isnan(theTeammatesBallModel.position.x()) &&
+     !std::isnan(theTeammatesBallModel.position.y()))
+  {
+    ctx.teamBallX = theTeammatesBallModel.position.x();
+    ctx.teamBallY = theTeammatesBallModel.position.y();
+    ctx.teamBallAgeMs = static_cast<float>(theFrameInfo.getTimeSince(theTeammatesBallModel.timeWhenLastSeen));
+    ctx.teamBallValid = ctx.teamBallAgeMs < 5000.f;
+  }
+  else
+  {
+    ctx.teamBallX = 0.f;
+    ctx.teamBallY = 0.f;
+    ctx.teamBallAgeMs = 5000.f;
+    ctx.teamBallValid = false;
+  }
+
+  ctx.goalX = theFieldDimensions.xPosOpponentGroundLine;
+  ctx.goalY = 0.f;
+
+  ctx.passArmed = false;
+  ctx.observeArmed = false;
+  ctx.passArmProgress = 0.f;
+
+  return ctx;
+}
+
+bool StrategyBehaviorControl::computeStrikerPassArmed(const RL::PPOGateObservation& rawObs, int& outPassTarget) const
+{
+  outPassTarget = -1;
+  if(rawObs.shotOpeningWithObstacles >= 0.55f)
+    return false;
+
+  int forwardTarget = -1;
+  float forwardX = -std::numeric_limits<float>::max();
+  for(const Agent& agent : agents)
+  {
+    if(agent.number == theGameState.playerNumber || agent.isGoalkeeper)
+      continue;
+    const float x = agent.currentPosition.x();
+    if(x > rawObs.robotX + 300.f && x > forwardX)
+    {
+      forwardX = x;
+      forwardTarget = agent.number;
+    }
+  }
+
+  if(forwardTarget < 0)
+    return false;
+
+  outPassTarget = forwardTarget;
+  return true;
+}
+
+std::array<bool, RL::ppoSkillCount> StrategyBehaviorControl::buildTeamStrikerMask(const RL::PPOGateDecision& gateDecision, const bool passArmed) const
+{
+  std::array<bool, RL::ppoSkillCount> mask{};
+  mask[static_cast<std::size_t>(RL::SkillType::stand)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::walk)] = true;
+  mask[static_cast<std::size_t>(RL::SkillType::shoot)] = gateDecision.shootArmed;
+  mask[static_cast<std::size_t>(RL::SkillType::pass)] = passArmed;
+  mask[static_cast<std::size_t>(RL::SkillType::dribble)] = gateDecision.dribbleArmed;
+  mask[static_cast<std::size_t>(RL::SkillType::block)] = false;
+  mask[static_cast<std::size_t>(RL::SkillType::mark)] = false;
+  mask[static_cast<std::size_t>(RL::SkillType::observe)] = false;
+  return mask;
 }
 
 Agent* StrategyBehaviorControl::updateAgents()
