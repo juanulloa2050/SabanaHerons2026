@@ -113,7 +113,9 @@ std::string normalizeRLMode(const std::string& mode)
     return "original";
   if(mode == "defender")
     return "baseline_attack";
-  if(mode == "original" || mode == "baseline_attack" || mode == "off")
+  if(mode == "team" || mode == "team_v4_2" || mode == "team-v4_2" || mode == "team-v4.2" || mode == "teamStriker")
+    return "team_v4_2";
+  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "off")
     return mode;
   return "off";
 }
@@ -156,9 +158,11 @@ void ensureRLModesInitialized(Presets::Preset* preset)
 
   const auto strikerPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOPlayers"));
   const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
+  const bool teamStrikerConfigured =
+    !readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOTeamStrikerModelPath").remove('"').trimmed().isEmpty();
   for(const int player : strikerPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-      preset->rlModes[static_cast<size_t>(player - 1)] = "original";
+      preset->rlModes[static_cast<size_t>(player - 1)] = teamStrikerConfigured ? "team_v4_2" : "original";
   for(const int player : defenderPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
       preset->rlModes[static_cast<size_t>(player - 1)] = "baseline_attack";
@@ -171,7 +175,7 @@ void ensureRLModesInitialized(Presets::Preset* preset)
     return;
 
   const std::string configuredRole = normalizeRLMode(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"').toStdString());
-  if(configuredRole != "original" && configuredRole != "baseline_attack")
+  if(configuredRole != "original" && configuredRole != "baseline_attack" && configuredRole != "team_v4_2")
     return;
 
   for(size_t i = 1; i < preset->players.size(); ++i)
@@ -479,7 +483,7 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   {
     layout->addRow(new Line(this));
 
-    const QStringList rlModeLabels = {"off", "original", "baseline_attack"};
+    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -608,6 +612,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
 
   std::vector<int> strikerPlayers;
   std::vector<int> defenderPlayers;
+  std::vector<int> teamPlayers;
   ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
@@ -615,6 +620,8 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
       strikerPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "baseline_attack")
       defenderPlayers.push_back(static_cast<int>(i + 1));
+    else if(selectedPreset->rlModes[i] == "team_v4_2")
+      teamPlayers.push_back(static_cast<int>(i + 1));
   }
 
   stream <<  "-t " << selectedPreset->number
@@ -626,7 +633,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
          << " -w " << selectedPreset->wlanConfig
          << " -v " << selectedPreset->volume;
 
-  if(strikerPlayers.empty() && defenderPlayers.empty())
+  if(strikerPlayers.empty() && defenderPlayers.empty() && teamPlayers.empty())
     stream << " --rl-disable";
   else
   {
@@ -645,6 +652,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
 
     writePlayerList("--rl-striker", strikerPlayers);
     writePlayerList("--rl-defender", defenderPlayers);
+    writePlayerList("--rl-team-v42", teamPlayers);
   }
 
   stream << " --goalkeeper-dive " << (selectedPreset->goalkeeperDivingEnabled ? "on" : "off");

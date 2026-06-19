@@ -23,6 +23,7 @@ usage()
   echo "    --rl-disable             disable embedded PPO for this deploy"
   echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
+  echo "    --rl-team-v42 <players>  comma-separated player list that uses team striker PPO v4.2"
   echo "    --goalkeeper-dive <on|off> enable or disable goalkeeper diving in behaviorParameters.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
@@ -59,7 +60,7 @@ cfgArrayFromPlayerList()
 
 strategyBehaviorControlReplacements()
 {
-  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS" ]; then
+  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_TEAM_V42_PLAYERS" ]; then
     echo ""
     return
   fi
@@ -67,17 +68,29 @@ strategyBehaviorControlReplacements()
   local ENABLE="true"
   local STRIKERS="$(cfgArrayFromPlayerList "$RL_STRIKER_PLAYERS")"
   local DEFENDERS="$(cfgArrayFromPlayerList "$RL_DEFENDER_PLAYERS")"
+  local TEAM_V42="$(cfgArrayFromPlayerList "$RL_TEAM_V42_PLAYERS")"
+  local TEAM_STRIKER_MODEL="\"\""
+  if [ "$TEAM_V42" != "[]" ] && [ "$STRIKERS" != "[]" ]; then
+    echo "mixing --rl-striker with --rl-team-v42 is not supported in one deploy preset" >&2
+    exit 1
+  fi
+  if [ "$TEAM_V42" != "[]" ]; then
+    STRIKERS="$TEAM_V42"
+    TEAM_STRIKER_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx\""
+  fi
   if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" ]; then
     ENABLE="false"
     STRIKERS="[]"
     DEFENDERS="[]"
+    TEAM_STRIKER_MODEL="\"\""
   fi
 
   echo "-e 's/^enableEmbeddedPPO =.*/enableEmbeddedPPO = $ENABLE;/' \
 -e 's/^embeddedPPORole =.*/embeddedPPORole = \"striker\";/' \
 -e 's/^embeddedPPODynamicPlayBall =.*/embeddedPPODynamicPlayBall = false;/' \
 -e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
--e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/'"
+-e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/' \
+-e 's|^embeddedPPOTeamStrikerModelPath =.*|embeddedPPOTeamStrikerModelPath = $TEAM_STRIKER_MODEL;|'"
 }
 
 behaviorParametersReplacements()
@@ -202,6 +215,7 @@ IMAGE=
 RL_DISABLE=
 RL_STRIKER_PLAYERS=
 RL_DEFENDER_PLAYERS=
+RL_TEAM_V42_PLAYERS=
 if [ -z "$(ls 2>/dev/null ../../Config/Robots/*/network.cfg)" ]; then
   RESOLVE=cat
 else
@@ -293,6 +307,10 @@ while true; do
     "--rl-defender")
       shift
       RL_DEFENDER_PLAYERS=$1
+      ;;
+    "--rl-team-v42")
+      shift
+      RL_TEAM_V42_PLAYERS=$1
       ;;
     "--goalkeeper-dive")
       shift
