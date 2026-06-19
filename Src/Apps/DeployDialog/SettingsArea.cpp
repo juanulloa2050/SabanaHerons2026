@@ -15,6 +15,7 @@
 #include <QEvent>
 #include <QFormLayout>
 #include <QFile>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMenu>
@@ -129,6 +130,24 @@ QString normalizeEmbeddedModelPath(QString path)
   if(path.startsWith('"') && path.endsWith('"') && path.size() >= 2)
     path = path.mid(1, path.size() - 2);
   return path;
+}
+
+QString displayNameForRLModelPath(const QString& path)
+{
+  const QString normalized = normalizeEmbeddedModelPath(path);
+  if(normalized.isEmpty())
+    return "Not used";
+
+  const QString fileName = QFileInfo(normalized).fileName();
+  if(fileName == "ppo_team_hsl2026_v4_2.onnx")
+    return "Team attack v4.2";
+  if(fileName == "ppo_striker_hsl2026.onnx")
+    return "Attack legacy";
+  if(fileName == "ppo_defender_hsl2026.onnx")
+    return "Defense baseline";
+  if(fileName == "ppo_defender_hsl2026_param_repair.onnx")
+    return "Defense repaired";
+  return fileName;
 }
 
 void ensureRLConfigInitialized(Presets::Preset* preset)
@@ -482,38 +501,50 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
     {
       QComboBox* strikerModelSelector = new QComboBox();
       strikerModelSelector->setFocusPolicy(Qt::StrongFocus);
-      strikerModelSelector->addItems(rlModelPaths);
+      for(const QString& rlModelPath : rlModelPaths)
+        strikerModelSelector->addItem(displayNameForRLModelPath(rlModelPath), rlModelPath);
       strikerModelSelector->setEditable(true);
-      strikerModelSelector->setCurrentText(preset->rlStrikerModel.c_str());
+      strikerModelSelector->setCurrentText(displayNameForRLModelPath(preset->rlStrikerModel.c_str()));
       strikerModelSelector->setMaximumWidth(settingsFieldWidth * 2);
-      connect(strikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model) {preset->rlStrikerModel = model.toStdString();});
-      layout->addRow("RL striker legacy", strikerModelSelector);
+      connect(strikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model)
+      {
+        const int index = strikerModelSelector->currentIndex();
+        preset->rlStrikerModel = (index >= 0 ? strikerModelSelector->itemData(index).toString() : model).toStdString();
+      });
+      layout->addRow("Attack style", strikerModelSelector);
 
       QComboBox* teamStrikerModelSelector = new QComboBox();
       teamStrikerModelSelector->setFocusPolicy(Qt::StrongFocus);
-      teamStrikerModelSelector->addItem("<disabled>");
-      teamStrikerModelSelector->addItems(rlModelPaths);
+      teamStrikerModelSelector->addItem("Not used", "");
+      for(const QString& rlModelPath : rlModelPaths)
+        teamStrikerModelSelector->addItem(displayNameForRLModelPath(rlModelPath), rlModelPath);
       teamStrikerModelSelector->setEditable(true);
-      const QString currentTeamStrikerModel = preset->rlTeamStrikerModel.empty() ? "<disabled>" : QString::fromStdString(preset->rlTeamStrikerModel);
+      const QString currentTeamStrikerModel = preset->rlTeamStrikerModel.empty() ? "Not used" : displayNameForRLModelPath(QString::fromStdString(preset->rlTeamStrikerModel));
       teamStrikerModelSelector->setCurrentText(currentTeamStrikerModel);
       teamStrikerModelSelector->setMaximumWidth(settingsFieldWidth * 2);
       connect(teamStrikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model)
       {
-        preset->rlTeamStrikerModel = model == "<disabled>" ? "" : model.toStdString();
+        const int index = teamStrikerModelSelector->currentIndex();
+        preset->rlTeamStrikerModel = (index >= 0 ? teamStrikerModelSelector->itemData(index).toString() : model).toStdString();
       });
-      layout->addRow("RL striker team", teamStrikerModelSelector);
+      layout->addRow("Team attack style", teamStrikerModelSelector);
 
       QComboBox* defenderModelSelector = new QComboBox();
       defenderModelSelector->setFocusPolicy(Qt::StrongFocus);
-      defenderModelSelector->addItems(rlModelPaths);
+      for(const QString& rlModelPath : rlModelPaths)
+        defenderModelSelector->addItem(displayNameForRLModelPath(rlModelPath), rlModelPath);
       defenderModelSelector->setEditable(true);
-      defenderModelSelector->setCurrentText(preset->rlDefenderModel.c_str());
+      defenderModelSelector->setCurrentText(displayNameForRLModelPath(preset->rlDefenderModel.c_str()));
       defenderModelSelector->setMaximumWidth(settingsFieldWidth * 2);
-      connect(defenderModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model) {preset->rlDefenderModel = model.toStdString();});
-      layout->addRow("RL defender model", defenderModelSelector);
+      connect(defenderModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model)
+      {
+        const int index = defenderModelSelector->currentIndex();
+        preset->rlDefenderModel = (index >= 0 ? defenderModelSelector->itemData(index).toString() : model).toStdString();
+      });
+      layout->addRow("Defense style", defenderModelSelector);
     }
 
-    const QStringList rlModes = {"off", "striker", "defender"};
+    const QStringList rlModes = {"Normal", "Attack", "Defense"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -522,10 +553,14 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
       QComboBox* rlModeSelector = new QComboBox();
       rlModeSelector->setFocusPolicy(Qt::StrongFocus);
       rlModeSelector->addItems(rlModes);
-      rlModeSelector->setCurrentText(preset->rlModes[i].c_str());
+      rlModeSelector->setCurrentText(preset->rlModes[i] == "striker" ? "Attack" :
+                                     preset->rlModes[i] == "defender" ? "Defense" : "Normal");
       rlModeSelector->setMaximumWidth(settingsFieldWidth);
-      connect(rlModeSelector, &QComboBox::currentTextChanged, this, [=](const QString& mode) {preset->rlModes[i] = mode.toStdString();});
-      layout->addRow(QString("RL P%1 (%2)").arg(i + 1).arg(preset->players[i].c_str()), rlModeSelector);
+      connect(rlModeSelector, &QComboBox::currentTextChanged, this, [=](const QString& mode)
+      {
+        preset->rlModes[i] = mode == "Attack" ? "striker" : mode == "Defense" ? "defender" : "off";
+      });
+      layout->addRow(QString("Player %1 role (%2)").arg(i + 1).arg(preset->players[i].c_str()), rlModeSelector);
     }
   }
 
