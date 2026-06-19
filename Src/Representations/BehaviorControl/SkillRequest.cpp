@@ -74,3 +74,20 @@ SkillRequest SkillRequest::Builder::observe(const Vector2f& point)
   request.target.translation = point;
   return request;
 }
+
+SkillRequest SkillRequest::Builder::interceptBall(unsigned interceptionMethods, bool allowDive)
+{
+  SkillRequest request;
+  request.skill = SkillRequest::interceptBall;
+  request.interceptionMethods = interceptionMethods;
+  request.allowDive = allowDive;
+  return request;
+}
+
+SkillRequest SkillRequest::Builder::keeperDive(MotionRequest::Dive::Request diveRequest)
+{
+  SkillRequest request;
+  request.skill = SkillRequest::keeperDive;
+  request.diveRequest = diveRequest;
+  return request;
+}
