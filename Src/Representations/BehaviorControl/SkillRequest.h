@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Math/Pose2f.h"
+#include "Representations/MotionControl/MotionRequest.h"
 #include "Streaming/AutoStreamable.h"
 #include "Streaming/Enum.h"
 
@@ -25,6 +26,8 @@ STREAMABLE(SkillRequest,
     block,
     mark,
     observe,
+    interceptBall,
+    keeperDive,
   });
 
   struct Builder
@@ -39,9 +42,14 @@ STREAMABLE(SkillRequest,
     static SkillRequest block(const Vector2f& player);
     static SkillRequest mark(const Vector2f& player);
     static SkillRequest observe(const Vector2f& point);
+    static SkillRequest interceptBall(unsigned interceptionMethods, bool allowDive = true);
+    static SkillRequest keeperDive(MotionRequest::Dive::Request diveRequest);
   },
 
   (Type)(none) skill, /**< The skill that shall run. */
   (Pose2f) target, /**< The target pose, object or direction (in field coordinates). */
   (int)(-1) passTarget, /**< The number of the passed-to player. */
+  (unsigned)(0) interceptionMethods, /**< Bitset of Interception::Method values for goalkeeper ball interception. */
+  (bool)(true) allowDive, /**< Whether keyframe dive/genuflect interception is allowed. */
+  (MotionRequest::Dive::Request)(MotionRequest::Dive::prepare) diveRequest, /**< Exact goalkeeper keyframe dive/genuflect request. */
 });
