@@ -89,9 +89,9 @@ public:
 
 namespace
 {
-QString readStrategyBehaviorControlValue(const std::string& scenario, const char* key)
+QString readScenarioConfigValue(const std::string& scenario, const char* fileName, const char* key)
 {
-  QFile file(QString("Scenarios/%1/strategyBehaviorControl.cfg").arg(scenario.c_str()));
+  QFile file(QString("Scenarios/%1/%2").arg(scenario.c_str(), fileName));
   if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
     return {};
 
@@ -100,6 +100,22 @@ QString readStrategyBehaviorControlValue(const std::string& scenario, const char
                                      QRegularExpression::MultilineOption);
   const QRegularExpressionMatch match = lineRegex.match(content);
   return match.hasMatch() ? match.captured(1).trimmed() : QString();
+}
+
+QString readStrategyBehaviorControlValue(const std::string& scenario, const char* key)
+{
+  return readScenarioConfigValue(scenario, "strategyBehaviorControl.cfg", key);
+}
+
+std::string normalizeRLMode(const std::string& mode)
+{
+  if(mode == "striker")
+    return "original";
+  if(mode == "defender")
+    return "baseline_attack";
+  if(mode == "original" || mode == "baseline_attack" || mode == "off")
+    return mode;
+  return "off";
 }
 
 std::vector<int> parsePlayerList(const QString& value)
@@ -126,7 +142,11 @@ std::vector<int> parsePlayerList(const QString& value)
 void ensureRLModesInitialized(Presets::Preset* preset)
 {
   if(preset->rlModes.size() == preset->players.size())
+  {
+    for(std::string& mode : preset->rlModes)
+      mode = normalizeRLMode(mode);
     return;
+  }
 
   preset->rlModes.assign(preset->players.size(), "off");
 
@@ -138,10 +158,10 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   const auto defenderPlayers = parsePlayerList(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderPlayers"));
   for(const int player : strikerPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-      preset->rlModes[static_cast<size_t>(player - 1)] = "striker";
+      preset->rlModes[static_cast<size_t>(player - 1)] = "original";
   for(const int player : defenderPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-      preset->rlModes[static_cast<size_t>(player - 1)] = "defender";
+      preset->rlModes[static_cast<size_t>(player - 1)] = "baseline_attack";
 
   if(!strikerPlayers.empty() || !defenderPlayers.empty())
     return;
@@ -150,14 +170,15 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   if(dynamicPlayBall == "true")
     return;
 
-  const QString configuredRole = readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"');
-  if(configuredRole != "striker" && configuredRole != "defender")
+  const std::string configuredRole = normalizeRLMode(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"').toStdString());
+  if(configuredRole != "original" && configuredRole != "baseline_attack")
     return;
 
   for(size_t i = 1; i < preset->players.size(); ++i)
     if(preset->players[i] != "_")
-      preset->rlModes[i] = configuredRole.toStdString();
+      preset->rlModes[i] = configuredRole;
 }
+
 }
 
 SettingsArea::SettingsArea(Presets& presets, QDialog* dialog, RobotsTable* table, const QSettings& settings)
@@ -399,6 +420,12 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   connect(scenarioSelector, &QComboBox::currentTextChanged, this, [=](const QString& scenario) {preset->scenario = scenario.toStdString();});
   layout->addRow("Scenario", scenarioSelector);
 
+  QCheckBox* goalkeeperDivingSelector = new QCheckBox("Enable");
+  goalkeeperDivingSelector->setChecked(preset->goalkeeperDivingEnabled);
+  goalkeeperDivingSelector->setFocusPolicy(Qt::StrongFocus);
+  connect(goalkeeperDivingSelector, &QCheckBox::stateChanged, this, [=](int state) {preset->goalkeeperDivingEnabled = state != Qt::Unchecked;});
+  layout->addRow("Goalkeeper dives", goalkeeperDivingSelector);
+
   const QStringList locations = QDir("Locations").entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
   QComboBox* locationSelector = new QComboBox();
   locationSelector->setFocusPolicy(Qt::StrongFocus);
@@ -452,7 +479,7 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   {
     layout->addRow(new Line(this));
 
-    const QStringList rlModes = {"off", "striker", "defender"};
+    const QStringList rlModeLabels = {"off", "original", "baseline_attack"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -460,10 +487,13 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
 
       QComboBox* rlModeSelector = new QComboBox();
       rlModeSelector->setFocusPolicy(Qt::StrongFocus);
-      rlModeSelector->addItems(rlModes);
+      rlModeSelector->addItems(rlModeLabels);
       rlModeSelector->setCurrentText(preset->rlModes[i].c_str());
       rlModeSelector->setMaximumWidth(settingsFieldWidth);
-      connect(rlModeSelector, &QComboBox::currentTextChanged, this, [=](const QString& mode) {preset->rlModes[i] = mode.toStdString();});
+      connect(rlModeSelector, &QComboBox::currentTextChanged, this, [=](const QString& mode)
+      {
+        preset->rlModes[i] = normalizeRLMode(mode.toStdString());
+      });
       layout->addRow(QString("RL P%1 (%2)").arg(i + 1).arg(preset->players[i].c_str()), rlModeSelector);
     }
   }
@@ -581,9 +611,9 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
   ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
-    if(selectedPreset->rlModes[i] == "striker")
+    if(selectedPreset->rlModes[i] == "original")
       strikerPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "defender")
+    else if(selectedPreset->rlModes[i] == "baseline_attack")
       defenderPlayers.push_back(static_cast<int>(i + 1));
   }
 
@@ -616,6 +646,8 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
     writePlayerList("--rl-striker", strikerPlayers);
     writePlayerList("--rl-defender", defenderPlayers);
   }
+
+  stream << " --goalkeeper-dive " << (selectedPreset->goalkeeperDivingEnabled ? "on" : "off");
 
   if(mode == image)
   {
