@@ -141,9 +141,12 @@ void ensureRLConfigInitialized(Presets::Preset* preset)
     preset->rlModes.assign(preset->players.size(), "off");
 
   const QString defaultStrikerModel = normalizeEmbeddedModelPath(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOStrikerModelPath"));
+  const QString defaultTeamStrikerModel = normalizeEmbeddedModelPath(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOTeamStrikerModelPath"));
   const QString defaultDefenderModel = normalizeEmbeddedModelPath(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPODefenderModelPath"));
   if(preset->rlStrikerModel.empty())
     preset->rlStrikerModel = defaultStrikerModel.toStdString();
+  if(preset->rlTeamStrikerModel.empty() && !defaultTeamStrikerModel.isNull())
+    preset->rlTeamStrikerModel = defaultTeamStrikerModel.toStdString();
   if(preset->rlDefenderModel.empty())
     preset->rlDefenderModel = defaultDefenderModel.toStdString();
 
@@ -484,7 +487,21 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
       strikerModelSelector->setCurrentText(preset->rlStrikerModel.c_str());
       strikerModelSelector->setMaximumWidth(settingsFieldWidth * 2);
       connect(strikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model) {preset->rlStrikerModel = model.toStdString();});
-      layout->addRow("RL striker model", strikerModelSelector);
+      layout->addRow("RL striker legacy", strikerModelSelector);
+
+      QComboBox* teamStrikerModelSelector = new QComboBox();
+      teamStrikerModelSelector->setFocusPolicy(Qt::StrongFocus);
+      teamStrikerModelSelector->addItem("<disabled>");
+      teamStrikerModelSelector->addItems(rlModelPaths);
+      teamStrikerModelSelector->setEditable(true);
+      const QString currentTeamStrikerModel = preset->rlTeamStrikerModel.empty() ? "<disabled>" : QString::fromStdString(preset->rlTeamStrikerModel);
+      teamStrikerModelSelector->setCurrentText(currentTeamStrikerModel);
+      teamStrikerModelSelector->setMaximumWidth(settingsFieldWidth * 2);
+      connect(teamStrikerModelSelector, &QComboBox::currentTextChanged, this, [=](const QString& model)
+      {
+        preset->rlTeamStrikerModel = model == "<disabled>" ? "" : model.toStdString();
+      });
+      layout->addRow("RL striker team", teamStrikerModelSelector);
 
       QComboBox* defenderModelSelector = new QComboBox();
       defenderModelSelector->setFocusPolicy(Qt::StrongFocus);
@@ -663,6 +680,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
 
   if(!selectedPreset->rlStrikerModel.empty())
     stream << " --rl-striker-model " << selectedPreset->rlStrikerModel;
+  stream << " --rl-team-striker-model " << (selectedPreset->rlTeamStrikerModel.empty() ? "\"\"" : selectedPreset->rlTeamStrikerModel);
   if(!selectedPreset->rlDefenderModel.empty())
     stream << " --rl-defender-model " << selectedPreset->rlDefenderModel;
 
