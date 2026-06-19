@@ -27,7 +27,8 @@ struct Presets : public Streamable
         && volume == other.volume
         && magicNumber == other.magicNumber
         && players == other.players
-        && rlModes == other.rlModes;
+        && rlModes == other.rlModes
+        && goalkeeperDivingEnabled == other.goalkeeperDivingEnabled;
     },
 
     (std::string) name, /**< The name of the preset. */
@@ -40,7 +41,8 @@ struct Presets : public Streamable
     (int) volume, /**< The volume to set when deploying. */
     (int) magicNumber, /**< The magic number to set when deploying. */
     (std::vector<std::string>) players, /**< The names of the robots for the different player numbers ("_" for no robot). */
-    (std::vector<std::string>) rlModes, /**< RL mode per player slot: off, striker, or defender. */
+    (std::vector<std::string>) rlModes, /**< RL mode per player slot: off, original, or baseline_attack. */
+    (bool)(false) goalkeeperDivingEnabled, /**< Whether goalkeeper diving should be enabled when deploying. */
   });
 
   std::vector<Preset*> teams; /**< The presets for the teams.*/

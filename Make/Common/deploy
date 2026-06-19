@@ -23,6 +23,7 @@ usage()
   echo "    --rl-disable             disable embedded PPO for this deploy"
   echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
+  echo "    --goalkeeper-dive <on|off> enable or disable goalkeeper diving in behaviorParameters.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
   echo "    -w <wireless profile>    set wireless profile"
@@ -77,6 +78,21 @@ strategyBehaviorControlReplacements()
 -e 's/^embeddedPPODynamicPlayBall =.*/embeddedPPODynamicPlayBall = false;/' \
 -e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
 -e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/'"
+}
+
+behaviorParametersReplacements()
+{
+  if [ -z "$GOALKEEPER_DIVE" ]; then
+    echo ""
+    return
+  fi
+
+  local ENABLE="false"
+  if [ "$GOALKEEPER_DIVE" = "on" ] || [ "$GOALKEEPER_DIVE" = "true" ]; then
+    ENABLE="true"
+  fi
+
+  echo "-e 's/^keeperJumpingOn =.*/keeperJumpingOn = $ENABLE;/'"
 }
 
 copy()
@@ -278,6 +294,10 @@ while true; do
       shift
       RL_DEFENDER_PLAYERS=$1
       ;;
+    "--goalkeeper-dive")
+      shift
+      GOALKEEPER_DIVE=$1
+      ;;
     "Release")
       CONFIG="Release"
       ;;
@@ -375,6 +395,9 @@ cleanup()
   if [ -f /tmp/deploy_strategyBehaviorControl.cfg ] && [ ! -z "$SCENARIO" ]; then
     mv /tmp/deploy_strategyBehaviorControl.cfg ../../Config/Scenarios/$SCENARIO/strategyBehaviorControl.cfg
   fi
+  if [ -f /tmp/deploy_behaviorParameters.cfg ] && [ ! -z "$SCENARIO" ]; then
+    mv /tmp/deploy_behaviorParameters.cfg ../../Config/Scenarios/$SCENARIO/behaviorParameters.cfg
+  fi
   trap - EXIT
 }
 
@@ -382,6 +405,7 @@ trap cleanup EXIT
 
 SEDFLAGS="$(settingsReplacements)"
 STRATEGYFLAGS=
+BEHAVIORFLAGS=
 if [ ! -z "$SCENARIO" ]; then
   STRATEGYFLAGS="$(strategyBehaviorControlReplacements)"
   if [ ! -z "$STRATEGYFLAGS" ]; then
@@ -392,6 +416,17 @@ if [ ! -z "$SCENARIO" ]; then
     fi
     cp "$STRATEGY_FILE" /tmp/deploy_strategyBehaviorControl.cfg
     bash -c "sed $STRATEGYFLAGS </tmp/deploy_strategyBehaviorControl.cfg >\"$STRATEGY_FILE\""
+  fi
+
+  BEHAVIORFLAGS="$(behaviorParametersReplacements)"
+  if [ ! -z "$BEHAVIORFLAGS" ]; then
+    BEHAVIOR_FILE="../../Config/Scenarios/$SCENARIO/behaviorParameters.cfg"
+    if [ ! -f "$BEHAVIOR_FILE" ]; then
+      echo "Scenario \"$SCENARIO\" does not provide behaviorParameters.cfg" >&2
+      exit 1
+    fi
+    cp "$BEHAVIOR_FILE" /tmp/deploy_behaviorParameters.cfg
+    bash -c "sed $BEHAVIORFLAGS </tmp/deploy_behaviorParameters.cfg >\"$BEHAVIOR_FILE\""
   fi
 fi
 
