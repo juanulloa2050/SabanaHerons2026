@@ -49,8 +49,11 @@ SKILL_IMPLEMENTATION(HeadControlImpl,
     (int)(200) minTimeLookingAtBall,
     (Angle)(100_deg) maxHeadYawSpeed,
     (Angle)(45_deg) ballTrackingHeadSpeed, /**< Conservative speed limit to protect the head during ball tracking. */
+    (Angle)(75_deg) maxBallTrackingHeadSpeed, /**< Upper tracking speed when the ball direction changes quickly. */
     (int)(250) ballTrackingSmoothingTimeConstant, /**< Low-pass filter time constant in milliseconds for ball-tracking targets. */
     (int)(500) ballTrackingSmoothingResetTime, /**< Reset the filter after longer interruptions to avoid stale targets. */
+    (float)(0.18f) ballTrackingLookaheadTime, /**< Short lead time in seconds to reduce lag on moving balls. */
+    (float)(250.f) maxBallTrackingLeadDistance, /**< Clamp on the lead distance in mm to avoid overshooting noisy velocities. */
   }),
 });
 
@@ -75,7 +78,10 @@ class HeadControlImpl : public HeadControlImplBase
       const Vector2f ballPosition = useOwnEstimate ?
                                     (p.mirrored ? (theRobotPose.inverse() * (theRobotPose * theBallModel.estimate.position).rotated(pi)) : theBallModel.estimate.position) :
                                     (theRobotPose.inverse() * (p.mirrored ? theTeammatesBallModel.position.rotated(pi) : theTeammatesBallModel.position));
-      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius));
+      const Vector2f ballVelocity = useOwnEstimate ?
+                                    theBallModel.estimate.velocity :
+                                    theTeammatesBallModel.velocity.rotated(-theRobotPose.rotation);
+      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, predictBallTarget(ballPosition, ballVelocity));
     }
     else
     {
@@ -89,7 +95,8 @@ class HeadControlImpl : public HeadControlImplBase
     if(theTeammatesBallModel.isValid)
     {
       const Vector2f ballPosition = theRobotPose.inverse() * (p.mirrored ? theTeammatesBallModel.position.rotated(pi) : theTeammatesBallModel.position);
-      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, Vector3f(ballPosition.x(), ballPosition.y(), theBallSpecification.radius));
+      const Vector2f ballVelocity = theTeammatesBallModel.velocity.rotated(-theRobotPose.rotation);
+      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, predictBallTarget(ballPosition, ballVelocity));
     }
     else
     {
@@ -196,21 +203,42 @@ class HeadControlImpl : public HeadControlImplBase
 
   void setSmoothedBallTargetRequest(HeadMotionRequest::CameraControlMode camera, const Vector3f& target)
   {
+    Angle trackingSpeed = maxBallTrackingHeadSpeed;
     const unsigned resetTime = ballTrackingSmoothingResetTime > 0 ? static_cast<unsigned>(ballTrackingSmoothingResetTime) : 0u;
     if(!hasSmoothedBallTarget || static_cast<unsigned>(theFrameInfo.getTimeSince(lastBallTargetUpdate)) > resetTime)
       smoothedBallTarget = target;
     else
     {
       const float dtMs = static_cast<float>(theFrameInfo.getTimeSince(lastBallTargetUpdate));
+      const Vector3f previousSmoothedBallTarget = smoothedBallTarget;
       const float alpha = ballTrackingSmoothingTimeConstant > 0 ?
                           Rangef::OneRange().limit(dtMs / static_cast<float>(ballTrackingSmoothingTimeConstant)) :
                           1.f;
       smoothedBallTarget += alpha * (target - smoothedBallTarget);
+
+      if(dtMs > 0.f)
+      {
+        const Angle previousAngle = std::atan2(previousSmoothedBallTarget.y(), previousSmoothedBallTarget.x());
+        const Angle currentAngle = std::atan2(smoothedBallTarget.y(), smoothedBallTarget.x());
+        const Angle angularVelocity = std::abs(Angle::normalize(currentAngle - previousAngle)) / (dtMs / 1000.f);
+        trackingSpeed = Rangea(ballTrackingHeadSpeed, maxBallTrackingHeadSpeed).limit(angularVelocity * 1.25f);
+      }
     }
 
     hasSmoothedBallTarget = true;
     lastBallTargetUpdate = theFrameInfo.time;
-    setTargetOnGroundRequest(camera, smoothedBallTarget, ballTrackingHeadSpeed);
+    setTargetOnGroundRequest(camera, smoothedBallTarget, trackingSpeed);
+  }
+
+  Vector3f predictBallTarget(const Vector2f& ballPosition, const Vector2f& ballVelocity) const
+  {
+    const float lookaheadTime = std::max(ballTrackingLookaheadTime, 0.f);
+    const Vector2f rawLead = ballVelocity * lookaheadTime;
+    const Vector2f lead = rawLead.squaredNorm() > sqr(maxBallTrackingLeadDistance) ?
+                          rawLead.normalized(maxBallTrackingLeadDistance) :
+                          rawLead;
+    const Vector2f predictedPosition = ballPosition + lead;
+    return Vector3f(predictedPosition.x(), predictedPosition.y(), theBallSpecification.radius);
   }
 
   float lookLeftAndRightSign; /**< The side to which LookLeftAndRight currently turns the head. */

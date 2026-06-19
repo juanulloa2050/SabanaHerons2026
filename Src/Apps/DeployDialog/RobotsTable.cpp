@@ -313,7 +313,7 @@ std::string RobotsTable::getBetterIP(const Robot& robot) const
   return "";
 }
 
-void RobotsTable::writeOutput(std::map<std::string, Robot>& robots, bool justIPs) const
+void RobotsTable::writeOutput(std::map<std::string, Robot>& robots, bool justIPs, std::ostream& stream) const
 {
   int numOfPlayers = 0;
   int numOfReachablePlayers = 0;
@@ -339,16 +339,16 @@ void RobotsTable::writeOutput(std::map<std::string, Robot>& robots, bool justIPs
           ip = robots[player].lan;
       }
       if(justIPs)
-        std::cout << ip << " ";
+        stream << ip << " ";
       else if(numOfPlayers == 1)
-        std::cout << ip << " -p " << number + 1 << " ";
+        stream << ip << " -p " << number + 1 << " ";
       else
-        std::cout << "-r " << number + 1 << " " << ip << " ";
+        stream << "-r " << number + 1 << " " << ip << " ";
     }
   }
 
   if(numOfPlayers == 1 && !justIPs)
-    std::cout << "-k ";
+    stream << "-k ";
 }
 
 QStringList RobotsTable::getSubstitutes() const

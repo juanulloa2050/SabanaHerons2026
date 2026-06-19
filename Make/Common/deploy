@@ -20,6 +20,9 @@ usage()
   echo "    -r <n> <ip>              copy to <ip> and set playernumber to <n> (one -r per robot)"
   echo "    -s <scenario>            set scenario"
   echo "    -t <team number>         set team number"
+  echo "    --rl-disable             disable embedded PPO for this deploy"
+  echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
+  echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
   echo "    -w <wireless profile>    set wireless profile"
@@ -41,6 +44,39 @@ settingsReplacements()
   [ ! -z $TEAM ] && SEDFLAGS="$SEDFLAGS -e 's/teamNumber =.*/teamNumber = $TEAM;/'"
   [ ! -z $MAGICNUMBER ] && SEDFLAGS="$SEDFLAGS -e 's/magicNumber =.*/magicNumber = $MAGICNUMBER;/'"
   echo "$SEDFLAGS"
+}
+
+cfgArrayFromPlayerList()
+{
+  local PLAYERS="$1"
+  if [ -z "$PLAYERS" ]; then
+    echo "[]"
+  else
+    echo "[$(sed 's/,/, /g' <<<"$PLAYERS")]"
+  fi
+}
+
+strategyBehaviorControlReplacements()
+{
+  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS" ]; then
+    echo ""
+    return
+  fi
+
+  local ENABLE="true"
+  local STRIKERS="$(cfgArrayFromPlayerList "$RL_STRIKER_PLAYERS")"
+  local DEFENDERS="$(cfgArrayFromPlayerList "$RL_DEFENDER_PLAYERS")"
+  if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" ]; then
+    ENABLE="false"
+    STRIKERS="[]"
+    DEFENDERS="[]"
+  fi
+
+  echo "-e 's/^enableEmbeddedPPO =.*/enableEmbeddedPPO = $ENABLE;/' \
+-e 's/^embeddedPPORole =.*/embeddedPPORole = \"striker\";/' \
+-e 's/^embeddedPPODynamicPlayBall =.*/embeddedPPODynamicPlayBall = false;/' \
+-e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
+-e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/'"
 }
 
 copy()
@@ -147,6 +183,9 @@ PROFILE=
 MAGICNUMBER=
 REQUIREUSB=
 IMAGE=
+RL_DISABLE=
+RL_STRIKER_PLAYERS=
+RL_DEFENDER_PLAYERS=
 if [ -z "$(ls 2>/dev/null ../../Config/Robots/*/network.cfg)" ]; then
   RESOLVE=cat
 else
@@ -227,6 +266,17 @@ while true; do
       ;;
     "-i" | "/i")
       IMAGE=1
+      ;;
+    "--rl-disable")
+      RL_DISABLE=1
+      ;;
+    "--rl-striker")
+      shift
+      RL_STRIKER_PLAYERS=$1
+      ;;
+    "--rl-defender")
+      shift
+      RL_DEFENDER_PLAYERS=$1
       ;;
     "Release")
       CONFIG="Release"
@@ -317,6 +367,34 @@ fi
 #key may only be accessed by the owner. Otherwise ssh will complain
 chmod 600 $keyFile
 
+cleanup()
+{
+  if [ -f /tmp/deploy_settings.cfg ]; then
+    mv /tmp/deploy_settings.cfg ../../Config/settings.cfg
+  fi
+  if [ -f /tmp/deploy_strategyBehaviorControl.cfg ] && [ ! -z "$SCENARIO" ]; then
+    mv /tmp/deploy_strategyBehaviorControl.cfg ../../Config/Scenarios/$SCENARIO/strategyBehaviorControl.cfg
+  fi
+  trap - EXIT
+}
+
+trap cleanup EXIT
+
+SEDFLAGS="$(settingsReplacements)"
+STRATEGYFLAGS=
+if [ ! -z "$SCENARIO" ]; then
+  STRATEGYFLAGS="$(strategyBehaviorControlReplacements)"
+  if [ ! -z "$STRATEGYFLAGS" ]; then
+    STRATEGY_FILE="../../Config/Scenarios/$SCENARIO/strategyBehaviorControl.cfg"
+    if [ ! -f "$STRATEGY_FILE" ]; then
+      echo "Scenario \"$SCENARIO\" does not provide strategyBehaviorControl.cfg" >&2
+      exit 1
+    fi
+    cp "$STRATEGY_FILE" /tmp/deploy_strategyBehaviorControl.cfg
+    bash -c "sed $STRATEGYFLAGS </tmp/deploy_strategyBehaviorControl.cfg >\"$STRATEGY_FILE\""
+  fi
+fi
+
 if [ ! -z $COMPILE ]; then
   if [ "`uname`" = "Darwin" ]; then
     # macOS
@@ -351,20 +429,14 @@ if [ ! -z $IMAGE ]; then # write an opn image
     DATE="$(date +"_%Y-%m-%d_%H-%M")"
   fi
 
-  SEDFLAGS="$(settingsReplacements)"
   if [ ! -z "$SEDFLAGS" ]; then
     cp ../../Config/settings.cfg /tmp/deploy_settings.cfg
-    trap "mv /tmp/deploy_settings.cfg ../../Config/settings.cfg" EXIT
     bash -c "sed $SEDFLAGS </tmp/deploy_settings.cfg >../../Config/settings.cfg"
   fi
 
   echo "y" | ../../Install/createHomeArchive $USBOPT -c $CONFIG -v $VOLUME $PROFILEOPT -H "$IMAGEPATH/home.tar.gz" \
   && ../../Install/createOPN -H "$IMAGEPATH/home.tar.gz" -o "$IMAGEPATH/bhuman$DATE.opn" $RESTARTOPT
 
-  if [ -f /tmp/deploy_settings.cfg ]; then
-    mv /tmp/deploy_settings.cfg ../../Config/settings.cfg
-    trap - EXIT
-  fi
 elif [ ! -z $REMOTE ]; then # deploy to a single robot
   if [ -z "$KEEPIP" ]; then
     rm -f ../../Config/Scenes/Includes/connect.con

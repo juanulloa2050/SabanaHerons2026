@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <map>
+#include <ostream>
 #include <QDialog>
 #include <QLineEdit>
 #include <QWidget>
@@ -86,7 +87,7 @@ public:
    * Write parameters for deploy script to console.
    * @param robots Network information about all robots.
    */
-  void writeOutput(std::map<std::string, Robot>& robots) const;
+  void writeOutput(std::map<std::string, Robot>& robots, std::ostream& stream) const;
 
   /**
    * Have the settings been modified compared to the ones that were initially loaded?
