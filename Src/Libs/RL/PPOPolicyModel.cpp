@@ -96,7 +96,7 @@ bool RL::PPOPolicyModel::load(const std::string& configuredModelPath, std::strin
   return true;
 }
 
-bool RL::PPOPolicyModel::inferFromBuffer(const float* data, const std::size_t size, PPOPolicyOutput& output, std::string* error)
+bool RL::PPOPolicyModel::infer(const std::array<float, ppoObsSize>& observation, PPOPolicyOutput& output, std::string* error)
 {
   if(!loaded)
   {
@@ -106,20 +106,23 @@ bool RL::PPOPolicyModel::inferFromBuffer(const float* data, const std::size_t si
   }
 
   auto input = network.input(0);
-  std::size_t expectedSize = 0;
   if(input.rank() == 2)
   {
-    if(input.dims(0) != 1)
+    if(input.dims(0) != 1 || input.dims(1) != static_cast<unsigned int>(ppoObsSize))
     {
       if(error)
-        *error = "PPO input tensor batch dim mismatch";
+        *error = "PPO input tensor shape mismatch";
       return false;
     }
-    expectedSize = static_cast<std::size_t>(input.dims(1));
   }
   else if(input.rank() == 1)
   {
-    expectedSize = static_cast<std::size_t>(input.dims(0));
+    if(input.dims(0) != static_cast<unsigned int>(ppoObsSize))
+    {
+      if(error)
+        *error = "PPO input tensor shape mismatch";
+      return false;
+    }
   }
   else
   {
@@ -128,26 +131,19 @@ bool RL::PPOPolicyModel::inferFromBuffer(const float* data, const std::size_t si
     return false;
   }
 
-  if(size != expectedSize)
-  {
-    if(error)
-      *error = "PPO input tensor size mismatch (got " + std::to_string(size) + ", expected " + std::to_string(expectedSize) + ")";
-    return false;
-  }
-
   float* inputData = input.data();
-  for(std::size_t i = 0; i < size; ++i)
-    inputData[i] = data[i];
+  for(std::size_t i = 0; i < observation.size(); ++i)
+    inputData[i] = observation[i];
 
   network.apply();
 
   if(combinedOutput)
   {
-    const float* outData = network.output(0).data();
+    const float* data = network.output(0).data();
     for(std::size_t i = 0; i < ppoSkillCount; ++i)
-      output.skillLogits[i] = outData[i];
+      output.skillLogits[i] = data[i];
     for(std::size_t i = 0; i < ppoParamCount; ++i)
-      output.paramMean[i] = outData[ppoSkillCount + i];
+      output.paramMean[i] = data[ppoSkillCount + i];
   }
   else
   {
@@ -161,16 +157,6 @@ bool RL::PPOPolicyModel::inferFromBuffer(const float* data, const std::size_t si
 
   output.valid = true;
   return true;
-}
-
-bool RL::PPOPolicyModel::infer(const std::array<float, ppoObsSize>& observation, PPOPolicyOutput& output, std::string* error)
-{
-  return inferFromBuffer(observation.data(), observation.size(), output, error);
-}
-
-bool RL::PPOPolicyModel::infer(const std::array<float, ppoObsSize47>& observation, PPOPolicyOutput& output, std::string* error)
-{
-  return inferFromBuffer(observation.data(), observation.size(), output, error);
 }
 
 bool RL::PPOPolicyModel::isLoaded() const

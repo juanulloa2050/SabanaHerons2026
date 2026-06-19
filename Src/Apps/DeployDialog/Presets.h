@@ -29,7 +29,6 @@ struct Presets : public Streamable
         && players == other.players
         && rlModes == other.rlModes
         && rlStrikerModel == other.rlStrikerModel
-        && rlTeamStrikerModel == other.rlTeamStrikerModel
         && rlDefenderModel == other.rlDefenderModel;
     },
 
@@ -45,7 +44,6 @@ struct Presets : public Streamable
     (std::vector<std::string>) players, /**< The names of the robots for the different player numbers ("_" for no robot). */
     (std::vector<std::string>) rlModes, /**< RL mode per player slot: off, striker, or defender. */
     (std::string) rlStrikerModel, /**< Striker PPO model path to deploy into the selected scenario. */
-    (std::string) rlTeamStrikerModel, /**< Team striker PPO model path to deploy into the selected scenario. Empty disables the 47-dim path. */
     (std::string) rlDefenderModel, /**< Defender PPO model path to deploy into the selected scenario. */
   });
 
