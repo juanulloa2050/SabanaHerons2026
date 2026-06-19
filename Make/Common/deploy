@@ -25,6 +25,7 @@ usage()
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
   echo "    --rl-team-v42 <players>  comma-separated player list that uses team striker PPO v4.2"
   echo "    --rl-merged <players>    comma-separated player list that uses the merged brain v5 (controls all field players)"
+  echo "    --rl-gk <on|off>         enable or disable the embedded goalkeeper RL policy (keeper robot only)"
   echo "    --goalkeeper-dive <on|off> enable or disable goalkeeper diving in behaviorParameters.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
@@ -61,9 +62,15 @@ cfgArrayFromPlayerList()
 
 strategyBehaviorControlReplacements()
 {
-  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_TEAM_V42_PLAYERS$RL_MERGED_PLAYERS" ]; then
+  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_TEAM_V42_PLAYERS$RL_MERGED_PLAYERS$RL_GK" ]; then
     echo ""
     return
+  fi
+
+  # Goalkeeper RL toggle (independent of the field-player embedded PPO).
+  local GK_ENABLE="false"
+  if [ "$RL_GK" = "on" ] || [ "$RL_GK" = "true" ]; then
+    GK_ENABLE="true"
   fi
 
   local ENABLE="true"
@@ -102,7 +109,8 @@ strategyBehaviorControlReplacements()
 -e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
 -e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/' \
 -e 's|^embeddedPPOTeamStrikerModelPath =.*|embeddedPPOTeamStrikerModelPath = $TEAM_STRIKER_MODEL;|' \
--e 's|^embeddedPPOMergedTeamModelPath =.*|embeddedPPOMergedTeamModelPath = $MERGED_MODEL;|'"
+-e 's|^embeddedPPOMergedTeamModelPath =.*|embeddedPPOMergedTeamModelPath = $MERGED_MODEL;|' \
+-e 's/^enableEmbeddedGK =.*/enableEmbeddedGK = $GK_ENABLE;/'"
 }
 
 behaviorParametersReplacements()
@@ -229,6 +237,7 @@ RL_STRIKER_PLAYERS=
 RL_DEFENDER_PLAYERS=
 RL_TEAM_V42_PLAYERS=
 RL_MERGED_PLAYERS=
+RL_GK=
 if [ -z "$(ls 2>/dev/null ../../Config/Robots/*/network.cfg)" ]; then
   RESOLVE=cat
 else
@@ -328,6 +337,10 @@ while true; do
     "--rl-merged")
       shift
       RL_MERGED_PLAYERS=$1
+      ;;
+    "--rl-gk")
+      shift
+      RL_GK=$1
       ;;
     "--goalkeeper-dive")
       shift

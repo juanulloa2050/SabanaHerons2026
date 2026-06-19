@@ -117,7 +117,9 @@ std::string normalizeRLMode(const std::string& mode)
     return "team_v4_2";
   if(mode == "merged" || mode == "merged_v5" || mode == "merged-v5" || mode == "mergedTeam")
     return "merged_v5";
-  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "merged_v5" || mode == "off")
+  if(mode == "gk" || mode == "goalkeeper" || mode == "keeper" || mode == "embeddedGK")
+    return "gk";
+  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "merged_v5" || mode == "gk" || mode == "off")
     return mode;
   return "off";
 }
@@ -153,6 +155,12 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   }
 
   preset->rlModes.assign(preset->players.size(), "off");
+
+  // Goalkeeper RL is independent of the field-player PPO: the keeper (slot 0) runs it
+  // when the scenario enables it. Detect this before the enableEmbeddedPPO short-circuit.
+  const QString gkEnabled = readStrategyBehaviorControlValue(preset->scenario, "enableEmbeddedGK");
+  if(gkEnabled == "true" && !preset->players.empty() && preset->players[0] != "_")
+    preset->rlModes[0] = "gk";
 
   const QString enabled = readStrategyBehaviorControlValue(preset->scenario, "enableEmbeddedPPO");
   if(enabled != "true")
@@ -496,7 +504,7 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   {
     layout->addRow(new Line(this));
 
-    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2", "merged_v5"};
+    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2", "merged_v5", "gk"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -627,6 +635,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
   std::vector<int> defenderPlayers;
   std::vector<int> teamPlayers;
   std::vector<int> mergedPlayers;
+  bool gkEnabled = false;
   ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
@@ -638,6 +647,8 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
       teamPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "merged_v5")
       mergedPlayers.push_back(static_cast<int>(i + 1));
+    else if(selectedPreset->rlModes[i] == "gk")
+      gkEnabled = true;
   }
 
   stream <<  "-t " << selectedPreset->number
@@ -672,6 +683,7 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
     writePlayerList("--rl-merged", mergedPlayers);
   }
 
+  stream << " --rl-gk " << (gkEnabled ? "on" : "off");
   stream << " --goalkeeper-dive " << (selectedPreset->goalkeeperDivingEnabled ? "on" : "off");
 
   if(mode == image)
