@@ -6,6 +6,7 @@
 namespace RL
 {
   constexpr std::size_t ppoObsSize = 26;
+  constexpr std::size_t ppoObsSize47 = 47;   // multi-agent obs (v4.2+): adds team context + role one-hot
   constexpr std::size_t ppoSkillCount = 8;
   constexpr std::size_t ppoParamCount = 4;
 
@@ -77,5 +78,47 @@ namespace RL
   {
     PPOGateObservation raw;
     std::array<float, ppoObsSize> values{};
+  };
+
+  // Multi-agent team context for the 47-dim observation (v4.2+).
+  // Built by StrategyBehaviorControl from TeamData + TeammatesBallModel each frame,
+  // then passed to PPOObservationEncoder::encode47().
+  struct PPOTeamContext
+  {
+    static constexpr int maxTeammates = 3;
+    static constexpr float teammateStaleMsThreshold = 1000.f;
+    static constexpr float engagingDistanceMm = 700.f;
+    static constexpr float teamBallConsensusMm = 800.f;
+
+    struct Teammate
+    {
+      float fieldX = 0.f;
+      float fieldY = 0.f;
+      float ageMs = 5000.f;  // sentinel = 5000 (TIME_NORM_MS) → normalises to 1.0
+      bool isEngaging = false;
+    };
+
+    Teammate teammates[maxTeammates];
+    int teammateCount = 0;
+
+    // Team ball in field frame (NaN-guarded: use (0,0,5000ms,false) when invalid)
+    float teamBallX = 0.f;
+    float teamBallY = 0.f;
+    float teamBallAgeMs = 5000.f;
+    bool teamBallValid = false;
+
+    // Opponent goal centre in field frame (constant 4500, 0 — stored for transform)
+    float goalX = 4500.f;
+    float goalY = 0.f;
+
+    // Gate bits baked into obs[41:44]: pass_armed, observe_armed, pass_arm_progress
+    bool passArmed = false;
+    bool observeArmed = false;
+    float passArmProgress = 0.f;
+
+    // Role one-hot baked into obs[44:47]
+    bool isStriker = false;
+    bool isOpenSupport = false;
+    bool isOffBallSupport = false;
   };
 }
