@@ -236,6 +236,30 @@ SkillRequest RL::PPOActionDecoder::decodeTeam(
   }
 }
 
+SkillRequest RL::PPOActionDecoder::decodeTeamWalkWithAnchor(
+  const float anchorX, const float anchorY, const float anchorTheta,
+  const std::array<float, ppoParamCount>& rawParams) const
+{
+  // Walk param mask: x=0, y=1, theta=1, pass_param=0.
+  const float residualY = std::clamp(rawParams[1], -1.f, 1.f);
+  const float residualTheta = std::clamp(rawParams[2], -1.f, 1.f);
+
+  float targetX = clampFieldX(anchorX);
+  float targetY = clampFieldY(anchorY + residualY * residualYRange);
+  float targetTheta = wrapAngle(anchorTheta + residualTheta * residualThetaRange);
+
+  const float targetErrorMm = std::hypot(targetX - anchorX, targetY - anchorY);
+  const float thetaError = std::abs(wrapAngle(targetTheta - anchorTheta));
+  if(targetErrorMm > repairTargetRadiusLimit || thetaError > repairThetaLimit)
+  {
+    targetX = anchorX;
+    targetY = anchorY;
+    targetTheta = anchorTheta;
+  }
+
+  return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
+}
+
 SkillRequest RL::PPOActionDecoder::decodeDefender(const PPOGateObservation& observation, int skillIndex, int passTarget) const
 {
   SkillType skill = SkillType::walk;

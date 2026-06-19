@@ -36,7 +36,9 @@
 #include "Representations/Sensing/GroundContactState.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"
 #include "Framework/Module.h"
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 MODULE(StrategyBehaviorControl,
@@ -73,6 +75,7 @@ MODULE(StrategyBehaviorControl,
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOStrikerModelPath, /**< Striker PPO model for the dynamic playBall robot. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026_param_repair.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx") embeddedPPOTeamStrikerModelPath, /**< 47-dim team striker model (v4.2). Takes priority over embeddedPPOStrikerModelPath when non-empty. */
+    (std::string)("") embeddedPPOMergedTeamModelPath, /**< 47-dim merged striker+defense brain (v5). When non-empty takes priority over all other roles. */
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
@@ -111,6 +114,7 @@ private:
     striker,          // legacy 26-dim striker (ppo_striker_hsl2026.onnx)
     defender,         // legacy 26-dim defender
     teamStriker,      // 47-dim striker v4.2 (ppo_team_hsl2026_v4_2.onnx)
+    mergedTeam,       // 47-dim merged brain v5 (striker+open_support+off_ball_support)
   };
 
   /**
@@ -173,6 +177,17 @@ private:
   bool computeStrikerPassArmed(const RL::PPOGateObservation& rawObs, int& outPassTarget) const;
   std::array<bool, RL::ppoSkillCount> buildTeamStrikerMask(const RL::PPOGateDecision& gateDecision, bool passArmed) const;
 
+  // Merged brain (v5) helpers — role coordinator + role-conditioned decode
+  int assignTeamRoles(const RL::PPOGateObservation& rawObs);
+  std::pair<float, float> computeMergedOpenLaneTarget(
+      float ballX, float ballY, float strikerX, float strikerY) const;
+  std::pair<float, float> computeMergedTriangleTarget(
+      float ballX, float ballY, float strikerX, float strikerY,
+      float openSupportX, float openSupportY) const;
+  std::array<bool, RL::ppoSkillCount> buildMergedTeamMask(
+      const RL::PPOGateDecision& gateDecision,
+      const std::array<float, RL::ppoObsSize47>& obs47) const;
+
   Behavior theBehavior; /**< The instance of the behavior. */
   std::vector<Agent> agents; /**< The list of active agents. */
   StrategyStatus theStrategyStatus; /**< The strategy status which is provided later. */
@@ -182,17 +197,31 @@ private:
   RL::PPOPolicyModel strikerPPOPolicyModel;
   RL::PPOPolicyModel defenderPPOPolicyModel;
   RL::PPOPolicyModel teamStrikerPPOPolicyModel;  /**< 47-dim team striker model (v4.2). */
+  RL::PPOPolicyModel mergedTeamPPOPolicyModel;   /**< 47-dim merged brain v5. */
   RL::PPOActionDecoder ppoActionDecoder;
   bool strikerPPOLoadAttempted = false;
   bool defenderPPOLoadAttempted = false;
   bool teamStrikerPPOLoadAttempted = false;
+  bool mergedTeamPPOLoadAttempted = false;
   bool strikerPPOLoadErrorReported = false;
   bool defenderPPOLoadErrorReported = false;
   bool teamStrikerPPOLoadErrorReported = false;
+  bool mergedTeamPPOLoadErrorReported = false;
   bool ppoInferErrorReported = false;
   std::string strikerPPORequestedModelPath;
   std::string defenderPPORequestedModelPath;
   std::string teamStrikerPPORequestedModelPath;
+  std::string mergedTeamPPORequestedModelPath;
+  // Role coordinator state (merged brain v5)
+  std::map<int, int> teamRoleMap;                /**< playerNum → 0=striker, 1=open_support, 2=off_ball_support */
+  std::map<int, int> teamRoleCandidateStreak;    /**< playerNum → consecutive frames as candidate striker */
+  // EMA-smoothed coordination targets (merged brain v5)
+  float emaOpenLaneX = 0.f, emaOpenLaneY = 0.f;
+  bool emaOpenLaneInited = false;
+  float emaTriangleX = 0.f, emaTriangleY = 0.f;
+  bool emaTriangleInited = false;
+  float triangleForcedSide = 0.f;
+  bool triangleForcedSideSet = false;
   unsigned ppoStandWatchdogWindowStarted = 0;
   int ppoStandWatchdogStandFrames = 0;
   int ppoStandWatchdogTotalFrames = 0;
