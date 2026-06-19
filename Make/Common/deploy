@@ -23,6 +23,8 @@ usage()
   echo "    --rl-disable             disable embedded PPO for this deploy"
   echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
+  echo "    --rl-striker-model <p>   striker PPO model path to write into strategyBehaviorControl.cfg"
+  echo "    --rl-defender-model <p>  defender PPO model path to write into strategyBehaviorControl.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
   echo "    -w <wireless profile>    set wireless profile"
@@ -58,7 +60,7 @@ cfgArrayFromPlayerList()
 
 strategyBehaviorControlReplacements()
 {
-  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS" ]; then
+  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_STRIKER_MODEL$RL_DEFENDER_MODEL" ]; then
     echo ""
     return
   fi
@@ -72,9 +74,14 @@ strategyBehaviorControlReplacements()
     DEFENDERS="[]"
   fi
 
+  local STRIKER_MODEL="${RL_STRIKER_MODEL:-Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx}"
+  local DEFENDER_MODEL="${RL_DEFENDER_MODEL:-Config/NeuralNets/RLPolicy/ppo_defender_hsl2026.onnx}"
+
   echo "-e 's/^enableEmbeddedPPO =.*/enableEmbeddedPPO = $ENABLE;/' \
 -e 's/^embeddedPPORole =.*/embeddedPPORole = \"striker\";/' \
 -e 's/^embeddedPPODynamicPlayBall =.*/embeddedPPODynamicPlayBall = false;/' \
+-e 's#^embeddedPPOStrikerModelPath =.*#embeddedPPOStrikerModelPath = \"$STRIKER_MODEL\";#' \
+-e 's#^embeddedPPODefenderModelPath =.*#embeddedPPODefenderModelPath = \"$DEFENDER_MODEL\";#' \
 -e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
 -e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/'"
 }
@@ -186,6 +193,8 @@ IMAGE=
 RL_DISABLE=
 RL_STRIKER_PLAYERS=
 RL_DEFENDER_PLAYERS=
+RL_STRIKER_MODEL=
+RL_DEFENDER_MODEL=
 if [ -z "$(ls 2>/dev/null ../../Config/Robots/*/network.cfg)" ]; then
   RESOLVE=cat
 else
@@ -277,6 +286,14 @@ while true; do
     "--rl-defender")
       shift
       RL_DEFENDER_PLAYERS=$1
+      ;;
+    "--rl-striker-model")
+      shift
+      RL_STRIKER_MODEL=$1
+      ;;
+    "--rl-defender-model")
+      shift
+      RL_DEFENDER_MODEL=$1
       ;;
     "Release")
       CONFIG="Release"
