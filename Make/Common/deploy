@@ -24,6 +24,7 @@ usage()
   echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
   echo "    --rl-team-v42 <players>  comma-separated player list that uses team striker PPO v4.2"
+  echo "    --rl-merged <players>    comma-separated player list that uses the merged brain v5 (controls all field players)"
   echo "    --goalkeeper-dive <on|off> enable or disable goalkeeper diving in behaviorParameters.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
   echo "    -v <volume percent>      set NAO's volume"
@@ -60,7 +61,7 @@ cfgArrayFromPlayerList()
 
 strategyBehaviorControlReplacements()
 {
-  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_TEAM_V42_PLAYERS" ]; then
+  if [ -z "$RL_DISABLE$RL_STRIKER_PLAYERS$RL_DEFENDER_PLAYERS$RL_TEAM_V42_PLAYERS$RL_MERGED_PLAYERS" ]; then
     echo ""
     return
   fi
@@ -69,20 +70,30 @@ strategyBehaviorControlReplacements()
   local STRIKERS="$(cfgArrayFromPlayerList "$RL_STRIKER_PLAYERS")"
   local DEFENDERS="$(cfgArrayFromPlayerList "$RL_DEFENDER_PLAYERS")"
   local TEAM_V42="$(cfgArrayFromPlayerList "$RL_TEAM_V42_PLAYERS")"
+  local MERGED="$(cfgArrayFromPlayerList "$RL_MERGED_PLAYERS")"
   local TEAM_STRIKER_MODEL="\"\""
+  local MERGED_MODEL="\"\""
   if [ "$TEAM_V42" != "[]" ] && [ "$STRIKERS" != "[]" ]; then
     echo "mixing --rl-striker with --rl-team-v42 is not supported in one deploy preset" >&2
+    exit 1
+  fi
+  if [ "$MERGED" != "[]" ] && { [ "$STRIKERS" != "[]" ] || [ "$DEFENDERS" != "[]" ] || [ "$TEAM_V42" != "[]" ]; }; then
+    echo "mixing --rl-merged with other RL modes is not supported (the merged brain v5 controls all field players)" >&2
     exit 1
   fi
   if [ "$TEAM_V42" != "[]" ]; then
     STRIKERS="$TEAM_V42"
     TEAM_STRIKER_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx\""
   fi
-  if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" ]; then
+  if [ "$MERGED" != "[]" ]; then
+    MERGED_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v5_merged.onnx\""
+  fi
+  if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" -a "$MERGED" = "[]" ]; then
     ENABLE="false"
     STRIKERS="[]"
     DEFENDERS="[]"
     TEAM_STRIKER_MODEL="\"\""
+    MERGED_MODEL="\"\""
   fi
 
   echo "-e 's/^enableEmbeddedPPO =.*/enableEmbeddedPPO = $ENABLE;/' \
@@ -90,7 +101,8 @@ strategyBehaviorControlReplacements()
 -e 's/^embeddedPPODynamicPlayBall =.*/embeddedPPODynamicPlayBall = false;/' \
 -e 's/^embeddedPPOPlayers =.*/embeddedPPOPlayers = $STRIKERS;/' \
 -e 's/^embeddedPPODefenderPlayers =.*/embeddedPPODefenderPlayers = $DEFENDERS;/' \
--e 's|^embeddedPPOTeamStrikerModelPath =.*|embeddedPPOTeamStrikerModelPath = $TEAM_STRIKER_MODEL;|'"
+-e 's|^embeddedPPOTeamStrikerModelPath =.*|embeddedPPOTeamStrikerModelPath = $TEAM_STRIKER_MODEL;|' \
+-e 's|^embeddedPPOMergedTeamModelPath =.*|embeddedPPOMergedTeamModelPath = $MERGED_MODEL;|'"
 }
 
 behaviorParametersReplacements()
@@ -216,6 +228,7 @@ RL_DISABLE=
 RL_STRIKER_PLAYERS=
 RL_DEFENDER_PLAYERS=
 RL_TEAM_V42_PLAYERS=
+RL_MERGED_PLAYERS=
 if [ -z "$(ls 2>/dev/null ../../Config/Robots/*/network.cfg)" ]; then
   RESOLVE=cat
 else
@@ -311,6 +324,10 @@ while true; do
     "--rl-team-v42")
       shift
       RL_TEAM_V42_PLAYERS=$1
+      ;;
+    "--rl-merged")
+      shift
+      RL_MERGED_PLAYERS=$1
       ;;
     "--goalkeeper-dive")
       shift
