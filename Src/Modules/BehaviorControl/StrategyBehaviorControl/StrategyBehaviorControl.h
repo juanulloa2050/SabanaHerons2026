@@ -15,6 +15,7 @@
 #include "Libs/RL/PPOSkillGate.h"
 #include "Representations/BehaviorControl/ExpectedGoals.h"
 #include "Representations/BehaviorControl/FieldBall.h"
+#include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
 #include "Representations/Communication/ReceivedTeamMessages.h"
@@ -57,6 +58,7 @@ MODULE(StrategyBehaviorControl,
   REQUIRES(ObstacleModel),
   REQUIRES(ReceivedTeamMessages),
   REQUIRES(RobotPose),
+  REQUIRES(RestartBallSearchContext),
   REQUIRES(SentTeamMessage),
   REQUIRES(SetupPoses),
   REQUIRES(TeamData),
@@ -68,11 +70,10 @@ MODULE(StrategyBehaviorControl,
   {,
     (Strategy::Type) strategy, /**< The strategy to play. */
     (bool)(false) enableEmbeddedPPO, /**< Enable the embedded PPO policy override. */
-    (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
-    (std::string)("striker") embeddedPPORole, /**< PPO role decoder: striker or defender. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
+    (std::string)("defender") embeddedPPORole, /**< PPO role decoder: striker or defender. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOStrikerModelPath, /**< Striker PPO model for the dynamic playBall robot. */
-    (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026_param_repair.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
-    (std::string)("Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx") embeddedPPOTeamStrikerModelPath, /**< 47-dim team striker model (v4.2). Takes priority over embeddedPPOStrikerModelPath when non-empty. */
+    (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
@@ -108,9 +109,8 @@ private:
   enum class EmbeddedPPORole
   {
     none,
-    striker,          // legacy 26-dim striker (ppo_striker_hsl2026.onnx)
-    defender,         // legacy 26-dim defender
-    teamStriker,      // 47-dim striker v4.2 (ppo_team_hsl2026_v4_2.onnx)
+    striker,
+    defender,
   };
 
   /**
@@ -168,31 +168,21 @@ private:
     const SkillRequest& skillRequest);
   void resetEmbeddedPPO();
 
-  // Team striker (v4.2) helpers
-  RL::PPOTeamContext buildTeamContext(const RL::PPOGateDecision& gateDecision, bool isStriker) const;
-  bool computeStrikerPassArmed(const RL::PPOGateObservation& rawObs, int& outPassTarget) const;
-  std::array<bool, RL::ppoSkillCount> buildTeamStrikerMask(const RL::PPOGateDecision& gateDecision, bool passArmed) const;
-
   Behavior theBehavior; /**< The instance of the behavior. */
   std::vector<Agent> agents; /**< The list of active agents. */
   StrategyStatus theStrategyStatus; /**< The strategy status which is provided later. */
-  RL::PPOSkillGate ppoSkillGate;      /**< Gate for legacy 26-dim models (thresholds 0.6/0.45). */
-  RL::PPOSkillGate ppoSkillGateV47;   /**< Gate for 47-dim team models (thresholds 0.30/0.20). */
+  RL::PPOSkillGate ppoSkillGate;
   RL::PPOObservationEncoder ppoObservationEncoder;
   RL::PPOPolicyModel strikerPPOPolicyModel;
   RL::PPOPolicyModel defenderPPOPolicyModel;
-  RL::PPOPolicyModel teamStrikerPPOPolicyModel;  /**< 47-dim team striker model (v4.2). */
   RL::PPOActionDecoder ppoActionDecoder;
   bool strikerPPOLoadAttempted = false;
   bool defenderPPOLoadAttempted = false;
-  bool teamStrikerPPOLoadAttempted = false;
   bool strikerPPOLoadErrorReported = false;
   bool defenderPPOLoadErrorReported = false;
-  bool teamStrikerPPOLoadErrorReported = false;
   bool ppoInferErrorReported = false;
   std::string strikerPPORequestedModelPath;
   std::string defenderPPORequestedModelPath;
-  std::string teamStrikerPPORequestedModelPath;
   unsigned ppoStandWatchdogWindowStarted = 0;
   int ppoStandWatchdogStandFrames = 0;
   int ppoStandWatchdogTotalFrames = 0;

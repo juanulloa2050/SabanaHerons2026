@@ -10,6 +10,7 @@
 #include "Representations/Modeling/BallModel.h"
 #include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
+#include "Representations/Modeling/TeammatesBallModel.h"
 #include "Representations/Perception/BallPercepts/BallPercept.h"
 
 namespace RL
@@ -28,6 +29,7 @@ namespace RL
       const ObstacleModel& obstacleModel,
       const ExpectedGoals& expectedGoals,
       const TeamData& teamData,
+      const TeammatesBallModel& teammatesBallModel,
       const FieldDimensions& fieldDimensions);
 
     PPOObservation encode(const PPOGateObservation& rawObservation, const PPOGateDecision& gateDecision) const;
@@ -42,17 +44,9 @@ namespace RL
       const ObstacleModel& obstacleModel,
       const ExpectedGoals& expectedGoals,
       const TeamData& teamData,
+      const TeammatesBallModel& teammatesBallModel,
       const FieldDimensions& fieldDimensions,
       const PPOGateDecision& gateDecision);
-
-    // Encode 47-dim observation for the v4.2+ team model.
-    // obs[0:26] = same as encode(); obs[26:47] = team context + gate team bits + role.
-    // The caller (StrategyBehaviorControl) builds teamContext from TeamData /
-    // TeammatesBallModel each frame and sets passArmed / role bits inside it.
-    std::array<float, ppoObsSize47> encode47(
-      const PPOGateObservation& rawObservation,
-      const PPOGateDecision& gateDecision,
-      const PPOTeamContext& teamContext) const;
 
   private:
     unsigned lastNaturalBallSeenTimestamp = 0;

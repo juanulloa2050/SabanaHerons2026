@@ -43,6 +43,9 @@ namespace
         return {0.f, 1.f, 1.f, 0.f};
       case RL::SkillType::dribble:
         return {0.f, 1.f, 0.f, 0.f};
+      case RL::SkillType::block:
+      case RL::SkillType::mark:
+        return {0.f, 1.f, 0.f, 0.f};
       case RL::SkillType::pass:
         return {0.f, 0.f, 0.f, 1.f};
       default:
@@ -99,7 +102,10 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
   if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
     skill = static_cast<SkillType>(skillIndex);
 
-  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot && skill != SkillType::dribble)
+  // Skills the policy can legally emit under the production stage + role mask. Anything
+  // else (mark, observe, pass) is projected to walk, mirroring environment.py:project_action.
+  if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot &&
+     skill != SkillType::dribble && skill != SkillType::block)
     skill = SkillType::walk;
 
   const auto mask = paramMaskForSkill(skill);
@@ -153,83 +159,10 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
       return SkillRequest::Builder::shoot();
     case SkillType::dribble:
       return SkillRequest::Builder::dribbleTo(targetTheta);
-    case SkillType::walk:
-    default:
-      return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
-  }
-}
-
-SkillRequest RL::PPOActionDecoder::decodeTeam(
-  const PPOGateObservation& observation,
-  int skillIndex,
-  const std::array<float, ppoParamCount>& rawParams,
-  const int passTarget) const
-{
-  SkillType skill = SkillType::walk;
-  if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
-    skill = static_cast<SkillType>(skillIndex);
-
-  // Striker v4.2 active skills: stand, walk, shoot, pass, dribble.
-  // Block/mark/observe are gate-forbidden for striker; fall back to walk.
-  if(skill == SkillType::block || skill == SkillType::mark || skill == SkillType::observe)
-    skill = SkillType::walk;
-
-  // Handle pass before the residual decoder (pass uses the pre-selected target, not residuals).
-  if(skill == SkillType::pass)
-    return passTarget > 0 ? SkillRequest::Builder::passTo(passTarget) : SkillRequest::Builder::shoot();
-
-  // Residual decode for walk/dribble/shoot/stand — same as the 26-dim decoder.
-  const auto mask = paramMaskForSkill(skill);
-  const float residualX = std::clamp(rawParams[0], -1.f, 1.f) * mask[0];
-  const float residualY = std::clamp(rawParams[1], -1.f, 1.f) * mask[1];
-  const float residualTheta = std::clamp(rawParams[2], -1.f, 1.f) * mask[2];
-
-  const float walkAnchorTheta = std::atan2(observation.ballY - observation.robotY, observation.ballX - observation.robotX);
-  const float goalHeading = std::atan2(-observation.ballY, goalX - observation.ballX);
-
-  float anchorX = 0.f;
-  float anchorY = 0.f;
-  float anchorTheta = goalHeading;
-  switch(skill)
-  {
-    case SkillType::walk:
-      anchorX = clampFieldX(observation.ballX + approachOffsetX);
-      anchorY = clampFieldY(observation.ballY);
-      anchorTheta = walkAnchorTheta;
-      break;
-    case SkillType::dribble:
-      anchorX = clampFieldX(observation.ballX);
-      anchorY = clampFieldY(observation.ballY);
-      anchorTheta = goalHeading;
-      break;
-    default:
-      break;
-  }
-
-  float targetX = clampFieldX(anchorX + residualX * residualXRange);
-  float targetY = clampFieldY(anchorY + residualY * residualYRange);
-  float targetTheta = wrapAngle(anchorTheta + residualTheta * residualThetaRange);
-
-  if(skill == SkillType::walk || skill == SkillType::dribble)
-  {
-    const float targetErrorMm = std::hypot(targetX - anchorX, targetY - anchorY);
-    const float thetaError = std::abs(wrapAngle(targetTheta - anchorTheta));
-    if(targetErrorMm > repairTargetRadiusLimit || thetaError > repairThetaLimit)
-    {
-      targetX = anchorX;
-      targetY = anchorY;
-      targetTheta = anchorTheta;
-    }
-  }
-
-  switch(skill)
-  {
-    case SkillType::stand:
-      return SkillRequest::Builder::stand();
-    case SkillType::shoot:
-      return SkillRequest::Builder::shoot();
-    case SkillType::dribble:
-      return SkillRequest::Builder::dribbleTo(targetTheta);
+    case SkillType::block:
+      // block anchor is (0, 0, goalHeading) with the target_y residual only, so the
+      // blocking point is (0, residualY * residualYRange) in field coordinates.
+      return SkillRequest::Builder::block(Vector2f(targetX, targetY));
     case SkillType::walk:
     default:
       return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
