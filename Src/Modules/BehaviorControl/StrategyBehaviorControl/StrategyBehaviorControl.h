@@ -38,6 +38,7 @@
 #include "Tools/BehaviorControl/Strategy/Agent.h"
 #include "Framework/Module.h"
 #include <string>
+#include <utility>
 #include <vector>
 
 MODULE(StrategyBehaviorControl,
@@ -75,6 +76,7 @@ MODULE(StrategyBehaviorControl,
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOStrikerModelPath, /**< Striker PPO model for the dynamic playBall robot. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026_param_repair.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx") embeddedPPOTeamStrikerModelPath, /**< 47-dim team striker model (v4.2). Takes priority over embeddedPPOStrikerModelPath when non-empty. */
+    (std::string)("") embeddedPPOMergedTeamModelPath, /**< 47-dim merged brain v5 (striker+defender). When non-empty, ALL field robots use this model with role coordinator. Takes highest priority. */
     (int)(-1) embeddedPPOTeamNumber, /**< Team filter for PPO. -1 means own team. */
     (bool)(true) embeddedPPODynamicPlayBall, /**< If true, PPO follows the dynamically assigned playBall robot. */
     (std::vector<int>) embeddedPPOPlayers, /**< If non-empty, only these player numbers use PPO. */
@@ -113,6 +115,7 @@ private:
     striker,          // legacy 26-dim striker (ppo_striker_hsl2026.onnx)
     defender,         // legacy 26-dim defender
     teamStriker,      // 47-dim striker v4.2 (ppo_team_hsl2026_v4_2.onnx)
+    mergedTeam,       // 47-dim merged brain v5: all field roles, role coordinator on-device
   };
 
   /**
@@ -175,6 +178,21 @@ private:
   bool computeStrikerPassArmed(const RL::PPOGateObservation& rawObs, int& outPassTarget) const;
   std::array<bool, RL::ppoSkillCount> buildTeamStrikerMask(const RL::PPOGateDecision& gateDecision, bool passArmed) const;
 
+  // Merged brain (v5) helpers
+  // assignTeamRoles: elects striker/open_support/off_ball_support each frame via D1+TTRB.
+  // Returns this robot's role (0=striker, 1=open_support, 2=off_ball_support).
+  // Mutates mergedTeamRoleAssignment and mergedTeamCandidateStreak.
+  int assignTeamRoles(const RL::PPOGateObservation& rawObs);
+  // Compute raw (pre-EMA) open-lane receive position for the open_support slot.
+  // Ball/striker positions in field mm; returns absolute field (x,y) mm.
+  std::pair<float, float> computeMergedOpenLaneTarget(float ballX, float ballY, float strikerX, float strikerY) const;
+  // Compute raw (pre-EMA) triangle vertex for the off_ball_support slot.
+  // openX/openY = current open_support position; forcedSide pins the y-mirror side.
+  std::pair<float, float> computeMergedTriangleTarget(float ballX, float ballY, float strikerX, float strikerY, float openX, float openY) const;
+  // Role-conditioned forbid-invalid mask for the merged brain (port of gate_skill_mask_from_obs).
+  // role: 0=striker, 1=open_support, 2=off_ball_support.
+  std::array<bool, RL::ppoSkillCount> buildMergedTeamMask(const RL::PPOGateDecision& gateDecision, int role, bool passArmed, float ballRelX, float oppFront) const;
+
   Behavior theBehavior; /**< The instance of the behavior. */
   std::vector<Agent> agents; /**< The list of active agents. */
   StrategyStatus theStrategyStatus; /**< The strategy status which is provided later. */
@@ -184,17 +202,34 @@ private:
   RL::PPOPolicyModel strikerPPOPolicyModel;
   RL::PPOPolicyModel defenderPPOPolicyModel;
   RL::PPOPolicyModel teamStrikerPPOPolicyModel;  /**< 47-dim team striker model (v4.2). */
+  RL::PPOPolicyModel mergedTeamPPOPolicyModel;   /**< 47-dim merged brain v5. */
   RL::PPOActionDecoder ppoActionDecoder;
   bool strikerPPOLoadAttempted = false;
   bool defenderPPOLoadAttempted = false;
   bool teamStrikerPPOLoadAttempted = false;
+  bool mergedTeamPPOLoadAttempted = false;
   bool strikerPPOLoadErrorReported = false;
   bool defenderPPOLoadErrorReported = false;
   bool teamStrikerPPOLoadErrorReported = false;
+  bool mergedTeamPPOLoadErrorReported = false;
   bool ppoInferErrorReported = false;
   std::string strikerPPORequestedModelPath;
   std::string defenderPPORequestedModelPath;
   std::string teamStrikerPPORequestedModelPath;
+  std::string mergedTeamPPORequestedModelPath;
+
+  // Merged brain v5: role coordinator state (indexed by player number 1-7; 0 unused)
+  int mergedTeamRoleAssignment[8] = {};    // 0=striker, 1=open_support, 2=off_ball_support, -1=unknown
+  int mergedTeamCandidateStreak[8] = {};   // TTRB hysteresis: frames this player has been candidate striker
+  int mergedTeamPhase = 0;                 // 0=attack, 1=defense (sticky via dead band)
+  // EMA coordination targets (per-robot; updated each frame)
+  float emaOpenLaneX = 0.f, emaOpenLaneY = 0.f;
+  bool emaOpenLaneInited = false;
+  float emaTriangleX = 0.f, emaTriangleY = 0.f;
+  bool emaTriangleInited = false;
+  // Forced side for triangle target (pins the y-mirror; prevents flickering)
+  float triangleForcedSide = 1.f;
+  bool triangleForcedSideSet = false;
   unsigned ppoStandWatchdogWindowStarted = 0;
   int ppoStandWatchdogStandFrames = 0;
   int ppoStandWatchdogTotalFrames = 0;

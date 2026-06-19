@@ -236,6 +236,74 @@ SkillRequest RL::PPOActionDecoder::decodeTeam(
   }
 }
 
+SkillRequest RL::PPOActionDecoder::decodeTeamWalkWithAnchor(
+  const PPOGateObservation& observation,
+  int skillIndex,
+  const std::array<float, ppoParamCount>& rawParams,
+  const float anchorX,
+  const float anchorY,
+  const float anchorTheta,
+  const int passTarget) const
+{
+  SkillType skill = SkillType::walk;
+  if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
+    skill = static_cast<SkillType>(skillIndex);
+
+  switch(skill)
+  {
+    case SkillType::stand:
+      return SkillRequest::Builder::stand();
+    case SkillType::shoot:
+      return SkillRequest::Builder::shoot();
+    case SkillType::pass:
+      return passTarget > 0 ? SkillRequest::Builder::passTo(passTarget) : SkillRequest::Builder::stand();
+    case SkillType::observe:
+      return SkillRequest::Builder::observe(Vector2f(clampFieldX(observation.ballX), clampFieldY(observation.ballY)));
+    case SkillType::block:
+    {
+      // param[1] = ball_rel_y / 900 (normalized lateral offset, teacher convention)
+      const float lateralY = clampFieldY(observation.robotY + std::clamp(rawParams[1], -1.f, 1.f) * 900.f);
+      const float blockX = clampFieldX(observation.ballX - 250.f);
+      return SkillRequest::Builder::block(Vector2f(blockX, lateralY));
+    }
+    case SkillType::mark:
+    {
+      const float lateralY = clampFieldY(observation.robotY + std::clamp(rawParams[1], -1.f, 1.f) * 900.f);
+      const float markX = clampFieldX(observation.ballX - 350.f);
+      return SkillRequest::Builder::mark(Vector2f(markX, lateralY));
+    }
+    case SkillType::dribble:
+    {
+      // Escape hatch: support unexpectedly got the ball — use ball anchor like striker.
+      const float goalHeading = std::atan2(-observation.ballY, goalX - observation.ballX);
+      return SkillRequest::Builder::dribbleTo(goalHeading);
+    }
+    case SkillType::walk:
+    default:
+      break;
+  }
+
+  // Walk: residuals relative to coordination target anchor (not ball).
+  const float residualY = std::clamp(rawParams[1], -1.f, 1.f);
+  const float residualTheta = std::clamp(rawParams[2], -1.f, 1.f);
+
+  float targetX = clampFieldX(anchorX);   // residualXRange = 0 → x pinned to anchor
+  float targetY = clampFieldY(anchorY + residualY * residualYRange);
+  float targetTheta = wrapAngle(anchorTheta + residualTheta * residualThetaRange);
+
+  // Repair: if decoded target drifted outside residual ball, snap to anchor.
+  const float targetErrorMm = std::hypot(targetX - anchorX, targetY - anchorY);
+  const float thetaError = std::abs(wrapAngle(targetTheta - anchorTheta));
+  if(targetErrorMm > repairTargetRadiusLimit || thetaError > repairThetaLimit)
+  {
+    targetX = anchorX;
+    targetY = anchorY;
+    targetTheta = anchorTheta;
+  }
+
+  return SkillRequest::Builder::walkTo(Pose2f(targetTheta, targetX, targetY));
+}
+
 SkillRequest RL::PPOActionDecoder::decodeDefender(const PPOGateObservation& observation, int skillIndex, int passTarget) const
 {
   SkillType skill = SkillType::walk;
