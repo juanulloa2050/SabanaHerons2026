@@ -1,9 +1,6 @@
 #include "PPOObservationEncoder.h"
 
-#include "Tools/BehaviorControl/Strategy/ActiveRole.h"
-
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <limits>
 
@@ -15,19 +12,6 @@ namespace
   constexpr float ballVelNorm = 3000.f;
   constexpr float timeNormMs = 5000.f;
   constexpr float passCountNorm = 5.f;
-
-  // obs47 multi-agent constants — mirror RL/environment.py.
-  constexpr float teammateStaleThresholdMs = 1000.f; // TEAMMATE_STALE_THRESHOLD_MS
-  constexpr float teamBallConsensusMm = 800.f;       // TEAM_BALL_CONSENSUS_MM
-  constexpr float engagingDistanceMm = 700.f;        // ENGAGING_DISTANCE_MM
-
-  // Teammate activity thresholds — mirror encodeTeammateActivity in the rl-simrobot3d
-  // SkillBehaviorControl RL observation export.
-  constexpr int teammateBallFreshThresholdMs = 1000;
-  constexpr float teammateWalkingSpeedThreshold = 80.f;
-  constexpr float teammateWalkTargetNearBallMm = 450.f;
-  constexpr float teammateBallControlDistanceMm = 260.f;
-  constexpr float teammateBallEngageDistanceMm = 900.f;
 
   struct ObstacleSummary
   {
@@ -92,51 +76,6 @@ namespace
     return value;
   }
 
-  // Classify a teammate's current intent toward the ball — port of encodeTeammateActivity
-  // from the rl-simrobot3d SkillBehaviorControl RL export.
-  int encodeTeammateActivity(const Teammate& teammate)
-  {
-    if(teammate.theBehaviorStatus.shootingTo.has_value() || teammate.theBehaviorStatus.passTarget >= 0)
-      return static_cast<int>(RL::TeammateActivity::kicking);
-
-    const bool playBallRole = teammate.theStrategyStatus.role == ActiveRole::toRole(ActiveRole::playBall);
-    const bool hasFreshBall = teammate.theBallModel.timeWhenLastSeen > 0 &&
-                              teammate.theFrameInfo.getTimeSince(teammate.theBallModel.timeWhenLastSeen) <= teammateBallFreshThresholdMs;
-    const float ballDistance = teammate.theBallModel.estimate.position.norm();
-    const float walkTargetDistance = teammate.theBehaviorStatus.walkingTo.norm();
-    const float walkTargetToBallDistance = hasFreshBall
-                                             ? (teammate.theBehaviorStatus.walkingTo - teammate.theBallModel.estimate.position).norm()
-                                             : std::numeric_limits<float>::max();
-    const bool isWalking = teammate.theBehaviorStatus.speed >= teammateWalkingSpeedThreshold || walkTargetDistance > 10.f;
-
-    if(hasFreshBall && ballDistance <= teammateBallControlDistanceMm)
-      return static_cast<int>(RL::TeammateActivity::dribbling);
-
-    if(playBallRole ||
-       (hasFreshBall && ballDistance <= teammateBallEngageDistanceMm) ||
-       (hasFreshBall && isWalking && walkTargetToBallDistance <= teammateWalkTargetNearBallMm))
-      return static_cast<int>(RL::TeammateActivity::goingToBall);
-
-    return static_cast<int>(RL::TeammateActivity::idle);
-  }
-
-  // Port of RL/environment.py:_teammate_activity_is_engaging.
-  bool teammateActivityIsEngaging(
-    const int activity,
-    const float teammateX,
-    const float teammateY,
-    const float teamBallX,
-    const float teamBallY,
-    const bool teamBallValid)
-  {
-    if(activity == static_cast<int>(RL::TeammateActivity::dribbling) ||
-       activity == static_cast<int>(RL::TeammateActivity::kicking))
-      return true;
-    if(activity != static_cast<int>(RL::TeammateActivity::goingToBall) || !teamBallValid)
-      return false;
-    return std::hypot(teammateX - teamBallX, teammateY - teamBallY) < engagingDistanceMm;
-  }
-
   float computeNaturalTimeSinceBallSeen(
     const FrameInfo& frameInfo,
     const BallPercept& ballPercept,
@@ -172,7 +111,6 @@ RL::PPOGateObservation RL::PPOObservationEncoder::buildRawObservation(
   const ObstacleModel& obstacleModel,
   const ExpectedGoals& expectedGoals,
   const TeamData& teamData,
-  const TeammatesBallModel& teammatesBallModel,
   const FieldDimensions& fieldDimensions)
 {
   PPOGateObservation raw;
@@ -206,31 +144,6 @@ RL::PPOGateObservation RL::PPOObservationEncoder::buildRawObservation(
   raw.nearestTeammateFrontDist = boundedDistance(obstacleSummary.nearestTeammateFront, fieldDimensions);
   raw.nearestOpponentFrontDist = boundedDistance(obstacleSummary.nearestOpponentFront, fieldDimensions);
   raw.nearestUncertainFrontDist = boundedDistance(obstacleSummary.nearestUncertainFront, fieldDimensions);
-
-  // ---- obs47 multi-agent context (field coordinates) ----
-  raw.teammateCount = 0;
-  unsigned newestTeammateBallTime = 0;
-  for(const Teammate& teammate : teamData.teammates)
-  {
-    if(raw.teammateCount >= static_cast<int>(RL::ppoMaxTeammates))
-      break;
-    const std::size_t idx = static_cast<std::size_t>(raw.teammateCount++);
-    raw.teammateFieldX[idx] = teammate.theRobotPose.translation.x();
-    raw.teammateFieldY[idx] = teammate.theRobotPose.translation.y();
-    raw.teammateAgeMs[idx] = static_cast<float>(frameInfo.getTimeSince(teammate.theFrameInfo.time));
-    raw.teammateActivity[idx] = encodeTeammateActivity(teammate);
-    if(teammate.theBallModel.timeWhenLastSeen > newestTeammateBallTime)
-      newestTeammateBallTime = teammate.theBallModel.timeWhenLastSeen;
-  }
-
-  raw.globalTeamBallX = teammatesBallModel.position.x();
-  raw.globalTeamBallY = teammatesBallModel.position.y();
-  raw.globalTeamBallValid = teammatesBallModel.isValid;
-  raw.globalTeamBallAgeMs = (teammatesBallModel.isValid && newestTeammateBallTime > 0)
-                              ? static_cast<float>(frameInfo.getTimeSince(newestTeammateBallTime))
-                              : 0.f;
-  raw.goalOpponentX = fieldDimensions.xPosOpponentGroundLine;
-  raw.goalOpponentY = 0.5f * (fieldDimensions.yPosLeftGoal + fieldDimensions.yPosRightGoal);
   return raw;
 }
 
@@ -240,20 +153,7 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(const PPOGateObservation& r
   observation.raw = rawObservation;
   const PPOGateObservation& raw = observation.raw;
 
-  // Transform a field point into this robot's frame (rotation by -robotTheta). Mirrors
-  // transform_to_robot_frame() inside RL/environment.py:_encode_obs.
-  const float cosNegTheta = std::cos(-raw.robotTheta);
-  const float sinNegTheta = std::sin(-raw.robotTheta);
-  const auto toRobotFrame = [&](const float fieldX, const float fieldY, float& relX, float& relY)
-  {
-    const float dx = fieldX - raw.robotX;
-    const float dy = fieldY - raw.robotY;
-    relX = dx * cosNegTheta - dy * sinNegTheta;
-    relY = dx * sinNegTheta + dy * cosNegTheta;
-  };
-
   auto& values = observation.values;
-  // ---- base features [0:26] (bit-identical to the legacy obs26 contract) ----
   values[0] = normalizeSigned(raw.robotX, fieldXHalf);
   values[1] = normalizeSigned(raw.robotY, fieldYHalf);
   values[2] = std::clamp(raw.robotTheta / ppoPi, -1.f, 1.f);
@@ -280,79 +180,6 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(const PPOGateObservation& r
   values[23] = gateDecision.shootArmed ? 1.f : 0.f;
   values[24] = gateDecision.dribbleArmed ? 1.f : 0.f;
   values[25] = clamp01(gateDecision.shootArmProgress);
-
-  // ---- teammate context [26:32] + engaging flags [35:38] ----
-  // Keep only fresh teammates, sort by distance to this robot, slot the nearest three
-  // (RL/environment.py:_encode_obs).
-  struct FreshTeammate
-  {
-    float x;
-    float y;
-    int activity;
-    float distSq;
-  };
-  std::array<FreshTeammate, RL::ppoMaxTeammates> fresh{};
-  int freshCount = 0;
-  for(int i = 0; i < raw.teammateCount; ++i)
-  {
-    if(raw.teammateAgeMs[static_cast<std::size_t>(i)] > teammateStaleThresholdMs)
-      continue;
-    const float px = raw.teammateFieldX[static_cast<std::size_t>(i)];
-    const float py = raw.teammateFieldY[static_cast<std::size_t>(i)];
-    const float dx = px - raw.robotX;
-    const float dy = py - raw.robotY;
-    fresh[static_cast<std::size_t>(freshCount++)] = {px, py, raw.teammateActivity[static_cast<std::size_t>(i)], dx * dx + dy * dy};
-  }
-  std::stable_sort(fresh.begin(), fresh.begin() + freshCount,
-                   [](const FreshTeammate& a, const FreshTeammate& b) { return a.distSq < b.distSq; });
-
-  for(int slot = 0; slot < 3; ++slot)
-  {
-    const std::size_t base = 26 + static_cast<std::size_t>(slot) * 2;
-    const std::size_t engageIdx = 35 + static_cast<std::size_t>(slot);
-    if(slot >= freshCount)
-    {
-      values[base] = 0.f;
-      values[base + 1] = 0.f;
-      values[engageIdx] = 0.f;
-      continue;
-    }
-    const FreshTeammate& t = fresh[static_cast<std::size_t>(slot)];
-    float rx, ry;
-    toRobotFrame(t.x, t.y, rx, ry);
-    values[base] = normalizeSigned(rx, fieldXHalf);
-    values[base + 1] = normalizeSigned(ry, fieldYHalf);
-    values[engageIdx] = teammateActivityIsEngaging(t.activity, t.x, t.y, raw.globalTeamBallX, raw.globalTeamBallY, raw.globalTeamBallValid) ? 1.f : 0.f;
-  }
-
-  // ---- team ball [32:35] ----
-  float tbx, tby;
-  toRobotFrame(raw.globalTeamBallX, raw.globalTeamBallY, tbx, tby);
-  values[32] = normalizeSigned(tbx, fieldXHalf);
-  values[33] = normalizeSigned(tby, fieldYHalf);
-  values[34] = normalizeTime(raw.globalTeamBallAgeMs);
-
-  // ---- consensus [38]: does the team ball agree with my own ball? ----
-  const float ownBallFieldX = raw.robotX + raw.ballRelX;
-  const float ownBallFieldY = raw.robotY + raw.ballRelY;
-  const float distanceToTeamBall = std::hypot(ownBallFieldX - raw.globalTeamBallX, ownBallFieldY - raw.globalTeamBallY);
-  values[38] = (raw.globalTeamBallValid && distanceToTeamBall < teamBallConsensusMm) ? 1.f : 0.f;
-
-  // ---- opponent goal vector [39:41] ----
-  float gx, gy;
-  toRobotFrame(raw.goalOpponentX, raw.goalOpponentY, gx, gy);
-  values[39] = normalizeSigned(gx, fieldXHalf);
-  values[40] = normalizeSigned(gy, fieldYHalf);
-
-  // ---- extended gate bits [41:43] ----
-  values[41] = gateDecision.passArmed ? 1.f : 0.f;
-  values[42] = gateDecision.observeArmed ? 1.f : 0.f;
-  values[43] = clamp01(gateDecision.passArmProgress);
-
-  // ---- role one-hot [44:46] ----
-  values[44] = gateDecision.isStriker ? 1.f : 0.f;
-  values[45] = gateDecision.isOpenSupport ? 1.f : 0.f;
-  values[46] = gateDecision.isOffBallSupport ? 1.f : 0.f;
   return observation;
 }
 
@@ -374,9 +201,137 @@ RL::PPOObservation RL::PPOObservationEncoder::encode(
   const ObstacleModel& obstacleModel,
   const ExpectedGoals& expectedGoals,
   const TeamData& teamData,
-  const TeammatesBallModel& teammatesBallModel,
   const FieldDimensions& fieldDimensions,
   const PPOGateDecision& gateDecision)
 {
-  return encode(buildRawObservation(frameInfo, robotPose, fieldBall, ballModel, ballPercept, obstacleModel, expectedGoals, teamData, teammatesBallModel, fieldDimensions), gateDecision);
+  return encode(buildRawObservation(frameInfo, robotPose, fieldBall, ballModel, ballPercept, obstacleModel, expectedGoals, teamData, fieldDimensions), gateDecision);
+}
+
+namespace
+{
+  // Transform a field-frame point into robot-relative frame.
+  // theta_robot is the robot heading in radians.
+  void toRobotFrame(
+    const float fieldX, const float fieldY,
+    const float robotX, const float robotY, const float robotTheta,
+    float& outRelX, float& outRelY)
+  {
+    const float dx = fieldX - robotX;
+    const float dy = fieldY - robotY;
+    const float cosA = std::cos(-robotTheta);
+    const float sinA = std::sin(-robotTheta);
+    outRelX = dx * cosA - dy * sinA;
+    outRelY = dx * sinA + dy * cosA;
+  }
+
+  float clip47(const float v, const float lo, const float hi)
+  {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+}
+
+// Produce a 47-dim observation for the multi-agent (v4.2+) team model.
+// Layout (matches RL/observation.py:ObsIndex exactly):
+//   [0:26]  base obs (same as encode())
+//   [26:32] 3 nearest-teammate positions in robot frame (x,y each, clipped ±1)
+//   [32:35] team ball relative (x,y clamped ±1, time normalised)
+//   [35:38] teammate engaging flags (one per slot)
+//   [38]    team ball consensus with own ball estimate
+//   [39:41] opponent goal vector in robot frame (x,y clamped ±1)
+//   [41]    pass_armed (from teamContext.passArmed)
+//   [42]    observe_armed (from teamContext.observeArmed)
+//   [43]    pass_arm_progress
+//   [44]    is_striker
+//   [45]    is_open_support
+//   [46]    is_off_ball_support
+std::array<float, RL::ppoObsSize47> RL::PPOObservationEncoder::encode47(
+  const PPOGateObservation& rawObservation,
+  const PPOGateDecision& gateDecision,
+  const PPOTeamContext& teamContext) const
+{
+  // Build the 26-dim base obs first.
+  const PPOObservation base26 = encode(rawObservation, gateDecision);
+
+  std::array<float, ppoObsSize47> obs{};
+  for(std::size_t i = 0; i < ppoObsSize; ++i)
+    obs[i] = base26.values[i];
+
+  const float robotX = rawObservation.robotX;
+  const float robotY = rawObservation.robotY;
+  const float robotTheta = rawObservation.robotTheta;
+
+  // --- dims 26–31: 3 nearest teammate positions in robot frame ---
+  for(int slot = 0; slot < PPOTeamContext::maxTeammates; ++slot)
+  {
+    const std::size_t base = 26u + static_cast<std::size_t>(slot) * 2u;
+    if(slot < teamContext.teammateCount)
+    {
+      const PPOTeamContext::Teammate& tm = teamContext.teammates[slot];
+      float rx, ry;
+      toRobotFrame(tm.fieldX, tm.fieldY, robotX, robotY, robotTheta, rx, ry);
+      obs[base]     = clip47(rx / fieldXHalf, -1.f, 1.f);
+      obs[base + 1] = clip47(ry / fieldYHalf, -1.f, 1.f);
+    }
+    else
+    {
+      obs[base]     = 0.f;
+      obs[base + 1] = 0.f;
+    }
+  }
+
+  // --- dims 32–34: team ball relative position + age ---
+  {
+    float tbx, tby;
+    if(teamContext.teamBallValid && std::isfinite(teamContext.teamBallX) && std::isfinite(teamContext.teamBallY))
+    {
+      toRobotFrame(teamContext.teamBallX, teamContext.teamBallY, robotX, robotY, robotTheta, tbx, tby);
+    }
+    else
+    {
+      tbx = 0.f;
+      tby = 0.f;
+    }
+    obs[32] = clip47(tbx / fieldXHalf, -1.f, 1.f);
+    obs[33] = clip47(tby / fieldYHalf, -1.f, 1.f);
+    obs[34] = normalizeTime(teamContext.teamBallAgeMs);
+  }
+
+  // --- dims 35–37: teammate engaging flags (same slot order as 26–31) ---
+  for(int slot = 0; slot < PPOTeamContext::maxTeammates; ++slot)
+  {
+    obs[35u + static_cast<std::size_t>(slot)] =
+      (slot < teamContext.teammateCount && teamContext.teammates[slot].isEngaging) ? 1.f : 0.f;
+  }
+
+  // --- dim 38: team ball consensus ---
+  {
+    const float ownBallFieldX = rawObservation.robotX + rawObservation.ballRelX;
+    const float ownBallFieldY = rawObservation.robotY + rawObservation.ballRelY;
+    const bool consensus = teamContext.teamBallValid &&
+                           std::isfinite(teamContext.teamBallX) &&
+                           std::isfinite(teamContext.teamBallY) &&
+                           std::hypot(ownBallFieldX - teamContext.teamBallX,
+                                      ownBallFieldY - teamContext.teamBallY) < PPOTeamContext::teamBallConsensusMm;
+    obs[38] = consensus ? 1.f : 0.f;
+  }
+
+  // --- dims 39–40: opponent goal vector in robot frame ---
+  {
+    float gx, gy;
+    toRobotFrame(teamContext.goalX, teamContext.goalY, robotX, robotY, robotTheta, gx, gy);
+    obs[39] = clip47(gx / fieldXHalf, -1.f, 1.f);
+    obs[40] = clip47(gy / fieldYHalf, -1.f, 1.f);
+  }
+
+  // --- dims 41–43: team gate bits ---
+  obs[41] = teamContext.passArmed ? 1.f : 0.f;
+  obs[42] = teamContext.observeArmed ? 1.f : 0.f;
+  obs[43] = clamp01(teamContext.passArmProgress);
+
+  // --- dims 44–46: role one-hot ---
+  obs[44] = teamContext.isStriker ? 1.f : 0.f;
+  obs[45] = teamContext.isOpenSupport ? 1.f : 0.f;
+  obs[46] = teamContext.isOffBallSupport ? 1.f : 0.f;
+
+  return obs;
 }
