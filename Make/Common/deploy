@@ -21,10 +21,13 @@ usage()
   echo "    -s <scenario>            set scenario"
   echo "    -t <team number>         set team number"
   echo "    --rl-disable             disable embedded PPO for this deploy"
-  echo "    --rl-striker <players>   comma-separated player list that uses striker PPO"
+  echo "    --rl-striker-base <players> comma-separated player list that uses striker_base PPO"
+  echo "    --rl-striker <players>   alias for --rl-striker-base"
   echo "    --rl-defender <players>  comma-separated player list that uses defender PPO"
-  echo "    --rl-team-v42 <players>  comma-separated player list that uses team striker PPO v4.2"
-  echo "    --rl-merged <players>    comma-separated player list that uses the merged brain v5 (controls all field players)"
+  echo "    --rl-mixed-attack <players> comma-separated player list that uses mixed_attack/team striker PPO v4.2"
+  echo "    --rl-team-v42 <players>  alias for --rl-mixed-attack"
+  echo "    --rl-complete <players>  comma-separated player list that uses complete/merged brain v5"
+  echo "    --rl-merged <players>    alias for --rl-complete"
   echo "    --rl-gk <on|off>         enable or disable the embedded goalkeeper RL policy (keeper robot only)"
   echo "    --goalkeeper-dive <on|off> enable or disable goalkeeper diving in behaviorParameters.cfg"
   echo "    -u                       check for USB drive before starting (only when creating an image)"
@@ -81,11 +84,11 @@ strategyBehaviorControlReplacements()
   local TEAM_STRIKER_MODEL="\"\""
   local MERGED_MODEL="\"\""
   if [ "$TEAM_V42" != "[]" ] && [ "$STRIKERS" != "[]" ]; then
-    echo "mixing --rl-striker with --rl-team-v42 is not supported in one deploy preset" >&2
+    echo "mixing --rl-striker-base with --rl-mixed-attack is not supported in one deploy preset" >&2
     exit 1
   fi
   if [ "$MERGED" != "[]" ] && { [ "$STRIKERS" != "[]" ] || [ "$DEFENDERS" != "[]" ] || [ "$TEAM_V42" != "[]" ]; }; then
-    echo "mixing --rl-merged with other RL modes is not supported (the merged brain v5 controls all field players)" >&2
+    echo "mixing --rl-complete with other RL modes is not supported (the complete brain controls all field players)" >&2
     exit 1
   fi
   if [ "$TEAM_V42" != "[]" ]; then
@@ -322,7 +325,7 @@ while true; do
     "--rl-disable")
       RL_DISABLE=1
       ;;
-    "--rl-striker")
+    "--rl-striker"|"--rl-striker-base")
       shift
       RL_STRIKER_PLAYERS=$1
       ;;
@@ -330,11 +333,11 @@ while true; do
       shift
       RL_DEFENDER_PLAYERS=$1
       ;;
-    "--rl-team-v42")
+    "--rl-team-v42"|"--rl-mixed-attack")
       shift
       RL_TEAM_V42_PLAYERS=$1
       ;;
-    "--rl-merged")
+    "--rl-merged"|"--rl-complete")
       shift
       RL_MERGED_PLAYERS=$1
       ;;

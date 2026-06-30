@@ -134,12 +134,12 @@ std::array<bool, RL::ppoSkillCount> buildDefenderSkillMask()
 
 bool isDefenderPPO(const std::string& role)
 {
-  return role == "defender" || role == "defensa";
+  return role == "defender" || role == "defensa" || role == "baseline_attack";
 }
 
 bool isTeamStrikerPPO(const std::string& role)
 {
-  return role == "team_v4_2" || role == "team-v4_2" || role == "team-v4.2" || role == "teamStriker";
+  return role == "mixed_attack" || role == "team_v4_2" || role == "team-v4_2" || role == "team-v4.2" || role == "teamStriker";
 }
 
 int argmax(const std::array<float, RL::ppoSkillCount>& logits)
@@ -223,9 +223,6 @@ StrategyBehaviorControl::EmbeddedPPORole StrategyBehaviorControl::selectedEmbedd
   if(!embeddedPPOMergedTeamModelPath.empty())
     return EmbeddedPPORole::mergedTeam;
 
-  if(playerListContains(embeddedPPODefenderPlayers, playerNumber))
-    return EmbeddedPPORole::defender;
-
   // Team striker v4.2: if the team model path is configured and this robot is playBall,
   // use the 47-dim model.  Takes priority over the legacy 26-dim striker path.
   if(!embeddedPPOTeamStrikerModelPath.empty() && embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
@@ -233,6 +230,9 @@ StrategyBehaviorControl::EmbeddedPPORole StrategyBehaviorControl::selectedEmbedd
 
   if(embeddedPPODynamicPlayBall && isPlayBallRole(theStrategyStatus.role))
     return EmbeddedPPORole::striker;
+
+  if(playerListContains(embeddedPPODefenderPlayers, playerNumber))
+    return EmbeddedPPORole::defender;
 
   if(!playerListHasAnyEnabled(configuredPlayers) &&
      !embeddedPPODynamicPlayBall &&
