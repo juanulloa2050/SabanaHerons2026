@@ -53,6 +53,13 @@ DeployDialog::DeployDialog(int argc, char* argv[])
   InMapFile presetsStream("teams.cfg");
   if(presetsStream.exists())
     presetsStream >> presets;
+  while(presets.teams.size() > 1)
+  {
+    delete presets.teams.back();
+    presets.teams.pop_back();
+  }
+  if(!presets.teams.empty())
+    presets.teams.front()->name.clear();
 
   // Create dialog contents.
   QHBoxLayout* clientAreaLayout = new QHBoxLayout(this);

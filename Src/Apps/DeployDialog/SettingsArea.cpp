@@ -153,6 +153,12 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   {
     for(std::string& mode : preset->rlModes)
       mode = normalizeRLMode(mode);
+    const bool mergedConfigured =
+      !readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOMergedTeamModelPath").remove('"').trimmed().isEmpty();
+    if(mergedConfigured)
+      for(size_t i = 1; i < preset->players.size(); ++i)
+        if(preset->players[i] != "_")
+          preset->rlModes[i] = "complete";
     return;
   }
 
@@ -300,6 +306,14 @@ SettingsArea::SettingsArea(Presets& presets, QDialog* dialog, RobotsTable* table
 
 QWidget* SettingsArea::createPresetTabs()
 {
+  if(presets.teams.size() == 1)
+  {
+    presetIndex = 0;
+    selectedPreset = presets.teams.front();
+    table->setSelectedPreset(selectedPreset, 0);
+    return createPresetTab(selectedPreset);
+  }
+
   QTabWidget* widget = new QTabWidget();
   widget->setUsesScrollButtons(true);
 
@@ -444,7 +458,12 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   scenarioSelector->addItems(scenarios);
   scenarioSelector->setCurrentText(preset->scenario.c_str());
   scenarioSelector->setMaximumWidth(settingsFieldWidth);
-  connect(scenarioSelector, &QComboBox::currentTextChanged, this, [=](const QString& scenario) {preset->scenario = scenario.toStdString();});
+  connect(scenarioSelector, &QComboBox::currentTextChanged, this, [=](const QString& scenario)
+  {
+    preset->scenario = scenario.toStdString();
+    preset->rlModes.clear();
+    ensureRLModesInitialized(preset);
+  });
   layout->addRow("Scenario", scenarioSelector);
 
   QCheckBox* goalkeeperDivingSelector = new QCheckBox("Enable");
@@ -651,6 +670,16 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
       mergedPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "gk")
       gkEnabled = true;
+  }
+  if(!mergedPlayers.empty())
+  {
+    strikerPlayers.clear();
+    defenderPlayers.clear();
+    teamPlayers.clear();
+    mergedPlayers.clear();
+    for(size_t i = 1; i < selectedPreset->players.size(); ++i)
+      if(selectedPreset->players[i] != "_")
+        mergedPlayers.push_back(static_cast<int>(i + 1));
   }
 
   stream <<  "-t " << selectedPreset->number
