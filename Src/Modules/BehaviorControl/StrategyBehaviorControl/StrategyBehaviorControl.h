@@ -77,7 +77,7 @@ MODULE(StrategyBehaviorControl,
     (Strategy::Type) strategy, /**< The strategy to play. */
     (bool)(false) enableEmbeddedPPO, /**< Enable the embedded PPO policy override. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOModelPath, /**< PPO model file, relative to the repo root unless absolute. */
-    (std::string)("striker") embeddedPPORole, /**< PPO role decoder: striker or defender. */
+    (std::string)("striker") embeddedPPORole, /**< PPO role decoder: striker_base, baseline_attack, mixed_attack, or legacy aliases. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_striker_hsl2026.onnx") embeddedPPOStrikerModelPath, /**< Striker PPO model for the dynamic playBall robot. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_defender_hsl2026_param_repair.onnx") embeddedPPODefenderModelPath, /**< Defender PPO model for configured defender players. */
     (std::string)("Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx") embeddedPPOTeamStrikerModelPath, /**< 47-dim team striker model (v4.2). Takes priority over embeddedPPOStrikerModelPath when non-empty. */

@@ -110,16 +110,18 @@ QString readStrategyBehaviorControlValue(const std::string& scenario, const char
 std::string normalizeRLMode(const std::string& mode)
 {
   if(mode == "striker")
-    return "original";
+    return "striker_base";
   if(mode == "defender")
     return "baseline_attack";
   if(mode == "team" || mode == "team_v4_2" || mode == "team-v4_2" || mode == "team-v4.2" || mode == "teamStriker")
-    return "team_v4_2";
+    return "mixed_attack";
   if(mode == "merged" || mode == "merged_v5" || mode == "merged-v5" || mode == "mergedTeam")
-    return "merged_v5";
+    return "complete";
   if(mode == "gk" || mode == "goalkeeper" || mode == "keeper" || mode == "embeddedGK")
     return "gk";
-  if(mode == "original" || mode == "baseline_attack" || mode == "team_v4_2" || mode == "merged_v5" || mode == "gk" || mode == "off")
+  if(mode == "original")
+    return "striker_base";
+  if(mode == "striker_base" || mode == "baseline_attack" || mode == "mixed_attack" || mode == "complete" || mode == "gk" || mode == "off")
     return mode;
   return "off";
 }
@@ -173,7 +175,7 @@ void ensureRLModesInitialized(Presets::Preset* preset)
     // Merged brain v5 controls every field player (the goalkeeper, slot 0, is excluded).
     for(size_t i = 1; i < preset->players.size(); ++i)
       if(preset->players[i] != "_")
-        preset->rlModes[i] = "merged_v5";
+        preset->rlModes[i] = "complete";
     return;
   }
 
@@ -183,7 +185,7 @@ void ensureRLModesInitialized(Presets::Preset* preset)
     !readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOTeamStrikerModelPath").remove('"').trimmed().isEmpty();
   for(const int player : strikerPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
-      preset->rlModes[static_cast<size_t>(player - 1)] = teamStrikerConfigured ? "team_v4_2" : "original";
+      preset->rlModes[static_cast<size_t>(player - 1)] = teamStrikerConfigured ? "mixed_attack" : "striker_base";
   for(const int player : defenderPlayers)
     if(player >= 1 && static_cast<size_t>(player) <= preset->rlModes.size())
       preset->rlModes[static_cast<size_t>(player - 1)] = "baseline_attack";
@@ -196,7 +198,7 @@ void ensureRLModesInitialized(Presets::Preset* preset)
     return;
 
   const std::string configuredRole = normalizeRLMode(readStrategyBehaviorControlValue(preset->scenario, "embeddedPPORole").remove('"').toStdString());
-  if(configuredRole != "original" && configuredRole != "baseline_attack" && configuredRole != "team_v4_2")
+  if(configuredRole != "striker_base" && configuredRole != "baseline_attack" && configuredRole != "mixed_attack")
     return;
 
   for(size_t i = 1; i < preset->players.size(); ++i)
@@ -504,7 +506,7 @@ QWidget* SettingsArea::createPresetTab(Presets::Preset* preset)
   {
     layout->addRow(new Line(this));
 
-    const QStringList rlModeLabels = {"off", "original", "baseline_attack", "team_v4_2", "merged_v5", "gk"};
+    const QStringList rlModeLabels = {"off", "striker_base", "baseline_attack", "mixed_attack", "complete", "gk"};
     for(size_t i = 0; i < preset->players.size(); ++i)
     {
       if(preset->players[i] == "_")
@@ -639,13 +641,13 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
   ensureRLModesInitialized(selectedPreset);
   for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
   {
-    if(selectedPreset->rlModes[i] == "original")
+    if(selectedPreset->rlModes[i] == "striker_base")
       strikerPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "baseline_attack")
       defenderPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "team_v4_2")
+    else if(selectedPreset->rlModes[i] == "mixed_attack")
       teamPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "merged_v5")
+    else if(selectedPreset->rlModes[i] == "complete")
       mergedPlayers.push_back(static_cast<int>(i + 1));
     else if(selectedPreset->rlModes[i] == "gk")
       gkEnabled = true;
@@ -677,10 +679,10 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
       }
     };
 
-    writePlayerList("--rl-striker", strikerPlayers);
+    writePlayerList("--rl-striker-base", strikerPlayers);
     writePlayerList("--rl-defender", defenderPlayers);
-    writePlayerList("--rl-team-v42", teamPlayers);
-    writePlayerList("--rl-merged", mergedPlayers);
+    writePlayerList("--rl-mixed-attack", teamPlayers);
+    writePlayerList("--rl-complete", mergedPlayers);
   }
 
   stream << " --rl-gk " << (gkEnabled ? "on" : "off");
