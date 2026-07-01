@@ -849,7 +849,7 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
           ++numOfActiveOwnRobots;
 
       gameState.ownKickOffGoalRestrictionActive = true;
-      gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = numOfActiveOwnRobots >= 3;
+      gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = numOfActiveOwnRobots > 3;
       gameState.ownKickOffKickingPlayerNumber = firstTouch.playerNumber;
       gameState.ownKickOffFirstTouchTimestamp = firstTouch.timestamp;
     }
@@ -859,6 +859,9 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
     return;
 
   bool restrictionSatisfied = false;
+  if(!gameState.ownKickOffGoalRestrictionRequiresDifferentRobot && isBallOutsideCenterCircle())
+    restrictionSatisfied = true;
+
   forEachOwnKickTouch([&](const KickTouch& touch)
   {
     if(restrictionSatisfied || touch.timestamp <= gameState.ownKickOffFirstTouchTimestamp)

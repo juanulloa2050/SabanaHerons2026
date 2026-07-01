@@ -29,6 +29,7 @@ class PassAction : public SetPlay::Action::Implementation
 
   SkillRequest execute(const SetPlay::Action& action, const Agent& agent, const Agents& otherAgents) override;
 
+  unsigned timeWhenActionStarted = 0;
   int lastSelectedPassTarget = -1;
 };
 
