@@ -494,6 +494,9 @@ STREAMABLE(GameState,
   (bool)(false) ownKickOffGoalRestrictionRequiresDifferentRobot, /**< True if a different robot must provide the next scoring touch, false if the kick-off robot must retouch outside the center circle. */
   (int)(0) ownKickOffKickingPlayerNumber, /**< The player number that took the first touch of the current own kick-off. */
   (unsigned)(0) ownKickOffFirstTouchTimestamp, /**< Timestamp of the first touch of the current own kick-off. */
+  (bool)(false) opponentKickOffGoalRestrictionActive, /**< Whether an opponent kick-off that became ball free still requires two own robot touches before a direct goal. */
+  (int)(0) opponentKickOffFirstOwnTouchPlayerNumber, /**< The player number that provided the first own touch after the opponent kick-off. */
+  (unsigned)(0) opponentKickOffFirstOwnTouchTimestamp, /**< Timestamp of the first own touch after the opponent kick-off. */
   (Team) ownTeam, /**< The state of the own team. */
   (Team) opponentTeam, /**< The state of the opponent team. */
   (int)(0) playerNumber, /**< The jersey number of this player. */

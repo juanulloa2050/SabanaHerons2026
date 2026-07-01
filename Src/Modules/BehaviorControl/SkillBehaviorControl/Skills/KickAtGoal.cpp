@@ -73,6 +73,9 @@ class KickAtGoalImpl : public KickAtGoalImplBase
       (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot
          ? theGameState.playerNumber == theGameState.ownKickOffKickingPlayerNumber
          : theGameState.playerNumber != theGameState.ownKickOffKickingPlayerNumber || !ballOutsideCenterCircle);
+    const bool kickOffGoalStillBlocked =
+      ownKickOffGoalStillBlocked ||
+      theGameState.opponentKickOffGoalRestrictionActive;
     const bool ownKickOffBallStillInCenterCircle =
       theGameState.state == GameState::ownKickOff &&
       !ballOutsideCenterCircle;
@@ -90,7 +93,7 @@ class KickAtGoalImpl : public KickAtGoalImplBase
 
     // HSL 2026 only forbids direct goals on indirect free kicks. Corner kicks, goal kicks,
     // and direct free kicks must still be allowed to score directly.
-    const bool allowDirectKick = !ownKickOffGoalStillBlocked &&
+    const bool allowDirectKick = !kickOffGoalStillBlocked &&
                                  !(theGameState.isIndirectFreeKick() &&
                                    theGameState.isForOwnTeam());
     if(aimingAtGoal && allowDirectKick)

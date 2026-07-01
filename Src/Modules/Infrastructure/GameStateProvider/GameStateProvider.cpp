@@ -172,13 +172,26 @@ void GameStateProvider::update(GameState& gameState)
   }
 
   // A kick-off is over once either the ball has moved or the time has elapsed.
-  if((gameState.state == GameState::ownKickOff || gameState.state == GameState::opponentKickOff) &&
-     (checkBallHasMoved(gameState) || theFrameInfo.time >= gameState.timeWhenStateEnds))
+  if(gameState.state == GameState::ownKickOff || gameState.state == GameState::opponentKickOff)
   {
-    gameStateOverridden = true;
-    gameState.state = GameState::playing;
-    gameState.timeWhenStateStarted = theFrameInfo.time;
-    gameState.timeWhenStateEnds = 0;
+    const bool ballHasMoved = checkBallHasMoved(gameState);
+    const bool kickOffTimedOut = theFrameInfo.time >= gameState.timeWhenStateEnds;
+    if(ballHasMoved || kickOffTimedOut)
+    {
+      if(gameState.state == GameState::opponentKickOff && !ballHasMoved && kickOffTimedOut)
+      {
+        opponentKickOffStartTime = gameState.timeWhenStateStarted;
+        trackOpponentKickOffGoalRestriction = true;
+        gameState.opponentKickOffGoalRestrictionActive = true;
+        gameState.opponentKickOffFirstOwnTouchPlayerNumber = 0;
+        gameState.opponentKickOffFirstOwnTouchTimestamp = 0;
+      }
+
+      gameStateOverridden = true;
+      gameState.state = GameState::playing;
+      gameState.timeWhenStateStarted = theFrameInfo.time;
+      gameState.timeWhenStateEnds = 0;
+    }
   }
 
   // HSL 2026: a free kick becomes ball free after 45 seconds even if the operator has not cleared
@@ -534,6 +547,8 @@ void GameStateProvider::reset(GameState& gameState)
   lastOwnKickWasOutsideCenterCircle = false;
   ownKickOffStartTime = 0;
   trackOwnKickOffGoalRestriction = false;
+  opponentKickOffStartTime = 0;
+  trackOpponentKickOffGoalRestriction = false;
   previousState = GameState::beforeHalf;
 }
 
@@ -805,11 +820,20 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
     trackOwnKickOffGoalRestriction = false;
     ownKickOffStartTime = 0;
     clearOwnKickOffGoalRestriction(gameState);
-    return;
   }
 
-  if(!trackOwnKickOffGoalRestriction)
-    return;
+  if(gameState.state == GameState::opponentKickOff && previousState != GameState::opponentKickOff)
+  {
+    opponentKickOffStartTime = gameState.timeWhenStateStarted;
+    trackOpponentKickOffGoalRestriction = false;
+    clearOpponentKickOffGoalRestriction(gameState);
+  }
+  else if(gameState.state != GameState::opponentKickOff && gameState.state != GameState::playing)
+  {
+    trackOpponentKickOffGoalRestriction = false;
+    opponentKickOffStartTime = 0;
+    clearOpponentKickOffGoalRestriction(gameState);
+  }
 
   struct KickTouch
   {
@@ -831,7 +855,7 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
                            teammate.theBehaviorStatus.lastKickWasOutsideCenterCircle});
   };
 
-  if(!gameState.ownKickOffGoalRestrictionActive)
+  if(trackOwnKickOffGoalRestriction && !gameState.ownKickOffGoalRestrictionActive)
   {
     KickTouch firstTouch;
     firstTouch.timestamp = std::numeric_limits<unsigned>::max();
@@ -855,30 +879,69 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
     }
   }
 
-  if(!gameState.ownKickOffGoalRestrictionActive)
-    return;
-
-  bool restrictionSatisfied = false;
-  if(!gameState.ownKickOffGoalRestrictionRequiresDifferentRobot && isBallOutsideCenterCircle())
-    restrictionSatisfied = true;
-
-  forEachOwnKickTouch([&](const KickTouch& touch)
+  if(trackOwnKickOffGoalRestriction && gameState.ownKickOffGoalRestrictionActive)
   {
-    if(restrictionSatisfied || touch.timestamp <= gameState.ownKickOffFirstTouchTimestamp)
-      return;
+    bool restrictionSatisfied = false;
+    if(!gameState.ownKickOffGoalRestrictionRequiresDifferentRobot && isBallOutsideCenterCircle())
+      restrictionSatisfied = true;
 
-    if(gameState.ownKickOffGoalRestrictionRequiresDifferentRobot)
-      restrictionSatisfied = touch.playerNumber != gameState.ownKickOffKickingPlayerNumber;
-    else
-      restrictionSatisfied = touch.playerNumber == gameState.ownKickOffKickingPlayerNumber &&
-                             touch.outsideCenterCircle;
-  });
+    forEachOwnKickTouch([&](const KickTouch& touch)
+    {
+      if(restrictionSatisfied || touch.timestamp <= gameState.ownKickOffFirstTouchTimestamp)
+        return;
 
-  if(restrictionSatisfied)
+      if(gameState.ownKickOffGoalRestrictionRequiresDifferentRobot)
+        restrictionSatisfied = touch.playerNumber != gameState.ownKickOffKickingPlayerNumber;
+      else
+        restrictionSatisfied = touch.playerNumber == gameState.ownKickOffKickingPlayerNumber &&
+                               touch.outsideCenterCircle;
+    });
+
+    if(restrictionSatisfied)
+    {
+      trackOwnKickOffGoalRestriction = false;
+      ownKickOffStartTime = 0;
+      clearOwnKickOffGoalRestriction(gameState);
+    }
+  }
+
+  if(trackOpponentKickOffGoalRestriction && gameState.opponentKickOffGoalRestrictionActive)
   {
-    trackOwnKickOffGoalRestriction = false;
-    ownKickOffStartTime = 0;
-    clearOwnKickOffGoalRestriction(gameState);
+    if(gameState.opponentKickOffFirstOwnTouchTimestamp == 0)
+    {
+      KickTouch firstTouch;
+      firstTouch.timestamp = std::numeric_limits<unsigned>::max();
+      forEachOwnKickTouch([&](const KickTouch& touch)
+      {
+        if(touch.timestamp > opponentKickOffStartTime && touch.timestamp < firstTouch.timestamp)
+          firstTouch = touch;
+      });
+
+      if(firstTouch.timestamp != std::numeric_limits<unsigned>::max())
+      {
+        gameState.opponentKickOffFirstOwnTouchPlayerNumber = firstTouch.playerNumber;
+        gameState.opponentKickOffFirstOwnTouchTimestamp = firstTouch.timestamp;
+      }
+    }
+
+    bool restrictionSatisfied = false;
+    if(gameState.opponentKickOffFirstOwnTouchTimestamp > 0)
+    {
+      forEachOwnKickTouch([&](const KickTouch& touch)
+      {
+        if(restrictionSatisfied || touch.timestamp <= gameState.opponentKickOffFirstOwnTouchTimestamp)
+          return;
+
+        restrictionSatisfied = touch.playerNumber != gameState.opponentKickOffFirstOwnTouchPlayerNumber;
+      });
+    }
+
+    if(restrictionSatisfied)
+    {
+      trackOpponentKickOffGoalRestriction = false;
+      opponentKickOffStartTime = 0;
+      clearOpponentKickOffGoalRestriction(gameState);
+    }
   }
 }
 
@@ -888,6 +951,13 @@ void GameStateProvider::clearOwnKickOffGoalRestriction(GameState& gameState)
   gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = false;
   gameState.ownKickOffKickingPlayerNumber = 0;
   gameState.ownKickOffFirstTouchTimestamp = 0;
+}
+
+void GameStateProvider::clearOpponentKickOffGoalRestriction(GameState& gameState)
+{
+  gameState.opponentKickOffGoalRestrictionActive = false;
+  gameState.opponentKickOffFirstOwnTouchPlayerNumber = 0;
+  gameState.opponentKickOffFirstOwnTouchTimestamp = 0;
 }
 
 bool GameStateProvider::isBallOutsideCenterCircle() const
