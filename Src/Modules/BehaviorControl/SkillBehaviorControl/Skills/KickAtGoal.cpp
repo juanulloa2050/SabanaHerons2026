@@ -46,6 +46,7 @@ SKILL_IMPLEMENTATION(KickAtGoalImpl,
     (Angle) kickInaccuracy, /**< The search angle range is narrowed by this to both sides. */
     (float) hysteresisDecisionPenalty, /**< Changing the decision of the previous frame results in this penalty to the time. */
     (float) walkForwardLongMalus, /**< Malus for the range. */
+    (bool) forceLongShots, /**< Only allow long kick variants when shooting at the goal. */
     (std::vector<KickInfo::KickType>) allowedKicks,
     (std::vector<Rangef>) allowedKickRanges, /**< Kicking at the goal is only allowed from these distances. */
   }),
@@ -343,6 +344,9 @@ class KickAtGoalImpl : public KickAtGoalImplBase
     // Check for each kick, if the specific robot is allowed to execute this one
     for(const auto kick : allowedKicks)
     {
+      if(forceLongShots && !isLongShotKick(kick))
+        continue;
+
       switch(kick)
       {
         case KickInfo::forwardFastLeft:
@@ -381,6 +385,22 @@ class KickAtGoalImpl : public KickAtGoalImplBase
     }
 
     return kicks;
+  }
+
+  static bool isLongShotKick(const KickInfo::KickType kick)
+  {
+    switch(kick)
+    {
+      case KickInfo::forwardFastRightLong:
+      case KickInfo::forwardFastLeftLong:
+      case KickInfo::walkForwardsRightLong:
+      case KickInfo::walkForwardsLeftLong:
+      case KickInfo::walkForwardsRightVeryLong:
+      case KickInfo::walkForwardsLeftVeryLong:
+        return true;
+      default:
+        return false;
+    }
   }
 
   struct ObstacleSector
