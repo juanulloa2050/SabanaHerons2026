@@ -53,11 +53,11 @@ class DirectKickOffImpl : public DirectKickOffImplBase
     for(const auto& playerState : theGameState.ownTeam.playerStates)
       if(playerState == GameState::active)
         ++numOfActiveOwnRobots;
-    const bool limitedTeam = numOfActiveOwnRobots <= 3;
+    const bool limitedTeam = numOfActiveOwnRobots < 3;
 
-    // HSL kick-offs must not be aimed directly at the goal. With three or fewer active
+    // HSL kick-offs must not be aimed directly at the goal. With fewer than three active
     // robots, the first kick should safely leave the center circle so normal play can resume.
-    // With more than three active robots, a teammate must provide the next scoring touch.
+    // With three or more active robots, a teammate must provide the next scoring touch.
     if(!wasActive)
     {
       const Angle exitOffset = theFieldBall.positionOnField.y() >= 0.f ? (limitedTeam ? -55_deg : -75_deg) : (limitedTeam ? 55_deg : 75_deg);

@@ -73,9 +73,7 @@ class KickAtGoalImpl : public KickAtGoalImplBase
       (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot
          ? theGameState.playerNumber == theGameState.ownKickOffKickingPlayerNumber
          : theGameState.playerNumber != theGameState.ownKickOffKickingPlayerNumber || !ballOutsideCenterCircle);
-    const bool kickOffGoalStillBlocked =
-      ownKickOffGoalStillBlocked ||
-      theGameState.opponentKickOffGoalRestrictionActive;
+    const bool kickOffGoalStillBlocked = ownKickOffGoalStillBlocked;
     const bool ownKickOffBallStillInCenterCircle =
       theGameState.state == GameState::ownKickOff &&
       !ballOutsideCenterCircle;

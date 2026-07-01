@@ -178,15 +178,6 @@ void GameStateProvider::update(GameState& gameState)
     const bool kickOffTimedOut = theFrameInfo.time >= gameState.timeWhenStateEnds;
     if(ballHasMoved || kickOffTimedOut)
     {
-      if(gameState.state == GameState::opponentKickOff && !ballHasMoved && kickOffTimedOut)
-      {
-        opponentKickOffStartTime = gameState.timeWhenStateStarted;
-        trackOpponentKickOffGoalRestriction = true;
-        gameState.opponentKickOffGoalRestrictionActive = true;
-        gameState.opponentKickOffFirstOwnTouchPlayerNumber = 0;
-        gameState.opponentKickOffFirstOwnTouchTimestamp = 0;
-      }
-
       gameStateOverridden = true;
       gameState.state = GameState::playing;
       gameState.timeWhenStateStarted = theFrameInfo.time;
@@ -873,7 +864,7 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
           ++numOfActiveOwnRobots;
 
       gameState.ownKickOffGoalRestrictionActive = true;
-      gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = numOfActiveOwnRobots > 3;
+      gameState.ownKickOffGoalRestrictionRequiresDifferentRobot = numOfActiveOwnRobots >= 3;
       gameState.ownKickOffKickingPlayerNumber = firstTouch.playerNumber;
       gameState.ownKickOffFirstTouchTimestamp = firstTouch.timestamp;
     }
