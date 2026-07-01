@@ -275,8 +275,19 @@ void PathPlannerProvider::createNodes(const Pose2f& target, bool excludeOwnPenal
       addObstacle(ballPosition, ballRadius);
   }
 
-  if(centerCircleRadius != 0.f && theGameState.state == GameState::setupOpponentKickOff)
-    addObstacle(Vector2f::Zero(), centerCircleRadius);
+  if(theGameState.isReady() || theGameState.isSet())
+  {
+    const bool centerCircleIsIllegal = theGameState.state == GameState::setupOpponentKickOff ||
+                                       theGameState.state == GameState::waitForOpponentKickOff ||
+                                       theGameState.isDroppedBall();
+    if(centerCircleIsIllegal)
+    {
+      const float illegalCenterCircleRadius = centerCircleRadius != 0.f ?
+                                             centerCircleRadius :
+                                             theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + 120.f;
+      addObstacle(Vector2f::Zero(), illegalCenterCircleRadius);
+    }
+  }
 
   // If other nodes surround start or target, shrink them.
   for(auto node = nodes.begin(); node != nodes.begin() + 2; ++node)
