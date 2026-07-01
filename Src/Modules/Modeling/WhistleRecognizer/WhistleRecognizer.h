@@ -1,19 +1,12 @@
 /**
  * @file WhistleRecognizer.h
  *
- * This file declares a module that identifies the sound of a whistle.
+ * Three-profile whistle recognizer for SabanaHerons 2026.
  *
- * Original authors:
- *  - Tim Laue
- *  - Dennis Schuethe
- *  - Thomas Röfer
- *
- * Dual Goertzel Gate V8 (SabanaHerons 2026):
- *  - IIR pre-filter: BP 2500-6000 Hz + LP 1500 Hz
- *  - Dual-window: N=320 (20 ms), N_FAST=160 (10 ms), hop=80 (5 ms)
- *  - Independent standard and hand-squeeze-acute detector profiles
- *  - Gates: Pmax, SNR/flatness (main+fast), energy ratios, flux, stationary mask
- *  - 3-state FSM: IDLE -> CANDIDATE (onsetConsec) -> ACTIVE
+ * Combines the standalone Gate V8 hand-squeeze detector with the B-Human
+ * WhistleRecognizer wrapper and adds a wider raw-spectrum mouth-whistle
+ * profile. The module name intentionally remains WhistleRecognizer so this
+ * file can be used as a drop-in replacement after review.
  */
 
 #pragma once
@@ -27,6 +20,7 @@
 #include "Math/RingBuffer.h"
 
 #include <array>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -39,51 +33,75 @@ MODULE(WhistleRecognizer,
   PROVIDES(Whistle),
   LOADS_PARAMETERS(
   {,
-    (std::vector<std::string>) whistles,       /**< Legacy: unused. */
     (unsigned) bufferSize,                     /**< Main analysis window, should be 320 at 16 kHz. */
     (unsigned) sampleRate,                     /**< Target sample rate, should be 16000. */
     (float) newSampleRatio,                    /**< Hop ratio, should be 0.25. */
-    (float) minVolume,                         /**< Min BP amplitude to skip silence quickly. */
+    (float) minVolume,                         /**< Min analysis amplitude to skip silence quickly. */
     (float) minCorrelation,                    /**< Min confidence score to report detection. */
     (int) accumulationDuration,                /**< Ms after last onset before publishing. */
     (int) minAnnotationDelay,                  /**< Min ms between whistle annotations. */
     (bool) mute,                               /**< Mute speaker during Set/Playing. */
-    (float)(3057.556512f) goertzelMinFreq,     /**< Whistle band lower edge (Hz). */
-    (float)(4365.593451f) goertzelMaxFreq,     /**< Whistle band upper edge (Hz). */
-    (float)(41.206368f) pMaxMin,               /**< Stage 1: min peak Goertzel power. */
-    (float)(3.237137f) snrDbMin,               /**< Stage 2 main-window min SNR (dB). */
-    (float)(0.797188f) flatMax,                /**< Stage 2 main-window max flatness. */
-    (float)(3.667951f) snrFastMin,             /**< Stage 2 fast-window min SNR (dB). */
-    (float)(0.266438f) flatFastMax,            /**< Stage 2 fast-window max flatness. */
-    (float)(7.410762f) fluxMax,                /**< Stage 2 max one-sided spectral flux (dB). */
-    (float)(2.330469f) lowbandMax,             /**< Stage 2 max LP/BP energy ratio. */
-    (float)(0.383048f) eRatioMin,              /**< Stage 2 min BP/total energy ratio. */
-    (int)(3) onsetConsec,                      /**< Consecutive OK frames to confirm onset. */
-    (int)(171) offMs,                          /**< Hangover after last OK frame (ms). */
-    (int)(7) gapFill,                          /**< Gap-fill budget (frames) inside ACTIVE. */
-    (int)(150) minDistMs,                      /**< Min distance between whistle events (ms). */
-    (float)(1.0f) stationaryHoldSec,           /**< Stationary-mask hold time (s). */
-    (bool)(true) acuteWhistleEnabled,           /**< Enable the hand-squeeze acute whistle profile. */
-    (float)(3050.0f) acuteGoertzelMinFreq,      /**< Acute profile lower aligned Goertzel bin (Hz). */
-    (float)(4400.0f) acuteGoertzelMaxFreq,      /**< Acute profile upper aligned Goertzel bin (Hz). */
-    (float)(3000.0f) acuteFastMinFreq,          /**< Acute fast-window lower aligned bin (Hz). */
-    (float)(4400.0f) acuteFastMaxFreq,          /**< Acute fast-window upper aligned bin (Hz). */
-    (float)(41.2064f) acutePMaxMin,             /**< Acute profile minimum peak Goertzel power. */
-    (float)(3.2371f) acuteSnrDbMin,             /**< Acute profile main-window minimum SNR (dB). */
-    (float)(0.7972f) acuteFlatMax,              /**< Acute profile main-window maximum flatness. */
-    (float)(3.6680f) acuteSnrFastMin,           /**< Acute profile fast-window minimum SNR (dB). */
-    (float)(0.2664f) acuteFlatFastMax,          /**< Acute profile fast-window maximum flatness. */
-    (float)(7.4108f) acuteFluxMax,              /**< Acute profile maximum one-sided flux (dB). */
-    (float)(2.3305f) acuteLowbandMax,           /**< Acute profile maximum LP/BP energy ratio. */
-    (float)(0.3830f) acuteERatioMin,            /**< Acute profile minimum BP/total energy ratio. */
-    (int)(3) acuteOnsetConsec,                  /**< Acute profile consecutive frames for onset. */
-    (int)(34) acuteOffFrames,                   /**< Acute profile release time in 5 ms hops. */
-    (int)(7) acuteGapFill,                      /**< Acute profile gap-fill budget. */
-    (int)(150) acuteMinDistMs,                  /**< Acute profile minimum inter-event distance. */
-    (float)(1.0f) acuteStationaryHoldSec,       /**< Acute profile stationary-mask hold time. */
-    (bool)(true) logWhistleMonitoring,         /**< Print periodic summaries of the strongest whistle candidate for tuning. */
-    (bool)(true) logWhistleDetections,         /**< Print feature summaries on confirmed whistle detections. */
-    (bool)(false) logRejectedWhistleCandidates,/**< Print near-miss feature summaries for parameter tuning. */
+
+    (bool)(true) rescueWhistleEnabled,         /**< Enable the rescue/standard whistle profile. */
+    (float)(3057.556512f) goertzelMinFreq,     /**< Rescue profile lower edge (Hz). */
+    (float)(4365.593451f) goertzelMaxFreq,     /**< Rescue profile upper edge (Hz). */
+    (float)(3000.0f) rescueFastMinFreq,        /**< Rescue fast-window lower edge (Hz). */
+    (float)(4400.0f) rescueFastMaxFreq,        /**< Rescue fast-window upper edge (Hz). */
+    (float)(41.206368f) pMaxMin,               /**< Rescue min peak Goertzel power. */
+    (float)(3.237137f) snrDbMin,               /**< Rescue main-window min SNR (dB). */
+    (float)(0.797188f) flatMax,                /**< Rescue main-window max flatness. */
+    (float)(3.667951f) snrFastMin,             /**< Rescue fast-window min SNR (dB). */
+    (float)(0.266438f) flatFastMax,            /**< Rescue fast-window max flatness. */
+    (float)(7.410762f) fluxMax,                /**< Rescue max one-sided spectral flux (dB). */
+    (float)(2.330469f) lowbandMax,             /**< Rescue max LP/whistle energy ratio. */
+    (float)(0.383048f) eRatioMin,              /**< Rescue min whistle/total energy ratio. */
+    (int)(3) onsetConsec,                      /**< Rescue consecutive OK frames to confirm onset. */
+    (int)(171) offMs,                          /**< Rescue hangover after last OK frame (ms). */
+    (int)(7) gapFill,                          /**< Rescue gap-fill budget (frames) inside ACTIVE. */
+    (int)(150) minDistMs,                      /**< Rescue min distance between whistle events (ms). */
+    (float)(1.0f) stationaryHoldSec,           /**< Rescue stationary-mask hold time (s). */
+
+    (bool)(true) acuteWhistleEnabled,          /**< Enable the hand-squeeze acute whistle profile. */
+    (float)(3050.0f) acuteGoertzelMinFreq,     /**< Hand-squeeze lower aligned Goertzel bin (Hz). */
+    (float)(4400.0f) acuteGoertzelMaxFreq,     /**< Hand-squeeze upper aligned Goertzel bin (Hz). */
+    (float)(3000.0f) acuteFastMinFreq,         /**< Hand-squeeze fast-window lower aligned bin (Hz). */
+    (float)(4400.0f) acuteFastMaxFreq,         /**< Hand-squeeze fast-window upper aligned bin (Hz). */
+    (float)(41.2064f) acutePMaxMin,            /**< Hand-squeeze minimum peak Goertzel power. */
+    (float)(3.2371f) acuteSnrDbMin,            /**< Hand-squeeze main-window minimum SNR (dB). */
+    (float)(0.7972f) acuteFlatMax,             /**< Hand-squeeze main-window maximum flatness. */
+    (float)(3.6680f) acuteSnrFastMin,          /**< Hand-squeeze fast-window minimum SNR (dB). */
+    (float)(0.2664f) acuteFlatFastMax,         /**< Hand-squeeze fast-window maximum flatness. */
+    (float)(7.4108f) acuteFluxMax,             /**< Hand-squeeze maximum one-sided flux (dB). */
+    (float)(2.3305f) acuteLowbandMax,          /**< Hand-squeeze maximum LP/whistle energy ratio. */
+    (float)(0.3830f) acuteERatioMin,           /**< Hand-squeeze minimum whistle/total energy ratio. */
+    (int)(3) acuteOnsetConsec,                 /**< Hand-squeeze consecutive OK frames for onset. */
+    (int)(34) acuteOffFrames,                  /**< Hand-squeeze release time in 5 ms hops. */
+    (int)(7) acuteGapFill,                     /**< Hand-squeeze gap-fill budget. */
+    (int)(150) acuteMinDistMs,                 /**< Hand-squeeze minimum inter-event distance. */
+    (float)(1.0f) acuteStationaryHoldSec,      /**< Hand-squeeze stationary-mask hold time. */
+
+    (bool)(true) mouthWhistleEnabled,          /**< Enable the mouth-whistle profile. */
+    (float)(1700.0f) mouthGoertzelMinFreq,     /**< Mouth profile lower edge (Hz). */
+    (float)(4200.0f) mouthGoertzelMaxFreq,     /**< Mouth profile upper edge (Hz). */
+    (float)(1800.0f) mouthFastMinFreq,         /**< Mouth fast-window lower edge (Hz). */
+    (float)(4200.0f) mouthFastMaxFreq,         /**< Mouth fast-window upper edge (Hz). */
+    (float)(35.0f) mouthPMaxMin,               /**< Mouth minimum peak Goertzel power. */
+    (float)(6.0f) mouthSnrDbMin,               /**< Mouth main-window minimum SNR (dB). */
+    (float)(0.62f) mouthFlatMax,               /**< Mouth main-window maximum flatness. */
+    (float)(4.0f) mouthSnrFastMin,             /**< Mouth fast-window minimum SNR (dB). */
+    (float)(0.68f) mouthFlatFastMax,           /**< Mouth fast-window maximum flatness. */
+    (float)(8.5f) mouthFluxMax,                /**< Mouth maximum one-sided flux (dB). */
+    (float)(3.5f) mouthLowbandMax,             /**< Mouth maximum LP/whistle energy ratio. */
+    (float)(0.25f) mouthERatioMin,             /**< Mouth minimum whistle/total energy ratio. */
+    (int)(4) mouthOnsetConsec,                 /**< Mouth consecutive OK frames for onset. */
+    (int)(40) mouthOffFrames,                  /**< Mouth release time in 5 ms hops. */
+    (int)(8) mouthGapFill,                     /**< Mouth gap-fill budget. */
+    (int)(200) mouthMinDistMs,                 /**< Mouth minimum inter-event distance. */
+    (float)(1.0f) mouthStationaryHoldSec,      /**< Mouth stationary-mask hold time. */
+
+    (bool)(true) logWhistleMonitoring,         /**< Print periodic summaries of strongest candidate. */
+    (bool)(true) logWhistleDetections,         /**< Print feature summaries on confirmed detections. */
+    (bool)(false) logRejectedWhistleCandidates,/**< Print near-miss summaries for tuning. */
     (int)(1000) logIntervalMs,                 /**< Minimum spacing between repeated info logs. */
   }),
 });
@@ -92,6 +110,7 @@ class WhistleRecognizer : public WhistleRecognizerBase
 {
   static constexpr int BP_N_SOS = 4;
   static constexpr int LP_N_SOS = 2;
+  static constexpr std::size_t detectorProfileCount = 3;
   static const double BP_B[BP_N_SOS][3];
   static const double BP_A[BP_N_SOS][2];
   static const double LP_B[LP_N_SOS][3];
@@ -107,6 +126,12 @@ class WhistleRecognizer : public WhistleRecognizerBase
   unsigned lastTimeWhistleDetected = 0;
 
   void update(Whistle& theWhistle) override;
+
+  enum class SpectrumSource
+  {
+    Bandpassed,
+    Raw
+  };
 
   struct FrameFeatures
   {
@@ -139,6 +164,8 @@ class WhistleRecognizer : public WhistleRecognizerBase
   struct DetectorProfile
   {
     const char* name;
+    bool enabled;
+    SpectrumSource source;
     float minFreq;
     float maxFreq;
     float fastMinFreq;
@@ -179,16 +206,17 @@ class WhistleRecognizer : public WhistleRecognizerBase
     double bp_z[BP_N_SOS][2] = {};
     double lp_z[LP_N_SOS][2] = {};
 
+    RingBuffer<float> rawBuf;
     RingBuffer<float> bpBuf;
     RingBuffer<float> lpBuf;
-    std::array<DetectorState, 2> detectors;
+    std::array<DetectorState, detectorProfileCount> detectors;
   };
   std::vector<ChannelState> channelStates;
 
   static float applyBP(float x, double (&z)[BP_N_SOS][2]);
   static float applyLP(float x, double (&z)[LP_N_SOS][2]);
 
-  std::array<DetectorProfile, 2> detectorProfiles() const;
+  std::array<DetectorProfile, detectorProfileCount> detectorProfiles() const;
   FrameFeatures analyzeFrame(ChannelState& channel, DetectorState& state, const DetectorProfile& profile);
   GateEvaluation evaluateGates(const FrameFeatures& feat, const DetectorState& state, const DetectorProfile& profile) const;
   bool updateFSM(bool ok, DetectorState& state, const DetectorProfile& profile);

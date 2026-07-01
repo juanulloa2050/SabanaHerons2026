@@ -1,21 +1,10 @@
 /**
  * @file WhistleRecognizer.cpp
  *
- * Dual Goertzel Gate V8 - SabanaHerons 2026
- *
- * Architecture:
- *   SR=16000, N_MAIN=320 (20 ms), N_FAST=160 (10 ms), hop=80 (5 ms)
- *   Standard profile: raw band 3057.556512-4365.593451 Hz
- *   Acute profile: aligned band 3050-4400 Hz
- *
- * Pipeline per hop:
- *   1. Decimate/resample to target SR using the actual input sample rate
- *   2. IIR bandpass (2500-6000 Hz) + lowpass (1500 Hz)
- *   3. Main Goertzel on N_MAIN BP-filtered samples
- *   4. Stage 1: reject if P_max < pMaxMin
- *   5. Stage 2: SNR/flatness (main + fast), energy ratios, flux
- *   6. Stationary-bin mask (persistent bins, +-1 spread)
- *   7. 3-state FSM per channel: IDLE -> CANDIDATE -> ACTIVE
+ * Three-profile Goertzel Gate V8 recognizer:
+ *   - rescue_whistle: B-Human wrapper profile from whistleRecognizer.cfg
+ *   - hand_squeeze_acute: standalone Gate V8 profile from SabanaWhistle_v8.cfg
+ *   - mouth_whistle: wider raw-spectrum profile for lower lip-whistle energy
  */
 
 #include "WhistleRecognizer.h"
@@ -26,11 +15,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <numeric>
 #include <sstream>
 
 namespace
 {
+  constexpr float goertzelPi = 3.14159265358979323846f;
+
   float clamp01(const float value)
   {
     return std::max(0.0f, std::min(1.0f, value));
@@ -92,19 +82,21 @@ float WhistleRecognizer::applyLP(float x, double (&z)[LP_N_SOS][2])
   return static_cast<float>(v);
 }
 
-std::array<WhistleRecognizer::DetectorProfile, 2> WhistleRecognizer::detectorProfiles() const
+std::array<WhistleRecognizer::DetectorProfile, WhistleRecognizer::detectorProfileCount> WhistleRecognizer::detectorProfiles() const
 {
   const int hopSamples = std::max(1, static_cast<int>(bufferSize * newSampleRatio));
   const float hopSec = static_cast<float>(hopSamples) / static_cast<float>(sampleRate);
-  const int standardOffFrames = std::max(1, static_cast<int>(std::ceil(offMs / 1000.0f / hopSec)));
+  const int rescueOffFrames = std::max(1, static_cast<int>(std::ceil(offMs / 1000.0f / hopSec)));
 
   return {{
     {
-      "standard",
+      "rescue_whistle",
+      rescueWhistleEnabled,
+      SpectrumSource::Bandpassed,
       goertzelMinFreq,
       goertzelMaxFreq,
-      goertzelMinFreq,
-      goertzelMaxFreq,
+      rescueFastMinFreq,
+      rescueFastMaxFreq,
       pMaxMin,
       snrDbMin,
       flatMax,
@@ -114,13 +106,15 @@ std::array<WhistleRecognizer::DetectorProfile, 2> WhistleRecognizer::detectorPro
       lowbandMax,
       eRatioMin,
       onsetConsec,
-      standardOffFrames,
+      rescueOffFrames,
       gapFill,
       minDistMs,
       stationaryHoldSec,
     },
     {
       "hand_squeeze_acute",
+      acuteWhistleEnabled,
+      SpectrumSource::Bandpassed,
       acuteGoertzelMinFreq,
       acuteGoertzelMaxFreq,
       acuteFastMinFreq,
@@ -139,6 +133,28 @@ std::array<WhistleRecognizer::DetectorProfile, 2> WhistleRecognizer::detectorPro
       acuteMinDistMs,
       acuteStationaryHoldSec,
     },
+    {
+      "mouth_whistle",
+      mouthWhistleEnabled,
+      SpectrumSource::Raw,
+      mouthGoertzelMinFreq,
+      mouthGoertzelMaxFreq,
+      mouthFastMinFreq,
+      mouthFastMaxFreq,
+      mouthPMaxMin,
+      mouthSnrDbMin,
+      mouthFlatMax,
+      mouthSnrFastMin,
+      mouthFlatFastMax,
+      mouthFluxMax,
+      mouthLowbandMax,
+      mouthERatioMin,
+      mouthOnsetConsec,
+      mouthOffFrames,
+      mouthGapFill,
+      mouthMinDistMs,
+      mouthStationaryHoldSec,
+    },
   }};
 }
 
@@ -146,12 +162,12 @@ void WhistleRecognizer::initDetectorState(DetectorState& state,
                                           int nBins,
                                           const DetectorProfile& profile)
 {
-  if(static_cast<int>(state.stationaryCounter.size()) == nBins)
-    return;
-
-  state.prevPowers.assign(nBins, 0.0f);
-  state.prevPowersValid = false;
-  state.stationaryCounter.assign(nBins, 0);
+  if(static_cast<int>(state.stationaryCounter.size()) != nBins)
+  {
+    state.prevPowers.assign(nBins, 0.0f);
+    state.prevPowersValid = false;
+    state.stationaryCounter.assign(nBins, 0);
+  }
 
   const int hopSamples = std::max(1, static_cast<int>(bufferSize * newSampleRatio));
   const float hopSec = static_cast<float>(hopSamples) / static_cast<float>(sampleRate);
@@ -167,20 +183,26 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& c
   const int n = static_cast<int>(channel.bpBuf.size());
   const int fastWindow = n / 2;
   const float fs = static_cast<float>(sampleRate);
-  if(n < 2)
+  if(n < 2 || static_cast<int>(channel.rawBuf.size()) < n || static_cast<int>(channel.lpBuf.size()) < n)
     return feat;
 
+  std::vector<float> rawChrono(n);
   std::vector<float> bpChrono(n);
   std::vector<float> lpChrono(n);
+  std::vector<float> spectrumChrono(n);
+  const bool useRawSpectrum = profile.source == SpectrumSource::Raw;
+
   for(int i = 0; i < n; ++i)
   {
+    rawChrono[i] = channel.rawBuf[n - 1 - i];
     bpChrono[i] = channel.bpBuf[n - 1 - i];
     lpChrono[i] = channel.lpBuf[n - 1 - i];
+    spectrumChrono[i] = useRawSpectrum ? rawChrono[i] : bpChrono[i];
   }
 
   float maxAmp = 0.0f;
   for(int i = 0; i < n; ++i)
-    maxAmp = std::max(maxAmp, std::abs(bpChrono[i]));
+    maxAmp = std::max(maxAmp, std::abs(spectrumChrono[i]));
   if(maxAmp < minVolume)
     return feat;
 
@@ -196,13 +218,12 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& c
   for(int k = kMin; k <= kMax; ++k)
   {
     const int idx = k - kMin;
-    const float w = 2.0f * static_cast<float>(M_PI) * static_cast<float>(k) / static_cast<float>(n);
-    const float coeff = 2.0f * std::cos(w);
+    const float coeff = 2.0f * std::cos(2.0f * goertzelPi * static_cast<float>(k) / static_cast<float>(n));
     float q1 = 0.0f;
     float q2 = 0.0f;
     for(int i = 0; i < n; ++i)
     {
-      const float q0 = coeff * q1 - q2 + bpChrono[i];
+      const float q0 = coeff * q1 - q2 + spectrumChrono[i];
       q2 = q1;
       q1 = q0;
     }
@@ -257,13 +278,12 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& c
       for(int k = kMinFast; k <= kMaxFast; ++k)
       {
         const int idx = k - kMinFast;
-        const float w = 2.0f * static_cast<float>(M_PI) * static_cast<float>(k) / static_cast<float>(fastWindow);
-        const float coeff = 2.0f * std::cos(w);
+        const float coeff = 2.0f * std::cos(2.0f * goertzelPi * static_cast<float>(k) / static_cast<float>(fastWindow));
         float q1 = 0.0f;
         float q2 = 0.0f;
         for(int i = 0; i < fastWindow; ++i)
         {
-          const float q0 = coeff * q1 - q2 + bpChrono[n - fastWindow + i];
+          const float q0 = coeff * q1 - q2 + spectrumChrono[n - fastWindow + i];
           q2 = q1;
           q1 = q0;
         }
@@ -301,11 +321,12 @@ WhistleRecognizer::FrameFeatures WhistleRecognizer::analyzeFrame(ChannelState& c
   double eTotal = 1e-12;
   for(int i = 0; i < n; ++i)
   {
-    const double bp = bpChrono[i];
+    const double whistleSample = useRawSpectrum ? spectrumChrono[i] : bpChrono[i];
     const double lp = lpChrono[i];
-    eWhistle += bp * bp;
+    const double totalSample = useRawSpectrum ? rawChrono[i] : bpChrono[i] + lpChrono[i];
+    eWhistle += whistleSample * whistleSample;
     eLow += lp * lp;
-    eTotal += (bp + lp) * (bp + lp);
+    eTotal += totalSample * totalSample;
   }
   feat.eRatio = static_cast<float>(eWhistle / (eTotal + 1e-12));
   feat.lowband = static_cast<float>(eLow / (eWhistle + 1e-12));
@@ -418,6 +439,7 @@ std::string WhistleRecognizer::formatGateSummary(const FrameFeatures& feat,
     first = false;
   }
   stream << "]";
+
   return stream.str();
 }
 
@@ -513,7 +535,6 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   soundWasPlaying |= soundIsPlayingNow;
 
   const bool shouldDetectWhistles = (theGameState.isSet() || theGameState.isPlaying()) && !soundWasPlaying;
-  // Keep monitoring active in any game state so thresholds can be tuned without arming whistle-triggered behaviors.
   const bool shouldRecord = !soundWasPlaying;
   if(!hasRecorded && shouldRecord)
   {
@@ -539,6 +560,7 @@ void WhistleRecognizer::update(Whistle& theWhistle)
     buffer.reserve(bufferSize);
   for(auto& state : channelStates)
   {
+    state.rawBuf.reserve(bufferSize);
     state.bpBuf.reserve(bufferSize);
     state.lpBuf.reserve(bufferSize);
   }
@@ -576,6 +598,7 @@ void WhistleRecognizer::update(Whistle& theWhistle)
       const AudioData::Sample rawSample = theAudioData.samples[inputSampleIndex + channel];
       const float sample = static_cast<float>(rawSample);
       buffers[channel].push_front(rawSample);
+      channelStates[channel].rawBuf.push_front(sample);
       channelStates[channel].bpBuf.push_front(applyBP(sample, channelStates[channel].bp_z));
       channelStates[channel].lpBuf.push_front(applyLP(sample, channelStates[channel].lp_z));
     }
@@ -609,8 +632,7 @@ void WhistleRecognizer::update(Whistle& theWhistle)
   }
 
   const int hopSamples = std::max(1, static_cast<int>(bufferSize * newSampleRatio));
-  const std::array<DetectorProfile, 2> profiles = detectorProfiles();
-  const size_t profileCount = acuteWhistleEnabled ? profiles.size() : 1;
+  const std::array<DetectorProfile, detectorProfileCount> profiles = detectorProfiles();
 
   if(shouldRecord && buffers[firstBuffer].full() && samplesRequired <= 0)
   {
@@ -643,9 +665,12 @@ void WhistleRecognizer::update(Whistle& theWhistle)
       }
 
       ChannelState& channel = channelStates[i];
-      for(size_t profileIndex = 0; profileIndex < profileCount; ++profileIndex)
+      for(size_t profileIndex = 0; profileIndex < profiles.size(); ++profileIndex)
       {
         const DetectorProfile& profile = profiles[profileIndex];
+        if(!profile.enabled)
+          continue;
+
         DetectorState& detector = channel.detectors[profileIndex];
         const FrameFeatures feat = analyzeFrame(channel, detector, profile);
         const GateEvaluation gates = evaluateGates(feat, detector, profile);
