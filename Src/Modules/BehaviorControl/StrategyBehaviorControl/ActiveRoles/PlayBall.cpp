@@ -41,15 +41,16 @@ SkillRequest PlayBall::smashOrPass(const Agent& self, const Agents& teammates)
   // Get the estimated probability of shooting a goal from the current ball position
   // TODO: Use ballEndPosition instead?
   const Vector2f ballPosition = self.pose * self.ballPosition;
+  const float centerCircleLimit = theFieldDimensions.centerCircleRadius +
+                                  theFieldDimensions.fieldLinesWidth * 0.5f +
+                                  theBallSpecification.radius;
   const bool ownKickOffGoalStillBlocked =
     theGameState.ownKickOffGoalRestrictionActive &&
     (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot
        ? self.number == theGameState.ownKickOffKickingPlayerNumber
        : self.number != theGameState.ownKickOffKickingPlayerNumber ||
-         ballPosition.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius));
-  const bool kickOffGoalStillBlocked =
-    ownKickOffGoalStillBlocked ||
-    theGameState.opponentKickOffGoalRestrictionActive;
+         ballPosition.squaredNorm() < sqr(centerCircleLimit));
+  const bool kickOffGoalStillBlocked = ownKickOffGoalStillBlocked;
   float maxValue = theExpectedGoals.getRating(ballPosition);
   float maxPassDistance = p.maxPassDistance;
   if((theGameState.isFreeKick() && theGameState.isForOwnTeam()) || kickOffGoalStillBlocked)
@@ -131,15 +132,16 @@ SkillRequest PlayBall::executeLegacy(const Agent& self, const Agents& teammates)
   if(!p.alwaysShoot)
   {
     const Vector2f ballPosition = self.pose * self.ballPosition;
+    const float centerCircleLimit = theFieldDimensions.centerCircleRadius +
+                                    theFieldDimensions.fieldLinesWidth * 0.5f +
+                                    theBallSpecification.radius;
     const bool ownKickOffGoalStillBlocked =
       theGameState.ownKickOffGoalRestrictionActive &&
       (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot
          ? self.number == theGameState.ownKickOffKickingPlayerNumber
          : self.number != theGameState.ownKickOffKickingPlayerNumber ||
-           ballPosition.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius));
-    const bool kickOffGoalStillBlocked =
-      ownKickOffGoalStillBlocked ||
-      theGameState.opponentKickOffGoalRestrictionActive;
+           ballPosition.squaredNorm() < sqr(centerCircleLimit));
+    const bool kickOffGoalStillBlocked = ownKickOffGoalStillBlocked;
 
     float xGOpt = kickOffGoalStillBlocked ? 0.f : theExpectedGoals.xG(ballPosition);
     draw(ballPosition, goalPosition, goalPosition, xGOpt, 0.f, false);
