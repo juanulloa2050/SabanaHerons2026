@@ -445,7 +445,10 @@ void SkillBehaviorControl::executeRequest()
     {
       case SkillRequest::stand:
         theStandSkill();
-        theLookActiveSkill({.withBall = true});
+        if(theGameState.isSet())
+          theLookAtBallSkill();
+        else
+          theLookActiveSkill({.withBall = true});
         break;
       case SkillRequest::walk:
       {
