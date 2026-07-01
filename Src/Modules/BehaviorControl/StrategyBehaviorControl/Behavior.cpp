@@ -950,6 +950,12 @@ bool Behavior::ownRestartDoubleTouchBlocked(const Agent& agent, const Agent& sel
   if(!theGameState.isFreeKick() || !theGameState.isForOwnTeam())
     return false;
 
+  const std::size_t numOfActiveOwnRobots = std::count(theGameState.ownTeam.playerStates.begin(),
+                                                     theGameState.ownTeam.playerStates.end(),
+                                                     GameState::active);
+  if(numOfActiveOwnRobots < 3)
+    return false;
+
   const unsigned restartStartTime = theGameState.timeWhenStateStarted;
   const Agent* firstKicker = nullptr;
   unsigned firstKickTimestamp = std::numeric_limits<unsigned>::max();
