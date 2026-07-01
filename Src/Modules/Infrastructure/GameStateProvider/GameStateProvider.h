@@ -133,11 +133,14 @@ class GameStateProvider : public GameStateProviderBase
   /** Updates timestamps when a player have been penalized for illegal position. */
   void updateIllegalPosition();
 
-  /** Tracks the HSL 2026 scoring restriction that continues after an own kick-off becomes playing. */
+  /** Tracks the HSL 2026 scoring restrictions that continue after kick-offs become playing. */
   void updateOwnKickOffGoalRestriction(GameState& gameState);
 
   /** Clears all cached data related to the HSL 2026 own kick-off scoring restriction. */
   void clearOwnKickOffGoalRestriction(GameState& gameState);
+
+  /** Clears all cached data related to the HSL 2026 opponent kick-off scoring restriction. */
+  void clearOpponentKickOffGoalRestriction(GameState& gameState);
 
   /** Whether the locally observed ball is already outside the center circle. */
   bool isBallOutsideCenterCircle() const;
@@ -182,5 +185,7 @@ class GameStateProvider : public GameStateProviderBase
   bool lastOwnKickWasOutsideCenterCircle = false; /**< Whether the most recent locally observed completed kick happened outside the center circle. */
   unsigned ownKickOffStartTime = 0; /**< Timestamp when the current own kick-off began. */
   bool trackOwnKickOffGoalRestriction = false; /**< Whether a currently active own kick-off still needs post-kick-off touch tracking. */
+  unsigned opponentKickOffStartTime = 0; /**< Timestamp when the current opponent kick-off began. */
+  bool trackOpponentKickOffGoalRestriction = false; /**< Whether a currently active opponent kick-off still needs two own touches before scoring. */
   GameState::State previousState = GameState::beforeHalf; /**< The game state from the previous update. */
 };

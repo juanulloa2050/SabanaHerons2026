@@ -47,9 +47,12 @@ SkillRequest PlayBall::smashOrPass(const Agent& self, const Agents& teammates)
        ? self.number == theGameState.ownKickOffKickingPlayerNumber
        : self.number != theGameState.ownKickOffKickingPlayerNumber ||
          ballPosition.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius));
+  const bool kickOffGoalStillBlocked =
+    ownKickOffGoalStillBlocked ||
+    theGameState.opponentKickOffGoalRestrictionActive;
   float maxValue = theExpectedGoals.getRating(ballPosition);
   float maxPassDistance = p.maxPassDistance;
-  if((theGameState.isFreeKick() && theGameState.isForOwnTeam()) || ownKickOffGoalStillBlocked)
+  if((theGameState.isFreeKick() && theGameState.isForOwnTeam()) || kickOffGoalStillBlocked)
   {
     // Minimize the own goal rating because the rules do not currently allow this robot to score directly.
     maxValue = p.minRating;
@@ -134,8 +137,11 @@ SkillRequest PlayBall::executeLegacy(const Agent& self, const Agents& teammates)
          ? self.number == theGameState.ownKickOffKickingPlayerNumber
          : self.number != theGameState.ownKickOffKickingPlayerNumber ||
            ballPosition.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius));
+    const bool kickOffGoalStillBlocked =
+      ownKickOffGoalStillBlocked ||
+      theGameState.opponentKickOffGoalRestrictionActive;
 
-    float xGOpt = ownKickOffGoalStillBlocked ? 0.f : theExpectedGoals.xG(ballPosition);
+    float xGOpt = kickOffGoalStillBlocked ? 0.f : theExpectedGoals.xG(ballPosition);
     draw(ballPosition, goalPosition, goalPosition, xGOpt, 0.f, false);
     if(xGOpt > p.shootThreshold)
       return SkillRequest::Builder::shoot();
