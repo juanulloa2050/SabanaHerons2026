@@ -29,11 +29,15 @@ SkillRequest ShotAction::execute(const SetPlay::Action&, const Agent&, const Age
 
 void PassAction::reset()
 {
+  timeWhenActionStarted = theFrameInfo.time;
   lastSelectedPassTarget = -1;
 }
 
 bool PassAction::isDone(const SetPlay::Action& action, const Agent& agent, const Agents& otherAgents) const
 {
+  if(theMotionInfo.lastKickTimestamp > timeWhenActionStarted)
+    return true;
+
   for(Tactic::Position::Type passTargetPosition : action.passTarget)
     if(otherAgents.byPosition(Tactic::Position::mirrorIf(passTargetPosition, agent.acceptedMirror)))
       return false;

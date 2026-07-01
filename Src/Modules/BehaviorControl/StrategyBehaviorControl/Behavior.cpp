@@ -802,9 +802,6 @@ void Behavior::assignPositions(Tactic::Type tactic, SetPlay::Type setPlay, std::
     const float centerCircleLimit = theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + 120.f;
     for(Agent& agent : agents)
     {
-      if(agent.isGoalkeeper)
-        continue;
-
       Vector2f& target = agent.basePose.translation;
       target.x() = std::min(target.x(), ownHalfLimit);
 
