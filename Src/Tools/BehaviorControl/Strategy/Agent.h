@@ -34,6 +34,7 @@ STREAMABLE(Agent,
   (unsigned)(0) timeWhenBallLastSeen, /**< The most recent timestamp when this agent saw the ball. */
   (unsigned)(0) timeWhenBallDisappeared, /**< The most recent timestamp when the ball disappeared. */
   (bool)(false) disagreeOnBall, /**< Whether this agent disagrees with the local ball model (at the time when its last message was sent). */
+  (unsigned)(0) lastKickTimestamp, /**< The most recent timestamp when this agent completed a kick. */
 
   (bool)(false) isUpright, /**< Whether this agent is upright. */
   (unsigned)(0) timeWhenLastUpright, /**< The most recent timestamp when this agent was upright. */

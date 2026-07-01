@@ -353,6 +353,12 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
       return;
     }
 
+    if(theGameState.isSet())
+    {
+      skillRequest = SkillRequest::Builder::stand();
+      return;
+    }
+
     RLPlayerIO& io = RLSharedState::instance().player(theGameState.playerNumber);
     std::string skill;
     float tx = 0.f;
@@ -1854,6 +1860,7 @@ void StrategyBehaviorControl::updateAgentBySelf(Agent& agent)
   agent.timeWhenBallLastSeen = theBallModel.timeWhenLastSeen;
   agent.timeWhenBallDisappeared = theBallModel.timeWhenDisappeared;
   agent.disagreeOnBall = false;
+  agent.lastKickTimestamp = theMotionInfo.lastKickTimestamp;
   agent.isUpright = (theFallDownState.state == FallDownState::upright || theFallDownState.state == FallDownState::staggering || theFallDownState.state == FallDownState::squatting) &&
                     (theGroundContactState.contact && theMotionInfo.executedPhase != MotionPhase::getUp && theMotionInfo.executedPhase != MotionPhase::fall);
   if(agent.isUpright)
@@ -1881,6 +1888,7 @@ void StrategyBehaviorControl::updateAgentByTeamMessage(Agent& agent, const Recei
   agent.ballVelocity = teamMessage.theBallModel.estimate.velocity;
   agent.timeWhenBallLastSeen = teamMessage.theBallModel.timeWhenLastSeen;
   agent.timeWhenBallDisappeared = teamMessage.theBallModel.timeWhenDisappeared;
+  agent.lastKickTimestamp = teamMessage.theBehaviorStatus.lastKickTimestamp;
   // Calculate disagreeOnBall.
   {
     // In theory, all those calculations should be made at the time teamMessage.theFrameInfo.time and therefore, there should be a buffer of the last few own RobotPoses and BallModels to compare with.

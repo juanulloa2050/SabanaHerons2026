@@ -866,6 +866,18 @@ SkillRequest Behavior::execute(const Agent& agent, const Agents& otherAgents)
     return SkillRequest::Builder::walkTo(agent.basePose);
   else if(theGameState.isSet())
     return SkillRequest::Builder::stand();
+  else if(theGameState.isGoalKick() && theGameState.isForOwnTeam() && !agent.isGoalkeeper)
+  {
+    if((agent.currentPosition - agent.basePose.translation).norm() > 500.f)
+      return SkillRequest::Builder::walkTo(agent.basePose);
+    return SkillRequest::Builder::stand();
+  }
+  else if(ownRestartDoubleTouchBlocked(agent, agent, otherAgents))
+  {
+    if((agent.currentPosition - agent.basePose.translation).norm() > 500.f)
+      return SkillRequest::Builder::walkTo(agent.basePose);
+    return SkillRequest::Builder::stand();
+  }
   else if((theGameState.isCornerKick() || theGameState.isGoalKick() || theGameState.isKickIn()) &&
           (!ballSearch->teamBallNearRestartCandidate &&
            agent.timeWhenBallLastSeen < theGameState.timeWhenStateStarted + (ballSearch->ownBallNearRestartCandidate ? 0 : ballSearch->refereeBallPlacementDelay)))
@@ -931,6 +943,46 @@ bool Behavior::restartSearchIsActive() const
     default:
       return false;
   }
+}
+
+bool Behavior::ownRestartDoubleTouchBlocked(const Agent& agent, const Agent& self, const std::vector<const Agent*>& otherAgents) const
+{
+  if(!theGameState.isFreeKick() || !theGameState.isForOwnTeam())
+    return false;
+
+  const unsigned restartStartTime = theGameState.timeWhenStateStarted;
+  const Agent* firstKicker = nullptr;
+  unsigned firstKickTimestamp = std::numeric_limits<unsigned>::max();
+
+  auto considerFirstKick = [&](const Agent& candidate)
+  {
+    if(candidate.lastKickTimestamp > restartStartTime && candidate.lastKickTimestamp < firstKickTimestamp)
+    {
+      firstKickTimestamp = candidate.lastKickTimestamp;
+      firstKicker = &candidate;
+    }
+  };
+
+  considerFirstKick(self);
+  for(const Agent* otherAgent : otherAgents)
+    considerFirstKick(*otherAgent);
+
+  if(!firstKicker || firstKicker->number != agent.number)
+    return false;
+
+  auto differentRobotTouchedAfterFirstKick = [&](const Agent& candidate)
+  {
+    return candidate.number != firstKicker->number &&
+           candidate.lastKickTimestamp > firstKickTimestamp;
+  };
+
+  if(differentRobotTouchedAfterFirstKick(self))
+    return false;
+  for(const Agent* otherAgent : otherAgents)
+    if(differentRobotTouchedAfterFirstKick(*otherAgent))
+      return false;
+
+  return true;
 }
 
 template<typename SetPlayType>
@@ -1134,6 +1186,24 @@ const Agent* Behavior::determineActiveAgent(Agent& self, const std::vector<const
   const bool isOpponentFreeKick = theGameState.isFreeKick() && theGameState.isForOpponentTeam();
   const bool isOwnGoalKick = theGameState.isGoalKick() && theGameState.isForOwnTeam();
 
+  if(isOwnGoalKick)
+  {
+    Agent* goalkeeper = self.isGoalkeeper ? &self : nullptr;
+    for(const Agent* agent : otherAgents)
+      if(agent->isGoalkeeper)
+      {
+        goalkeeper = const_cast<Agent*>(agent);
+        break;
+      }
+
+    if(goalkeeper)
+    {
+      if(assign)
+        goalkeeper->nextRole = ActiveRole::toRole(ActiveRole::playBall);
+      return goalkeeper;
+    }
+  }
+
   if(theGameState.isForOwnTeam() &&
      (theGameState.isKickOff() || theGameState.isPenaltyKick() || theGameState.isFreeKick()) &&
      self.acceptedSetPlay != SetPlay::none && setPlays[self.acceptedSetPlay])
@@ -1225,10 +1295,6 @@ const Agent* Behavior::determineActiveAgent(Agent& self, const std::vector<const
     if(!agent.isUpright)
       ttrb += std::max(getUpDuration / 10.f, getUpDuration - static_cast<float>(theFrameInfo.getTimeSince(agent.timeWhenLastUpright)));
 
-    // Own goal kicks are preferred to be played by field players.
-    if(agent.position == Tactic::Position::goalkeeper && isOwnGoalKick)
-      ttrb += 20000.f;
-
     return ttrb;
   };
 
@@ -1238,6 +1304,11 @@ const Agent* Behavior::determineActiveAgent(Agent& self, const std::vector<const
   // the ball.
   const auto canBeActive = [&](const Agent& agent, bool wasActive, bool ballNeeded) -> bool
   {
+    if(isOwnGoalKick && !agent.isGoalkeeper)
+      return false;
+    if(ownRestartDoubleTouchBlocked(agent, self, otherAgents))
+      return false;
+
     // This checks for the ball age when the message was sent.
     const bool ballWasSeen = agent.timestamp <= agent.timeWhenBallLastSeen + ballSeenTime;
     // Agents who believe in a different ball don't compete.
