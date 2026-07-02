@@ -65,7 +65,7 @@ private:
   // skill request for ballSearch behavior
   SkillRequest skillRequest;
   Agents agents;
-  const float groundLineXOffset = 50.f;
+  const float groundLineXOffset = 400.f;
   const float minRadius = 20.f;
   float initialRadius;
   const Agent* agent;
@@ -262,13 +262,13 @@ private:
     {
       transition
       {
-        const float GoalkeeperToGoalLineCenter = (theRobotPose.translation - Vector2f(theFieldDimensions.xPosOwnGroundLine, 0.f)).norm();
+        const float GoalkeeperToGoalLineCenter = (theRobotPose.translation - Vector2f(theFieldDimensions.xPosOwnGroundLine + groundLineXOffset, 0.f)).norm();
         if(GoalkeeperToGoalLineCenter > initialRadius + minRadius)
           goto goalkeeperTurnToTarget;
       }
       action
       {
-        const Vector2f goalCenterRelative(theRobotPose.inverse() * Vector2f(theFieldDimensions.xPosOwnGroundLine, 0.f));
+        const Vector2f goalCenterRelative(theRobotPose.inverse() * Vector2f(theFieldDimensions.xPosOwnGroundLine + groundLineXOffset, 0.f));
         const Vector2f offsetRelative(goalCenterRelative.normalized(-200.f));
         const Vector2f offsetAbsolute(theRobotPose * offsetRelative);
         skillRequest = SkillRequest::Builder::walkTo(offsetAbsolute);
