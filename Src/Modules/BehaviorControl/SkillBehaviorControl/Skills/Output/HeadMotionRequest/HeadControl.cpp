@@ -18,6 +18,7 @@
 #include "Representations/Modeling/TeammatesBallModel.h"
 #include "Representations/MotionControl/HeadMotionInfo.h"
 #include "Representations/MotionControl/HeadMotionRequest.h"
+#include "Debugging/Plot.h"
 #include <cmath>
 
 SKILL_IMPLEMENTATION(HeadControlImpl,
@@ -54,6 +55,14 @@ SKILL_IMPLEMENTATION(HeadControlImpl,
     (int)(500) ballTrackingSmoothingResetTime, /**< Reset the filter after longer interruptions to avoid stale targets. */
     (float)(0.18f) ballTrackingLookaheadTime, /**< Short lead time in seconds to reduce lag on moving balls. */
     (float)(250.f) maxBallTrackingLeadDistance, /**< Clamp on the lead distance in mm to avoid overshooting noisy velocities. */
+    (int)(3000) lostBallReacquisitionDuration,
+    (int)(1200) lostBallFocusedDuration,
+    (int)(300) lostBallSweepStepDuration,
+    (Angle)(15_deg) lostBallSweepSmallOffset,
+    (Angle)(30_deg) lostBallSweepLargeOffset,
+    (float)(1500.f) lostBallFarDistance,
+    (Angle)(5_deg) lostBallSearchTilt,
+    (Angle)(90_deg) lostBallReacquisitionSpeed,
   }),
 });
 
@@ -81,10 +90,17 @@ class HeadControlImpl : public HeadControlImplBase
       const Vector2f ballVelocity = useOwnEstimate ?
                                     theBallModel.estimate.velocity :
                                     theTeammatesBallModel.velocity.rotated(-theRobotPose.rotation);
-      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, predictBallTarget(ballPosition, ballVelocity));
+      const Vector3f ballTarget = predictBallTarget(ballPosition, ballVelocity);
+      rememberBallTarget(ballTarget, useOwnEstimate);
+      PLOT("module:HeadControl:lostBallReacquisitionStage", 0);
+      PLOT("module:HeadControl:lostBallReacquisitionPan", lastLookAtBallPan.toDegrees());
+      setSmoothedBallTargetRequest(HeadMotionRequest::autoCamera, ballTarget);
     }
+    else if(tryLostBallReacquisition(p.mirrored))
+      return;
     else
     {
+      PLOT("module:HeadControl:lostBallReacquisitionStage", 0);
       const HeadTarget target = theLibLookActive.calculateHeadTarget(false, false, false, false);
       setPanTiltRequest(target.cameraControlMode, target.pan, target.tilt, target.speed, target.stopAndGoMode);
     }
@@ -241,6 +257,58 @@ class HeadControlImpl : public HeadControlImplBase
     return Vector3f(predictedPosition.x(), predictedPosition.y(), theBallSpecification.radius);
   }
 
+  void rememberBallTarget(const Vector3f& target, const bool fromOwnEstimate)
+  {
+    lastLookAtBallTarget = target;
+    lastLookAtBallTargetUpdate = theFrameInfo.time;
+    lastLookAtBallPan = std::atan2(target.y(), target.x());
+    lastLookAtBallTargetFromOwnEstimate = fromOwnEstimate;
+    hasLastLookAtBallTarget = true;
+  }
+
+  bool tryLostBallReacquisition(const bool mirrored)
+  {
+    if(!hasLastLookAtBallTarget)
+      return false;
+
+    const unsigned memoryAge = static_cast<unsigned>(theFrameInfo.getTimeSince(lastLookAtBallTargetUpdate));
+    const unsigned maxMemoryAge = lostBallReacquisitionDuration > 0 ? static_cast<unsigned>(lostBallReacquisitionDuration) : 0u;
+    if(memoryAge > maxMemoryAge || lastLookAtBallTarget.head<2>().norm() < lostBallFarDistance)
+      return false;
+
+    if(memoryAge <= static_cast<unsigned>(std::max(lostBallFocusedDuration, 0)))
+    {
+      Vector3f target = lastLookAtBallTarget;
+      if(lastLookAtBallTargetFromOwnEstimate)
+      {
+        const Vector2f ballPosition = mirrored ?
+                                      (theRobotPose.inverse() * (theRobotPose * theBallModel.estimate.position).rotated(pi)) :
+                                      theBallModel.estimate.position;
+        target = predictBallTarget(ballPosition, theBallModel.estimate.velocity);
+      }
+      const Angle pan = std::atan2(target.y(), target.x());
+      PLOT("module:HeadControl:lostBallReacquisitionStage", 1);
+      PLOT("module:HeadControl:lostBallReacquisitionPan", pan.toDegrees());
+      setTargetOnGroundRequest(HeadMotionRequest::upperCamera, target, lostBallReacquisitionSpeed);
+      return true;
+    }
+
+    const Angle pan = Angle::normalize(lastLookAtBallPan + lostBallSweepOffset(memoryAge));
+    PLOT("module:HeadControl:lostBallReacquisitionStage", 2);
+    PLOT("module:HeadControl:lostBallReacquisitionPan", pan.toDegrees());
+    setPanTiltRequest(HeadMotionRequest::upperCamera, pan, lostBallSearchTilt, lostBallReacquisitionSpeed);
+    return true;
+  }
+
+  Angle lostBallSweepOffset(const unsigned memoryAge) const
+  {
+    const Angle offsets[] = {0_deg, lostBallSweepSmallOffset, -lostBallSweepSmallOffset, lostBallSweepLargeOffset, -lostBallSweepLargeOffset};
+    const unsigned focusedDuration = static_cast<unsigned>(std::max(lostBallFocusedDuration, 0));
+    const unsigned stepDuration = static_cast<unsigned>(std::max(lostBallSweepStepDuration, 1));
+    const unsigned index = ((memoryAge - focusedDuration) / stepDuration) % (sizeof(offsets) / sizeof(offsets[0]));
+    return offsets[index];
+  }
+
   float lookLeftAndRightSign; /**< The side to which LookLeftAndRight currently turns the head. */
   bool lookAtBallFirst; /**< If true, then look at the ball first. */
   Angle nextTurnedAngle; /**< the last angle the head in LookAtBallTarget was turned */
@@ -251,6 +319,11 @@ class HeadControlImpl : public HeadControlImplBase
   Vector3f smoothedBallTarget = Vector3f::Zero();
   unsigned int lastBallTargetUpdate = 0;
   bool hasSmoothedBallTarget = false;
+  Vector3f lastLookAtBallTarget = Vector3f::Zero();
+  unsigned int lastLookAtBallTargetUpdate = 0;
+  Angle lastLookAtBallPan = 0_deg;
+  bool lastLookAtBallTargetFromOwnEstimate = false;
+  bool hasLastLookAtBallTarget = false;
 };
 
 MAKE_SKILL_IMPLEMENTATION(HeadControlImpl);
