@@ -69,6 +69,18 @@ MODULE(YoloBallDetector,
     (float)(0.82f) kalmanMissedVelocityDecay,
     (float)(8.f)   kalmanProcessNoise,
     (float)(18.f)  kalmanMeasurementNoise,
+    (bool)(true)   enableFieldKalman,
+    (bool)(true)   publishFieldPredictions,
+    (int)(350)     fieldPredictionTimeoutMs,
+    (float)(0.25f) fieldKalmanInitConf,
+    (float)(0.12f) fieldKalmanActiveConf,
+    (float)(450.f) fieldKalmanGateBase,
+    (float)(0.18f) fieldKalmanGateDistanceScale,
+    (float)(3500.f) fieldKalmanMaxSpeed,
+    (float)(220.f) fieldKalmanProcessNoise,
+    (float)(120.f) fieldKalmanMeasurementNoiseNear,
+    (float)(700.f) fieldKalmanMeasurementNoiseFar,
+    (float)(0.86f) fieldKalmanMissedVelocityDecay,
   }),
 });
 
@@ -163,6 +175,59 @@ private:
     float measurementNoise = 18.f;
   };
 
+  struct FieldTrackState
+  {
+    bool active = false;
+    bool visible = false;
+    bool predictedOnly = false;
+    Vector2f position = Vector2f::Zero();
+    Matrix2f covariance = Matrix2f::Identity() * 10000.f;
+    float confidence = 0.f;
+    float predictedMs = 0.f;
+  };
+
+  class FieldBallKalman
+  {
+  public:
+    void configure(float initConf,
+                   float activeConf,
+                   float gateBase,
+                   float gateDistanceScale,
+                   float maxSpeed,
+                   float processNoise,
+                   float measurementNoiseNear,
+                   float measurementNoiseFar,
+                   float missedVelocityDecay,
+                   int predictionTimeoutMs);
+    void reset();
+    FieldTrackState update(bool hasMeasurement, const Vector2f& measurement, float confidence, float dt);
+
+  private:
+    void predict(float dt);
+    bool acceptsMeasurement(const Vector2f& measurement, float confidence) const;
+    void initialize(const Vector2f& measurement, float confidence);
+    void correct(const Vector2f& measurement, float confidence);
+    void clampVelocity();
+    FieldTrackState state(bool visible, bool predictedOnly) const;
+
+    Vector4f x = Vector4f::Zero();
+    Matrix4f p = Matrix4f::Identity() * 62500.f;
+    bool active = false;
+    float lastConfidence = 0.f;
+    float predictedMs = 0.f;
+
+    float initConf = 0.25f;
+    float activeConf = 0.12f;
+    float gateBase = 450.f;
+    float gateDistanceScale = 0.18f;
+    float maxSpeed = 3500.f;
+    float processNoise = 220.f;
+    float measurementNoiseNear = 120.f;
+    float measurementNoiseFar = 700.f;
+    float missedVelocityDecay = 0.86f;
+    int predictionTimeoutMs = 350;
+  };
+
   // Convert YUYV CameraImage → letterboxed float RGB CHW tensor
   static bool buildTensor(const unsigned char* yuyvData,
                           int camW, int camH,
@@ -207,7 +272,14 @@ private:
   std::thread       bgThread;
   std::atomic<bool> bgRunning{false};
   LightweightBallKalman kalman;
+  FieldBallKalman fieldKalman;
 
   int consecutiveSeen = 0;
   unsigned lastProcessedSequence = 0;
+  unsigned lastFieldMeasurementSequence = 0;
+  std::chrono::steady_clock::time_point lastFieldKalmanTime{};
+  bool hasFieldKalmanTime = false;
+  Vector2f lastFieldImagePosition = Vector2f::Zero();
+  float lastFieldImageRadius = 0.f;
+  bool hasLastFieldImagePosition = false;
 };
