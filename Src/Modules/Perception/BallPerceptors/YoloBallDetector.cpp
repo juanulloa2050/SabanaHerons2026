@@ -26,6 +26,10 @@ YoloBallDetector::YoloBallDetector()
                    kalmanInitGatePx, kalmanFarGatePx, kalmanNearGateScale, kalmanMaxMissed,
                    kalmanStrongPredictionMissed, kalmanMaxSpeedPx, kalmanMissedVelocityDecay,
                    kalmanProcessNoise, kalmanMeasurementNoise);
+  fieldKalman.configure(fieldKalmanInitConf, fieldKalmanActiveConf, fieldKalmanGateBase,
+                        fieldKalmanGateDistanceScale, fieldKalmanMaxSpeed, fieldKalmanProcessNoise,
+                        fieldKalmanMeasurementNoiseNear, fieldKalmanMeasurementNoiseFar,
+                        fieldKalmanMissedVelocityDecay, fieldPredictionTimeoutMs);
   loadModel();
   if(modelLoaded)
   {
@@ -81,6 +85,9 @@ void YoloBallDetector::update(BallPercept& bp)
   if(!enabled || !modelLoaded)
   {
     consecutiveSeen = 0;
+    fieldKalman.reset();
+    hasFieldKalmanTime = false;
+    hasLastFieldImagePosition = false;
     return;
   }
 
@@ -111,10 +118,36 @@ void YoloBallDetector::update(BallPercept& bp)
   }
 
   const auto now   = std::chrono::steady_clock::now();
+  float fieldDt = 0.001f;
+  if(hasFieldKalmanTime)
+  {
+    fieldDt = std::chrono::duration<float>(now - lastFieldKalmanTime).count();
+    fieldDt = std::max(0.001f, std::min(0.5f, fieldDt));
+  }
+  lastFieldKalmanTime = now;
+  hasFieldKalmanTime = true;
+
+  auto publishFieldPrediction = [&](const FieldTrackState& state) -> bool
+  {
+    if(!enableFieldKalman || !publishFieldPredictions || !state.active || !state.predictedOnly ||
+       !hasLastFieldImagePosition || state.predictedMs > static_cast<float>(fieldPredictionTimeoutMs))
+      return false;
+
+    bp.status            = BallPercept::guessed;
+    bp.positionInImage   = lastFieldImagePosition;
+    bp.radiusInImage     = lastFieldImageRadius;
+    bp.positionOnField   = state.position;
+    bp.radiusOnField     = theBallSpecification.radius;
+    bp.covarianceOnField = state.covariance;
+    return true;
+  };
+
   const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detectionTime).count();
   if(!det.valid || ageMs > timeoutMs)
   {
     consecutiveSeen = 0;
+    if(enableFieldKalman)
+      publishFieldPrediction(fieldKalman.update(false, Vector2f::Zero(), 0.f, fieldDt));
     return;
   }
 
@@ -141,9 +174,16 @@ void YoloBallDetector::update(BallPercept& bp)
     geomOk   = dist > 0.f && std::isfinite(fieldPos.x()) && std::isfinite(fieldPos.y());
   }
 
-  if(!geomOk) { consecutiveSeen = 0; return; }
+  if(!geomOk)
+  {
+    consecutiveSeen = 0;
+    if(enableFieldKalman)
+      publishFieldPrediction(fieldKalman.update(false, Vector2f::Zero(), det.conf, fieldDt));
+    return;
+  }
 
-  if(det.sequence != lastProcessedSequence)
+  const bool newDetectionSequence = det.sequence != lastProcessedSequence;
+  if(newDetectionSequence)
   {
     lastProcessedSequence = det.sequence;
     ++consecutiveSeen;
@@ -151,7 +191,42 @@ void YoloBallDetector::update(BallPercept& bp)
 
   const int minConsec = (det.cameraInfo.camera == CameraInfo::upper)
                         ? upperMinConsecutive : lowerMinConsecutive;
-  if(consecutiveSeen < minConsec) return;
+  if(consecutiveSeen < minConsec)
+  {
+    if(enableFieldKalman)
+      publishFieldPrediction(fieldKalman.update(false, Vector2f::Zero(), det.conf, fieldDt));
+    return;
+  }
+
+  if(enableFieldKalman)
+  {
+    const bool useNewMeasurement = newDetectionSequence && det.sequence != lastFieldMeasurementSequence;
+    if(useNewMeasurement)
+    {
+      lastFieldMeasurementSequence = det.sequence;
+      lastFieldImagePosition = imgPos;
+      lastFieldImageRadius = std::max(det.radius, 1.f);
+      hasLastFieldImagePosition = true;
+    }
+
+    const FieldTrackState state = fieldKalman.update(useNewMeasurement, fieldPos, det.conf, fieldDt);
+    if(state.active && (state.visible || publishFieldPredictions))
+    {
+      const bool acceptedCurrentMeasurement = state.visible;
+      const bool detectorStillFresh = !useNewMeasurement && ageMs <= timeoutMs;
+      if(acceptedCurrentMeasurement || detectorStillFresh || publishFieldPrediction(state))
+      {
+        bp.status            = (acceptedCurrentMeasurement || detectorStillFresh) ? BallPercept::seen : BallPercept::guessed;
+        bp.positionInImage   = hasLastFieldImagePosition ? lastFieldImagePosition : imgPos;
+        bp.radiusInImage     = hasLastFieldImagePosition ? lastFieldImageRadius : std::max(det.radius, 1.f);
+        bp.positionOnField   = state.position;
+        bp.radiusOnField     = theBallSpecification.radius;
+        bp.covarianceOnField = state.covariance;
+      }
+      return;
+    }
+    return;
+  }
 
   bp.status            = BallPercept::seen;
   bp.positionInImage   = imgPos;
@@ -178,6 +253,8 @@ void YoloBallDetector::inferenceLoop()
   CameraMatrix               localCameraMatrix;
   unsigned                   localSequence = 0;
   std::vector<float>         tensor;
+  auto                       lastKalmanUpdateTime = std::chrono::steady_clock::now();
+  bool                       hasKalmanUpdateTime = false;
 
   while(bgRunning)
   {
@@ -260,7 +337,19 @@ void YoloBallDetector::inferenceLoop()
       result.cameraMatrix = localCameraMatrix;
       if(enableKalman)
       {
-        const TrackState state = kalman.update(detections);
+        const auto kalmanUpdateTime = std::chrono::steady_clock::now();
+        float dt = 1.f;
+        if(hasKalmanUpdateTime && inferenceIntervalMs > 0)
+        {
+          const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+              kalmanUpdateTime - lastKalmanUpdateTime).count();
+          dt = std::max(0.1f, std::min(5.f, static_cast<float>(elapsedMs) /
+                                            static_cast<float>(inferenceIntervalMs)));
+        }
+        lastKalmanUpdateTime = kalmanUpdateTime;
+        hasKalmanUpdateTime = true;
+
+        const TrackState state = kalman.update(detections, dt);
         if(state.active && (state.visible || (publishPredictedPercepts && state.predictedOnly)))
         {
           result.cx = state.x;
@@ -611,5 +700,192 @@ YoloBallDetector::TrackState YoloBallDetector::LightweightBallKalman::state(bool
   trackedState.confidence = lastConfidence;
   trackedState.age = age;
   trackedState.missed = missed;
+  return trackedState;
+}
+
+void YoloBallDetector::FieldBallKalman::configure(float initConf_,
+                                                  float activeConf_,
+                                                  float gateBase_,
+                                                  float gateDistanceScale_,
+                                                  float maxSpeed_,
+                                                  float processNoise_,
+                                                  float measurementNoiseNear_,
+                                                  float measurementNoiseFar_,
+                                                  float missedVelocityDecay_,
+                                                  int predictionTimeoutMs_)
+{
+  initConf = initConf_;
+  activeConf = activeConf_;
+  gateBase = gateBase_;
+  gateDistanceScale = gateDistanceScale_;
+  maxSpeed = maxSpeed_;
+  processNoise = processNoise_;
+  measurementNoiseNear = measurementNoiseNear_;
+  measurementNoiseFar = measurementNoiseFar_;
+  missedVelocityDecay = missedVelocityDecay_;
+  predictionTimeoutMs = predictionTimeoutMs_;
+  reset();
+}
+
+void YoloBallDetector::FieldBallKalman::reset()
+{
+  x.setZero();
+  p = Matrix4f::Identity() * 62500.f;
+  active = false;
+  lastConfidence = 0.f;
+  predictedMs = 0.f;
+}
+
+YoloBallDetector::FieldTrackState YoloBallDetector::FieldBallKalman::update(bool hasMeasurement,
+                                                                            const Vector2f& measurement,
+                                                                            float confidence,
+                                                                            float dt)
+{
+  dt = std::max(0.001f, std::min(0.5f, dt));
+  predict(dt);
+
+  auto missedState = [&]() -> FieldTrackState
+  {
+    if(!active)
+      return state(false, false);
+
+    predictedMs += dt * 1000.f;
+    const float decay = std::pow(missedVelocityDecay, std::max(0.1f, dt / 0.2f));
+    x[2] *= decay;
+    x[3] *= decay;
+
+    if(predictedMs > static_cast<float>(std::max(predictionTimeoutMs * 2, predictionTimeoutMs + 300)))
+    {
+      reset();
+      return state(false, false);
+    }
+    return state(false, true);
+  };
+
+  if(!hasMeasurement)
+    return missedState();
+
+  if(!active)
+  {
+    if(confidence < initConf)
+      return state(false, false);
+    initialize(measurement, confidence);
+    return state(true, false);
+  }
+
+  if(!acceptsMeasurement(measurement, confidence))
+  {
+    if(confidence >= std::max(0.55f, initConf + 0.2f))
+    {
+      initialize(measurement, confidence);
+      return state(true, false);
+    }
+    return missedState();
+  }
+
+  correct(measurement, confidence);
+  predictedMs = 0.f;
+  lastConfidence = confidence;
+  return state(true, false);
+}
+
+void YoloBallDetector::FieldBallKalman::predict(float dt)
+{
+  if(!active)
+    return;
+
+  clampVelocity();
+  Matrix4f f = Matrix4f::Identity();
+  f(0, 2) = dt;
+  f(1, 3) = dt;
+
+  Matrix4f q = Matrix4f::Zero();
+  const float positionNoise = processNoise * dt;
+  const float velocityNoise = processNoise;
+  q(0, 0) = positionNoise * positionNoise;
+  q(1, 1) = positionNoise * positionNoise;
+  q(2, 2) = velocityNoise * velocityNoise * dt;
+  q(3, 3) = velocityNoise * velocityNoise * dt;
+
+  x = f * x;
+  p = f * p * f.transpose() + q;
+  clampVelocity();
+}
+
+bool YoloBallDetector::FieldBallKalman::acceptsMeasurement(const Vector2f& measurement, float confidence) const
+{
+  if(confidence < activeConf)
+    return false;
+
+  const Vector2f predicted(x[0], x[1]);
+  const float innovation = (measurement - predicted).norm();
+  const float distance = std::max(measurement.norm(), predicted.norm());
+  const float speed = std::hypot(x[2], x[3]);
+  const float gate = gateBase + gateDistanceScale * distance + 0.15f * speed + 1.5f * predictedMs;
+
+  if(innovation <= gate)
+    return true;
+
+  return confidence >= 0.65f && innovation <= gate * 2.5f;
+}
+
+void YoloBallDetector::FieldBallKalman::initialize(const Vector2f& measurement, float confidence)
+{
+  x << measurement.x(), measurement.y(), 0.f, 0.f;
+  const float confidence01 = std::max(0.f, std::min(1.f, confidence));
+  const float noise = measurementNoiseFar + (measurementNoiseNear - measurementNoiseFar) * confidence01;
+  p = Matrix4f::Zero();
+  p(0, 0) = noise * noise;
+  p(1, 1) = noise * noise;
+  p(2, 2) = maxSpeed * maxSpeed * 0.25f;
+  p(3, 3) = maxSpeed * maxSpeed * 0.25f;
+  active = true;
+  lastConfidence = confidence;
+  predictedMs = 0.f;
+}
+
+void YoloBallDetector::FieldBallKalman::correct(const Vector2f& measurement, float confidence)
+{
+  const float confidence01 = std::max(0.f, std::min(1.f, confidence));
+  const float noise = measurementNoiseFar + (measurementNoiseNear - measurementNoiseFar) * confidence01;
+
+  Eigen::Matrix<float, 2, 1> z;
+  z << measurement.x(), measurement.y();
+
+  Eigen::Matrix<float, 2, 4> h = Eigen::Matrix<float, 2, 4>::Zero();
+  h(0, 0) = 1.f;
+  h(1, 1) = 1.f;
+
+  Matrix2f r = Matrix2f::Identity() * noise * noise;
+  const Matrix2f s = h * p * h.transpose() + r;
+  const Eigen::Matrix<float, 4, 2> k = p * h.transpose() * s.inverse();
+  const Eigen::Matrix<float, 2, 1> innovation = z - h * x;
+
+  x = x + k * innovation;
+  p = (Matrix4f::Identity() - k * h) * p;
+  clampVelocity();
+}
+
+void YoloBallDetector::FieldBallKalman::clampVelocity()
+{
+  const float speed = std::hypot(x[2], x[3]);
+  if(speed <= maxSpeed)
+    return;
+
+  const float scale = maxSpeed / std::max(speed, 1e-6f);
+  x[2] *= scale;
+  x[3] *= scale;
+}
+
+YoloBallDetector::FieldTrackState YoloBallDetector::FieldBallKalman::state(bool visible, bool predictedOnly) const
+{
+  FieldTrackState trackedState;
+  trackedState.active = active;
+  trackedState.visible = active && visible;
+  trackedState.predictedOnly = active && predictedOnly;
+  trackedState.position = Vector2f(x[0], x[1]);
+  trackedState.covariance = p.block<2, 2>(0, 0);
+  trackedState.confidence = lastConfidence;
+  trackedState.predictedMs = predictedMs;
   return trackedState;
 }
