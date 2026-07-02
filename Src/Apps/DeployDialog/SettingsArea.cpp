@@ -153,12 +153,6 @@ void ensureRLModesInitialized(Presets::Preset* preset)
   {
     for(std::string& mode : preset->rlModes)
       mode = normalizeRLMode(mode);
-    const bool mergedConfigured =
-      !readStrategyBehaviorControlValue(preset->scenario, "embeddedPPOMergedTeamModelPath").remove('"').trimmed().isEmpty();
-    if(mergedConfigured)
-      for(size_t i = 1; i < preset->players.size(); ++i)
-        if(preset->players[i] != "_")
-          preset->rlModes[i] = "complete";
     return;
   }
 

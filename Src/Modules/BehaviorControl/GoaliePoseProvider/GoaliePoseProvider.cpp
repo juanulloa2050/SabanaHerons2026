@@ -10,8 +10,6 @@
 #include "Tools/Modeling/BallPhysics.h"
 #include "Debugging/DebugDrawings.h"
 
-#include <algorithm>
-
 MAKE_MODULE(GoaliePoseProvider);
 
 void GoaliePoseProvider::update(GoaliePose& goaliePose)
@@ -23,8 +21,6 @@ void GoaliePoseProvider::update(GoaliePose& goaliePose)
   ASSERT(goaliePose.goaliePoseField.isFinite());
   if(goaliePose.goaliePoseField.translation.x() < minXValue)
     goaliePose.goaliePoseField.translation.x() = minXValue;
-  const float maxAbsY = std::max(0.f, theFieldDimensions.yPosLeftGoal - postSafetyMargin);
-  goaliePose.goaliePoseField.translation.y() = std::clamp(goaliePose.goaliePoseField.translation.y(), -maxAbsY, maxAbsY);
   ASSERT(goaliePose.goaliePoseField.isFinite());
 
   goaliePose.goaliePoseRel = theRobotPose.inverse() * goaliePose.goaliePoseField;
