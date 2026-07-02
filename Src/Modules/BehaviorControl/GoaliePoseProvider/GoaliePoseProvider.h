@@ -22,8 +22,7 @@ MODULE(GoaliePoseProvider,
   DEFINES_PARAMETERS(
   {,
     (float)(-150.f) goalieLine,             /**< The offset to the front goal area line that is the maximum x coordinate on which the Keeper will stand to guard the goal */
-    (float)(650.f) distanceToGroundLineForMinimumXValue, /**< Minimum distance from the own ground line to avoid walking close to goal posts. */
-    (float)(300.f) postSafetyMargin,       /**< Minimum lateral clearance to the goal posts for dynamic goalie targets. */
+    (float)(400.f) distanceToGroundLineForMinimumXValue,
     (Angle)(65_deg) jumpAngleThresholdMin,  /**< Minimum angle relative to goal post at which keeper won't jump to avoid jumping into the post */
     (Angle)(100_deg) jumpAngleThresholdMax, /**< Maximum angle relative to goal post at which keeper won't jump to avoid jumping into the post */
     (Angle)(120_deg) positionAngle,
