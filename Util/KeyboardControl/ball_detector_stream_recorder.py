@@ -14,6 +14,7 @@ import struct
 import subprocess
 import threading
 import time
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -197,7 +198,8 @@ class BallDetectorStreamRecorder:
         self.recording = False
         self.robot_id: Optional[str] = None
         self.robot_ip: Optional[str] = None
-        self.output_dir = output_dir or _desktop_recordings_dir()
+        env_output_dir = os.environ.get("NAO_WATCHER_SAVE_DIR")
+        self.output_dir = output_dir or (Path(env_output_dir).expanduser() if env_output_dir else _desktop_recordings_dir())
         self.record_fps = record_fps
         self._lock = threading.Lock()
         self._stop_event = threading.Event()

@@ -220,6 +220,7 @@ la llave `Install/Keys/id_rsa_nao`.
 
 ```bash
 # Crear el venv local de WebControl/Watcher
+# Hacer este paso con conexion a internet; luego volver a la red 192.168.49.x.
 Util/KeyboardControl/setup_nao_watcher_env.sh
 
 # Ejecutar con los defaults equivalentes al watcher de BallDetectorTL
@@ -243,6 +244,13 @@ Overrides compartibles:
 cp Util/KeyboardControl/watcher.env.example Util/KeyboardControl/watcher.env
 $EDITOR Util/KeyboardControl/watcher.env
 Util/KeyboardControl/watch_nao.sh
+```
+
+`NAO_WATCHER_SAVE_DIR` define la carpeta local de este computador donde se guardan
+videos y frames recolectados. Por ejemplo:
+
+```bash
+NAO_WATCHER_SAVE_DIR=$HOME/Desktop/sabanaherons_recordings
 ```
 
 Tambien se pueden pasar flags al final del launcher:
