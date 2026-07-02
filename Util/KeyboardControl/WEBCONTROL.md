@@ -119,7 +119,7 @@ python3 web_control.py
 # → Servidor en http://<ip_laptop>:8080
 ```
 
-El script detecta automáticamente la IP local en la red `10.0.49.x` e imprime la URL.
+El script detecta automáticamente la IP local en la red `192.168.49.x` e imprime la URL.
 
 ### Endpoints
 
@@ -170,8 +170,8 @@ Los comandos continuos se re-envían cada 50 ms vía `resend_loop` (tarea asynci
 
 ```python
 ROBOTS = [
-    {"id": "ronaoldinho", "name": "ronaoldinho", "ip": "10.0.49.2"},
-    # ... hasta 10.0.49.10
+    {"id": "ronaoldinho", "name": "ronaoldinho", "ip": "192.168.49.2"},
+    # ... hasta 192.168.49.10
 ]
 ```
 
@@ -202,11 +202,11 @@ Todos los botones usan `pointerdown`/`pointerup` (compatible con touch y mouse).
 # Requisitos
 pip install fastapi "uvicorn[standard]"
 
-# Asegurarse de estar en la red del robot (10.0.49.x)
+# Asegurarse de estar en la red del robot (192.168.49.x)
 python3 Util/KeyboardControl/web_control.py
 
 # O para control por teclado (una sola IP)
-python3 Util/KeyboardControl/keyboard_control.py 10.0.49.2
+python3 Util/KeyboardControl/keyboard_control.py 192.168.49.2
 ```
 
 ---
@@ -248,7 +248,7 @@ Util/KeyboardControl/watch_nao.sh
 Tambien se pueden pasar flags al final del launcher:
 
 ```bash
-Util/KeyboardControl/watch_nao.sh --ip 10.0.49.5 --camera lower --no-monitor
+Util/KeyboardControl/watch_nao.sh --ip 192.168.49.5 --camera lower --no-monitor
 ```
 
 Controles del watcher:
