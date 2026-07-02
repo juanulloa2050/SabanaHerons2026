@@ -48,5 +48,18 @@ const SetupPoses::SetupPose& SetupPoses::getPoseOfRobot(int number) const
   for(const auto& pose : poses)
     if(pose.playerNumber == number)
       return pose;
-  return poses.back(); // Default: Return last element of list
+  int usablePoses = 0;
+  for(const auto& pose : poses)
+    if(pose.playerNumber != 99)
+      ++usablePoses;
+  const int fallbackIndex = usablePoses > 0 && number > 0 ? (number - 1) % usablePoses : 0;
+  int currentIndex = 0;
+  for(const auto& pose : poses)
+    if(pose.playerNumber != 99)
+    {
+      if(currentIndex == fallbackIndex)
+        return pose;
+      ++currentIndex;
+    }
+  return poses.back(); // Fallback for malformed configs containing only spare poses.
 }
