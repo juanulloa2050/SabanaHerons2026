@@ -211,6 +211,59 @@ python3 Util/KeyboardControl/keyboard_control.py 10.0.49.2
 
 ---
 
+## Watcher de camaras CAMF
+
+`15_watch_nao.py` abre las camaras CAMF del Nao con overlay de BallPerceptor,
+BallSpots, monitor de CPU/RAM por SSH y recoleccion manual de frames para
+dataset. Por defecto usa el robot `192.168.49.2`, camara `dual`, escala `1` y
+la llave `Install/Keys/id_rsa_nao`.
+
+```bash
+# Crear el venv local de WebControl/Watcher
+Util/KeyboardControl/setup_nao_watcher_env.sh
+
+# Ejecutar con los defaults equivalentes al watcher de BallDetectorTL
+Util/KeyboardControl/watch_nao.sh
+```
+
+Comando equivalente:
+
+```bash
+Util/KeyboardControl/.venv/bin/python3 \
+  Util/KeyboardControl/15_watch_nao.py \
+  --ip 192.168.49.2 \
+  --camera dual \
+  --scale 1 \
+  --key Install/Keys/id_rsa_nao
+```
+
+Overrides compartibles:
+
+```bash
+cp Util/KeyboardControl/watcher.env.example Util/KeyboardControl/watcher.env
+$EDITOR Util/KeyboardControl/watcher.env
+Util/KeyboardControl/watch_nao.sh
+```
+
+Tambien se pueden pasar flags al final del launcher:
+
+```bash
+Util/KeyboardControl/watch_nao.sh --ip 10.0.49.5 --camera lower --no-monitor
+```
+
+Controles del watcher:
+
+| Tecla | Accion |
+|------|--------|
+| `q` / `ESC` | salir |
+| `s` | screenshot |
+| `b` | mostrar/ocultar BallSpots |
+| `t` | guardar frame como positivo `trionda` |
+| `n` | guardar frame como negativo |
+| `r` / `f` | subir/bajar radio del bbox |
+
+---
+
 ## Limitaciones conocidas
 
 - No hay autenticación. Cualquier dispositivo en la red puede controlar el robot.

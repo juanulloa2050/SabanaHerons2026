@@ -40,6 +40,7 @@ Thumbs.db
 /Util/Buildchain/macOS/include
 /Util/Buildchain/macOS/lib
 /Util/WSL
+/Util/KeyboardControl/watcher.env
 
 # ── Python extension modules (pybh) ─────────────────────────────────────────
 # The release .so binaries ARE tracked (committed after a stripped release
