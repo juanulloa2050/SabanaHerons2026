@@ -26,7 +26,7 @@ usage()
   echo "  examples:"
   echo "    ./deploy Develop 192.168.5.14 -p 1"
   echo "    ./deploy Release -r 1 10.0.5.14 -r 3 10.0.0.2"
-  echo "    ./deploy Release -i -nc -v 50 -w SPL_A"
+  echo "    ./deploy Release -i -nc -v 50 -w HSL_A"
   exit 1
 }
 
