@@ -75,7 +75,7 @@ private:
   // skill request for ballSearch bevaior
   SkillRequest skillRequest;
   Agents agents;
-  const float groundLineXOffset = 50.f;
+  const float groundLineXOffset = 400.f;
   const float minRadius = 20.f;
   float initialRadius;
   const Agent* agent;
