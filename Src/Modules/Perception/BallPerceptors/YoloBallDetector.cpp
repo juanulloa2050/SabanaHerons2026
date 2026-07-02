@@ -221,8 +221,34 @@ void YoloBallDetector::inferenceLoop()
       if(shape.size() < 3) continue;
 
       const int64_t N          = shape[2];
-      const float   confThresh = (localCameraInfo.camera == CameraInfo::upper) ? upperConf : lowerConf;
-      const float   minTrackedConf = std::min(confThresh, std::min(kalmanInitConf, kalmanActiveConf));
+      const bool    upperCamera = localCameraInfo.camera == CameraInfo::upper;
+      const float   confThresh = upperCamera ? upperConf : lowerConf;
+
+      if(enableByteTrack)
+      {
+        const int cameraKey = upperCamera ? 1 : 0;
+        if(byteTrackerConfiguredCamera != cameraKey)
+        {
+          byteTracker.configure(upperCamera ? byteTrackUpperHighConf : byteTrackLowerHighConf,
+                                byteTrackLowConf,
+                                upperCamera ? byteTrackUpperNewTrackConf : byteTrackLowerNewTrackConf,
+                                byteTrackMatchIouThresh,
+                                upperCamera ? byteTrackUpperMatchDistPx : byteTrackLowerMatchDistPx,
+                                upperCamera ? byteTrackUpperMatchSizeScale : byteTrackLowerMatchSizeScale,
+                                byteTrackMinAffinity,
+                                upperCamera ? byteTrackUpperBufferFrames : byteTrackLowerBufferFrames,
+                                upperCamera ? byteTrackUpperMinHits : byteTrackLowerMinHits,
+                                byteTrackVelocityDecayWhenLost,
+                                upperCamera ? byteTrackUpperMaxSpeedPx : byteTrackLowerMaxSpeedPx);
+          byteTrackerConfiguredCamera = cameraKey;
+        }
+      }
+
+      float minTrackedConf = confThresh;
+      if(enableByteTrack)
+        minTrackedConf = std::min(confThresh, byteTrackLowConf);
+      else if(enableKalman)
+        minTrackedConf = std::min(confThresh, std::min(kalmanInitConf, kalmanActiveConf));
 
       // Letterbox scale using actual camera dims (same as buildTensor)
       const float lbScale = std::min(static_cast<float>(modelW) / localW,
@@ -258,7 +284,19 @@ void YoloBallDetector::inferenceLoop()
       result.sequence     = localSequence;
       result.cameraInfo   = localCameraInfo;
       result.cameraMatrix = localCameraMatrix;
-      if(enableKalman)
+      if(enableByteTrack)
+      {
+        const TrackState state = byteTracker.update(detections);
+        if(state.active && state.visible)
+        {
+          result.cx = state.x;
+          result.cy = state.y;
+          result.radius = (state.w + state.h) * 0.25f;
+          result.conf = state.confidence;
+          result.valid = true;
+        }
+      }
+      else if(enableKalman)
       {
         const TrackState state = kalman.update(detections);
         if(state.active && (state.visible || (publishPredictedPercepts && state.predictedOnly)))
@@ -347,6 +385,378 @@ bool YoloBallDetector::buildTensor(const unsigned char* yuyvData,
     }
   }
   return true;
+}
+
+void YoloBallDetector::YoloByteTracker::configure(float highThresh_,
+                                                  float lowThresh_,
+                                                  float newTrackThresh_,
+                                                  float matchIouThresh_,
+                                                  float matchDistPx_,
+                                                  float matchSizeScale_,
+                                                  float minAffinity_,
+                                                  int bufferFrames_,
+                                                  int minHits_,
+                                                  float velocityDecayWhenLost_,
+                                                  float maxSpeedPx_)
+{
+  highThresh = highThresh_;
+  lowThresh = lowThresh_;
+  newTrackThresh = newTrackThresh_;
+  matchIouThresh = matchIouThresh_;
+  matchDistPx = matchDistPx_;
+  matchSizeScale = matchSizeScale_;
+  minAffinity = minAffinity_;
+  bufferFrames = std::max(0, bufferFrames_);
+  minHits = std::max(1, minHits_);
+  velocityDecayWhenLost = velocityDecayWhenLost_;
+  maxSpeedPx = maxSpeedPx_;
+  reset();
+}
+
+void YoloBallDetector::YoloByteTracker::reset()
+{
+  tracks.clear();
+  nextId = 1;
+  lockedId = 0;
+  pendingId = 0;
+  pendingHits = 0;
+  switchId = 0;
+  switchHits = 0;
+}
+
+YoloBallDetector::TrackState YoloBallDetector::YoloByteTracker::update(const std::vector<DetectionCandidate>& inputDetections)
+{
+  std::vector<DetectionCandidate> detections;
+  detections.reserve(inputDetections.size());
+  for(const DetectionCandidate& detection : inputDetections)
+    if(detection.confidence >= lowThresh)
+      detections.push_back(detection);
+
+  std::sort(detections.begin(), detections.end(),
+            [](const DetectionCandidate& a, const DetectionCandidate& b)
+            {
+              return a.confidence > b.confidence;
+            });
+
+  std::vector<DetectionCandidate> highDetections;
+  std::vector<DetectionCandidate> lowDetections;
+  highDetections.reserve(detections.size());
+  lowDetections.reserve(detections.size());
+  for(const DetectionCandidate& detection : detections)
+  {
+    if(detection.confidence >= highThresh)
+      highDetections.push_back(detection);
+    else
+      lowDetections.push_back(detection);
+  }
+
+  std::vector<bool> usedTracks(tracks.size(), false);
+  std::vector<bool> usedHigh(highDetections.size(), false);
+  matchDetections(highDetections, usedTracks, usedHigh);
+
+  std::vector<bool> usedLow(lowDetections.size(), false);
+  matchDetections(lowDetections, usedTracks, usedLow);
+
+  for(std::size_t i = 0; i < tracks.size(); ++i)
+    if(!usedTracks[i])
+      markLost(tracks[i]);
+
+  for(std::size_t i = 0; i < highDetections.size(); ++i)
+  {
+    if(usedHigh[i] || highDetections[i].confidence < newTrackThresh)
+      continue;
+
+    Track track;
+    track.id = nextId++;
+    track.x = highDetections[i].x;
+    track.y = highDetections[i].y;
+    track.w = highDetections[i].w;
+    track.h = highDetections[i].h;
+    track.confidence = highDetections[i].confidence;
+    tracks.push_back(track);
+  }
+
+  tracks.erase(std::remove_if(tracks.begin(), tracks.end(),
+                              [this](const Track& track)
+                              {
+                                return track.missed > bufferFrames;
+                              }),
+               tracks.end());
+
+  return selectPublishableTrack();
+}
+
+float YoloBallDetector::YoloByteTracker::iou(const Track& track, const DetectionCandidate& detection)
+{
+  const float trackW = std::max(track.w, 0.f);
+  const float trackH = std::max(track.h, 0.f);
+  const float predX = track.x + track.vx;
+  const float predY = track.y + track.vy;
+  const float ax1 = predX - trackW * 0.5f;
+  const float ay1 = predY - trackH * 0.5f;
+  const float ax2 = predX + trackW * 0.5f;
+  const float ay2 = predY + trackH * 0.5f;
+
+  const float detW = std::max(detection.w, 0.f);
+  const float detH = std::max(detection.h, 0.f);
+  const float bx1 = detection.x - detW * 0.5f;
+  const float by1 = detection.y - detH * 0.5f;
+  const float bx2 = detection.x + detW * 0.5f;
+  const float by2 = detection.y + detH * 0.5f;
+
+  const float ix1 = std::max(ax1, bx1);
+  const float iy1 = std::max(ay1, by1);
+  const float ix2 = std::min(ax2, bx2);
+  const float iy2 = std::min(ay2, by2);
+  const float iw = std::max(0.f, ix2 - ix1);
+  const float ih = std::max(0.f, iy2 - iy1);
+  const float inter = iw * ih;
+  const float areaA = std::max(0.f, ax2 - ax1) * std::max(0.f, ay2 - ay1);
+  const float areaB = std::max(0.f, bx2 - bx1) * std::max(0.f, by2 - by1);
+  return inter / std::max(areaA + areaB - inter, 1e-6f);
+}
+
+float YoloBallDetector::YoloByteTracker::sizeScore(float newSize, float oldSize)
+{
+  const float ratio = std::max(newSize, 1.f) / std::max(oldSize, 1.f);
+  return std::exp(-std::abs(std::log(std::max(ratio, 1e-6f))));
+}
+
+float YoloBallDetector::YoloByteTracker::motionScore(const Track& track, const DetectionCandidate& detection)
+{
+  const float speed = std::hypot(track.vx, track.vy);
+  if(speed < 1e-3f)
+    return 0.5f;
+
+  const float dx = detection.x - track.x;
+  const float dy = detection.y - track.y;
+  const float norm = std::hypot(dx, dy);
+  if(norm < 1e-3f)
+    return 0.5f;
+
+  const float dot = (dx * track.vx + dy * track.vy) / std::max(norm * speed, 1e-6f);
+  return std::min(std::max(0.5f + 0.5f * dot, 0.f), 1.f);
+}
+
+float YoloBallDetector::YoloByteTracker::gate(const Track& track, const DetectionCandidate& detection) const
+{
+  const float trackSize = std::max({track.w, track.h, 1.f});
+  const float detectionSize = std::max({detection.w, detection.h, 1.f});
+  const float sizeGate = std::max(trackSize, detectionSize) * matchSizeScale;
+  const float missedBonus = 1.f + 0.10f * static_cast<float>(std::min(track.missed, 5));
+  return std::max(matchDistPx, sizeGate) * missedBonus;
+}
+
+float YoloBallDetector::YoloByteTracker::affinity(const Track& track, const DetectionCandidate& detection) const
+{
+  const float boxIou = iou(track, detection);
+  const float predictedX = track.x + track.vx;
+  const float predictedY = track.y + track.vy;
+  const float distance = std::hypot(detection.x - predictedX, detection.y - predictedY);
+  const float maxDistance = std::max(gate(track, detection), 1.f);
+  const float distanceScore = 1.f - std::min(distance / maxDistance, 1.f);
+  const float detectionSize = std::max({detection.w, detection.h, 1.f});
+  const float trackSize = std::max({track.w, track.h, 1.f});
+
+  return 0.22f * boxIou
+       + 0.42f * distanceScore
+       + 0.20f * sizeScore(detectionSize, trackSize)
+       + 0.08f * motionScore(track, detection)
+       + 0.08f * detection.confidence;
+}
+
+void YoloBallDetector::YoloByteTracker::matchDetections(const std::vector<DetectionCandidate>& detections,
+                                                        std::vector<bool>& usedTracks,
+                                                        std::vector<bool>& usedDetections)
+{
+  std::vector<Match> matches;
+  for(std::size_t ti = 0; ti < tracks.size(); ++ti)
+  {
+    if(ti >= usedTracks.size() || usedTracks[ti])
+      continue;
+
+    for(std::size_t di = 0; di < detections.size(); ++di)
+    {
+      if(di >= usedDetections.size() || usedDetections[di])
+        continue;
+
+      const float matchAffinity = affinity(tracks[ti], detections[di]);
+      const float boxIou = iou(tracks[ti], detections[di]);
+      const float predictedX = tracks[ti].x + tracks[ti].vx;
+      const float predictedY = tracks[ti].y + tracks[ti].vy;
+      const float distance = std::hypot(detections[di].x - predictedX, detections[di].y - predictedY);
+      const float matchGate = gate(tracks[ti], detections[di]);
+      const bool valid = (matchAffinity >= minAffinity && distance <= matchGate)
+                         || (boxIou >= matchIouThresh && distance <= matchGate * 1.25f);
+      if(valid)
+        matches.push_back(Match{matchAffinity, static_cast<int>(ti), static_cast<int>(di)});
+    }
+  }
+
+  std::sort(matches.begin(), matches.end(),
+            [](const Match& a, const Match& b)
+            {
+              return a.affinity > b.affinity;
+            });
+
+  for(const Match& match : matches)
+  {
+    if(match.trackIndex < 0 || match.detectionIndex < 0)
+      continue;
+    const std::size_t ti = static_cast<std::size_t>(match.trackIndex);
+    const std::size_t di = static_cast<std::size_t>(match.detectionIndex);
+    if(ti >= usedTracks.size() || di >= usedDetections.size() || usedTracks[ti] || usedDetections[di])
+      continue;
+
+    usedTracks[ti] = true;
+    usedDetections[di] = true;
+    updateTrack(tracks[ti], detections[di], match.affinity);
+  }
+}
+
+void YoloBallDetector::YoloByteTracker::updateTrack(Track& track,
+                                                    const DetectionCandidate& detection,
+                                                    float matchAffinity)
+{
+  track.vx = detection.x - track.x;
+  track.vy = detection.y - track.y;
+  const float speed = std::hypot(track.vx, track.vy);
+  if(speed > maxSpeedPx)
+  {
+    const float scale = maxSpeedPx / std::max(speed, 1e-6f);
+    track.vx *= scale;
+    track.vy *= scale;
+  }
+
+  track.x = detection.x;
+  track.y = detection.y;
+  track.w = detection.w;
+  track.h = detection.h;
+  track.confidence = detection.confidence;
+  track.lastAffinity = matchAffinity;
+  ++track.age;
+  ++track.hits;
+  track.missed = 0;
+}
+
+void YoloBallDetector::YoloByteTracker::markLost(Track& track) const
+{
+  ++track.age;
+  ++track.missed;
+  track.vx *= velocityDecayWhenLost;
+  track.vy *= velocityDecayWhenLost;
+  track.x += track.vx;
+  track.y += track.vy;
+}
+
+YoloBallDetector::TrackState YoloBallDetector::YoloByteTracker::selectPublishableTrack()
+{
+  Track* locked = findTrack(lockedId);
+  if(locked != nullptr && locked->missed == 0 && locked->hits >= minHits)
+  {
+    pendingId = 0;
+    pendingHits = 0;
+    switchId = 0;
+    switchHits = 0;
+    return stateFromTrack(*locked);
+  }
+
+  Track* best = nullptr;
+  float bestQuality = -1.f;
+  for(Track& track : tracks)
+  {
+    if(track.missed != 0 || track.hits < minHits)
+      continue;
+
+    const float quality = trackQuality(track);
+    if(quality > bestQuality)
+    {
+      bestQuality = quality;
+      best = &track;
+    }
+  }
+
+  if(best == nullptr)
+    return emptyState();
+
+  if(lockedId == 0)
+  {
+    if(best->confidence >= newTrackThresh)
+    {
+      lockedId = best->id;
+      return stateFromTrack(*best);
+    }
+
+    if(pendingId == best->id)
+      ++pendingHits;
+    else
+    {
+      pendingId = best->id;
+      pendingHits = 1;
+    }
+
+    if(pendingHits >= minHits)
+    {
+      lockedId = best->id;
+      return stateFromTrack(*best);
+    }
+    return emptyState();
+  }
+
+  if(switchId == best->id)
+    ++switchHits;
+  else
+  {
+    switchId = best->id;
+    switchHits = 1;
+  }
+
+  if(switchHits >= 2 && best->confidence >= highThresh)
+  {
+    lockedId = best->id;
+    return stateFromTrack(*best);
+  }
+
+  return emptyState();
+}
+
+YoloBallDetector::TrackState YoloBallDetector::YoloByteTracker::stateFromTrack(const Track& track) const
+{
+  TrackState trackedState;
+  trackedState.active = true;
+  trackedState.visible = true;
+  trackedState.predictedOnly = false;
+  trackedState.x = track.x;
+  trackedState.y = track.y;
+  trackedState.w = std::max(0.f, track.w);
+  trackedState.h = std::max(0.f, track.h);
+  trackedState.confidence = track.confidence;
+  trackedState.age = track.age;
+  trackedState.missed = track.missed;
+  return trackedState;
+}
+
+YoloBallDetector::TrackState YoloBallDetector::YoloByteTracker::emptyState() const
+{
+  return TrackState();
+}
+
+YoloBallDetector::YoloByteTracker::Track* YoloBallDetector::YoloByteTracker::findTrack(int id)
+{
+  if(id == 0)
+    return nullptr;
+
+  for(Track& track : tracks)
+    if(track.id == id)
+      return &track;
+
+  return nullptr;
+}
+
+float YoloBallDetector::YoloByteTracker::trackQuality(const Track& track)
+{
+  const float hitTerm = std::min(static_cast<float>(track.hits) / 8.f, 1.f);
+  return 0.70f * track.confidence + 0.20f * hitTerm + 0.10f * track.lastAffinity;
 }
 
 void YoloBallDetector::LightweightBallKalman::configure(float initConf_,
