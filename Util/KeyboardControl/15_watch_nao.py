@@ -162,7 +162,10 @@ class DataCollector:
     Formato compatible con 2b_extract_patches_color.py y 7_retrain.py.
     """
 
-    SESSIONS_DIR = Path(__file__).parent / "data" / "sessions"
+    SESSIONS_DIR = Path(os.environ.get(
+        "NAO_WATCHER_SAVE_DIR",
+        str(Path(__file__).parent / "data" / "sessions"),
+    )).expanduser()
 
     def __init__(self, camera_label: str):
         ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -176,7 +179,7 @@ class DataCollector:
         self.n_negative = 0
         self._fidx      = 0
         self.name       = base.name
-        print(f"  Sesión iniciada: data/sessions/{self.name}")
+        print(f"  Sesión iniciada: {base}")
 
     def save_trionda(self, jpeg: bytes, spots: list[tuple], radius: int) -> bool:
         """Guarda frame como positivo trionda. Retorna True si tuvo spots para anotar."""
@@ -226,7 +229,7 @@ class DataCollector:
         total = self.n_trionda + self.n_negative
         print(f"  [{self.camera}] Guardados: {self.n_trionda} trionda + "
               f"{self.n_negative} negativos = {total} frames  "
-              f"→ data/sessions/{self.name}")
+              f"→ {self.SESSIONS_DIR / self.name}")
 
 
 # ── Socket helpers ─────────────────────────────────────────────────────────────
