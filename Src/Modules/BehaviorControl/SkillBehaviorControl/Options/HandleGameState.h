@@ -64,12 +64,15 @@ option(HandleGameState)
     {
       if(!theLibDemo.isOneVsOneDemoActive)
       {
-        const Vector2f targetOnField = theGameState.isPenaltyKick() ?
-                                       Vector2f(theGameState.isForOwnTeam() ?
-                                                theFieldDimensions.xPosOpponentPenaltyMark :
-                                                theFieldDimensions.xPosOwnPenaltyMark, 0.f) :
-                                       Vector2f::Zero();
-        theLookAtPointSkill({.target = (Vector3f() << theRobotPose.inverse() * targetOnField, theBallSpecification.radius).finished()});
+        if(theGameState.isPenaltyKick())
+        {
+          const Vector2f targetOnField(theGameState.isForOwnTeam() ?
+                                       theFieldDimensions.xPosOpponentPenaltyMark :
+                                       theFieldDimensions.xPosOwnPenaltyMark, 0.f);
+          theLookAtPointSkill({.target = (Vector3f() << theRobotPose.inverse() * targetOnField, theBallSpecification.radius).finished()});
+        }
+        else
+          theLookActiveSkill({.withBall = true});
       }
       else
         theLookActiveSkill({.ignoreBall = true});
