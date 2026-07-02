@@ -18,7 +18,7 @@ Protocolo por frame:
 Uso:
     python3 15_watch_nao.py                      # dual cámaras
     python3 15_watch_nao.py --camera lower
-    python3 15_watch_nao.py --ip 10.0.49.7 --scale 1
+    python3 15_watch_nao.py --ip 192.168.49.7 --scale 1
 
 Controles de visualización:
     q / ESC  → salir

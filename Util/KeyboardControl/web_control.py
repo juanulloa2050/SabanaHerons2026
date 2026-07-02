@@ -34,15 +34,15 @@ except ImportError:
 # == Registro de robots ========================================================
 
 ROBOTS = [
-    {"id": "ronaoldinho", "name": "ronaoldinho", "ip": "10.0.49.2"},
-    {"id": "loki",        "name": "loki",         "ip": "10.0.49.3"},
-    {"id": "falcanao",    "name": "falcanao",      "ip": "10.0.49.4"},
-    {"id": "juan",        "name": "juan",          "ip": "10.0.49.5"},
-    {"id": "iniesnao",    "name": "iniesnao",      "ip": "10.0.49.6"},
-    {"id": "ospinao",     "name": "ospinao",       "ip": "10.0.49.7"},
-    {"id": "Heron",       "name": "Heron",         "ip": "10.0.49.8"},
-    {"id": "naonaldo",    "name": "naonaldo",      "ip": "10.0.49.9"},
-    {"id": "naonel",      "name": "naonel",        "ip": "10.0.49.10"},
+    {"id": "ronaoldinho", "name": "ronaoldinho", "ip": "192.168.49.2"},
+    {"id": "loki",        "name": "loki",         "ip": "192.168.49.3"},
+    {"id": "falcanao",    "name": "falcanao",      "ip": "192.168.49.4"},
+    {"id": "juan",        "name": "juan",          "ip": "192.168.49.5"},
+    {"id": "iniesnao",    "name": "iniesnao",      "ip": "192.168.49.6"},
+    {"id": "ospinao",     "name": "ospinao",       "ip": "192.168.49.7"},
+    {"id": "Heron",       "name": "Heron",         "ip": "192.168.49.8"},
+    {"id": "naonaldo",    "name": "naonaldo",      "ip": "192.168.49.9"},
+    {"id": "naonel",      "name": "naonel",        "ip": "192.168.49.10"},
 ]
 ROBOT_MAP = {r["id"]: r for r in ROBOTS}
 
@@ -895,7 +895,7 @@ async def index():
 if __name__ == "__main__":
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("10.0.49.1", 80))
+        s.connect(("192.168.49.1", 80))
         local_ip = s.getsockname()[0]
         s.close()
     except Exception:
