@@ -776,10 +776,8 @@ Pose2f SelfLocator::getNewPoseReturnFromPenaltyPosition(bool leftSideOfGoal)
   {
     return theStaticInitialPose.staticPoseOnField;
   }
-  // Normal stuff:
-  float xPosition = Random::triangular(theFieldDimensions.xPosOwnPenaltyMark - returnFromPenaltyMaxXOffset,
-                                       theFieldDimensions.xPosOwnPenaltyMark,
-                                       theFieldDimensions.xPosOwnPenaltyMark + returnFromPenaltyMaxXOffset);
+  // HSL standard removals return at the touchline at own penalty-mark height.
+  const float xPosition = theFieldDimensions.xPosOwnPenaltyMark;
   if(leftSideOfGoal)
     return Pose2f(-pi_2, xPosition, theFieldDimensions.yPosLeftSideline);
   else
