@@ -46,7 +46,7 @@ MODULE(YoloBallDetector,
   LOADS_PARAMETERS(
   {,
     (bool)(true)   enabled,
-    (std::string)("NeuralNets/BallDetector/yolo_ball.onnx") modelName,
+    (std::string)("NeuralNets/BallDetector/yolo_ball_best1.onnx") modelName,
     (float)(0.20f) lowerConf,
     (float)(0.55f) upperConf,
     (int)(1)       lowerMinConsecutive,
