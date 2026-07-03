@@ -65,7 +65,7 @@ class DirectKickOffImpl : public DirectKickOffImplBase
     // before the same robot is allowed to attack again.
     if(limitedTeam && !wasActive)
     {
-      const Angle safeExitAngle = theRobotPose.rotation + (theFieldBall.positionOnField.y() >= 0.f ? -55_deg : 55_deg);
+      const Angle safeExitAngle = theFieldBall.positionOnField.y() >= 0.f ? -70_deg : 70_deg;
       kickType = safeExitAngle >= 0_deg ? KickInfo::walkForwardsRightAlternative : KickInfo::walkForwardsLeftAlternative;
       targetAngle = safeExitAngle;
       theGoToBallAndKickSkill({.targetDirection = Angle::normalize(safeExitAngle - theRobotPose.rotation),
