@@ -101,6 +101,7 @@ private:
   SampleSet<UKFRobotPoseHypothesis>* samples;   /**< Container for all samples. */
   unsigned lastTimeJumpSound;                   /**< When has the last sound been played? Avoid to flood the sound player in some situations */
   unsigned timeOfLastReturnFromPenalty;         /**< Point of time when the last penalty of this robot was over */
+  int returnFromPenaltySidelineHint;            /**< Last reliable sideline sign before a penalty: 1 left, -1 right, 0 unknown. */
   bool sampleSetHasBeenReset;                   /**< Flag indicating that all samples have been replaced in the current frame */
   int nextSampleNumber;                         /**< Unique sample identifiers */
   int idOfLastBestSample;                       /**< Identifier of the best sample of the last frame */

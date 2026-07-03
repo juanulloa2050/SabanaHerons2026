@@ -20,6 +20,7 @@ using namespace std;
 
 SelfLocator::SelfLocator() : lastTimeJumpSound(0),
   timeOfLastReturnFromPenalty(0),
+  returnFromPenaltySidelineHint(0),
   nextSampleNumber(0), idOfLastBestSample(-1), averageWeighting(0.5f), lastAlternativePoseTimestamp(0),
   validitiesHaveBeenUpdated(false)
 {
@@ -175,6 +176,21 @@ void SelfLocator::update(RobotPose& robotPose)
   }
 
   MODIFY("representation:RobotPose", robotPose);
+
+  if(!theGameState.isPenalized() &&
+     !theExtendedGameState.returnFromGameControllerPenalty &&
+     !theExtendedGameState.returnFromManualPenalty &&
+     robotPose.quality != RobotPose::poor)
+  {
+    const float minAbsYForSidelineHint = theFieldDimensions.centerCircleRadius * 0.5f;
+    if(robotPose.translation.y() > minAbsYForSidelineHint)
+      returnFromPenaltySidelineHint = 1;
+    else if(robotPose.translation.y() < -minAbsYForSidelineHint)
+      returnFromPenaltySidelineHint = -1;
+    else
+      returnFromPenaltySidelineHint = 0;
+  }
+
   draw(robotPose);
   DEBUG_DRAWING("cognition:Odometry", "drawingOnField")
   {
@@ -551,13 +567,22 @@ void SelfLocator::handleGameStateChanges()
   else if(theExtendedGameState.returnFromGameControllerPenalty || theExtendedGameState.returnFromManualPenalty ||
           (theGameState.playerState == GameState::calibration && theGameState.playerState != theExtendedGameState.playerStateLastFrame))
   {
-    int startOfSecondHalfOfSampleSet = samples->size() / 2;
-    // The first half of the new sample set is left of the own goal ...
-    for(int i = 0; i < startOfSecondHalfOfSampleSet; ++i)
-      samples->at(i).init(getNewPoseReturnFromPenaltyPosition(true), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);
-    // ... and the second half of new sample set is right of the own goal.
-    for(int i = startOfSecondHalfOfSampleSet; i < samples->size(); ++i)
-      samples->at(i).init(getNewPoseReturnFromPenaltyPosition(false), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);
+    if(returnFromPenaltySidelineHint != 0)
+    {
+      const bool returnOnLeftSideline = returnFromPenaltySidelineHint > 0;
+      for(int i = 0; i < samples->size(); ++i)
+        samples->at(i).init(getNewPoseReturnFromPenaltyPosition(returnOnLeftSideline), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);
+    }
+    else
+    {
+      int startOfSecondHalfOfSampleSet = samples->size() / 2;
+      // The first half of the new sample set is left of the own goal ...
+      for(int i = 0; i < startOfSecondHalfOfSampleSet; ++i)
+        samples->at(i).init(getNewPoseReturnFromPenaltyPosition(true), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);
+      // ... and the second half of new sample set is right of the own goal.
+      for(int i = startOfSecondHalfOfSampleSet; i < samples->size(); ++i)
+        samples->at(i).init(getNewPoseReturnFromPenaltyPosition(false), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);
+    }
     sampleSetHasBeenReset = true;
     timeOfLastReturnFromPenalty = theFrameInfo.time;
   }
