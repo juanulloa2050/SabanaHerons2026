@@ -10,10 +10,9 @@
  *
  * Inference runs in a background thread (never blocks the RT camera thread).
  *
- * Model: Config/NeuralNets/BallDetector/yolo_ball.onnx
- *   Export: model.export(format="onnx", imgsz=160, simplify=True, opset=12)
- *   Input:  [1, 3, 160, 160]  float32 RGB CHW  normalized [0,1]
- *   Output: [1, 5, N]         float32  cx,cy,w,h,conf in model-pixel coords
+ * Model: Config/NeuralNets/BallDetector/yolo_ball_best1.onnx in the HSL scenarios.
+ *   Input:  [1, 3, H, W]  float32 RGB CHW normalized [0,1]; H/W are read from ONNX.
+ *   Output: [1, 5, N]     float32 cx,cy,w,h,conf in model-pixel coords.
  */
 
 #pragma once
