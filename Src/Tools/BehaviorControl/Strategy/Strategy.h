@@ -28,6 +28,7 @@ STREAMABLE(Strategy,
     Tortuga,
     s3v3_full,
     s4v4_full,
+    s4v4_no_rl_block,
   });
 
   template<typename SetPlayType>

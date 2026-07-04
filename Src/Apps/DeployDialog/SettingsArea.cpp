@@ -658,18 +658,22 @@ void SettingsArea::writeOutput(std::map<std::string, Robot>& robots, std::ostrea
   std::vector<int> mergedPlayers;
   bool gkEnabled = false;
   ensureRLModesInitialized(selectedPreset);
-  for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
+  const bool forceNoRL = selectedPreset->scenario == "4v4_NoRLBlock";
+  if(!forceNoRL)
   {
-    if(selectedPreset->rlModes[i] == "striker_base")
-      strikerPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "baseline_attack")
-      defenderPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "mixed_attack")
-      teamPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "complete")
-      mergedPlayers.push_back(static_cast<int>(i + 1));
-    else if(selectedPreset->rlModes[i] == "gk")
-      gkEnabled = true;
+    for(size_t i = 0; i < selectedPreset->rlModes.size(); ++i)
+    {
+      if(selectedPreset->rlModes[i] == "striker_base")
+        strikerPlayers.push_back(static_cast<int>(i + 1));
+      else if(selectedPreset->rlModes[i] == "baseline_attack")
+        defenderPlayers.push_back(static_cast<int>(i + 1));
+      else if(selectedPreset->rlModes[i] == "mixed_attack")
+        teamPlayers.push_back(static_cast<int>(i + 1));
+      else if(selectedPreset->rlModes[i] == "complete")
+        mergedPlayers.push_back(static_cast<int>(i + 1));
+      else if(selectedPreset->rlModes[i] == "gk")
+        gkEnabled = true;
+    }
   }
   if(!mergedPlayers.empty())
   {
