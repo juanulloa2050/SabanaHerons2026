@@ -96,6 +96,7 @@ void YoloBallDetector::update(BallPercept& bp)
     frameH            = H;
     frameCameraInfo   = theCameraInfo;
     frameCameraMatrix = theCameraMatrix;
+    frameBallRadius   = theBallSpecification.radius;
     ++frameSequence;
     frameReady        = true;
   }
@@ -172,12 +173,17 @@ void YoloBallDetector::update(RawBallPatch& rp)
 void YoloBallDetector::inferenceLoop()
 {
   std::vector<unsigned char> localBuf;
-  unsigned                   localW      = 0;
-  unsigned                   localH      = 0;
+  unsigned                   localW          = 0;
+  unsigned                   localH          = 0;
   CameraInfo                 localCameraInfo;
   CameraMatrix               localCameraMatrix;
-  unsigned                   localSequence = 0;
+  float                      localBallRadius = 0.05f;
+  unsigned                   localSequence   = 0;
   std::vector<float>         tensor;
+
+  CameraMatrix               prevCameraMatrix;
+  CameraInfo                 prevCameraInfo;
+  bool                       hasPrevCamera   = false;
 
   while(bgRunning)
   {
@@ -192,6 +198,7 @@ void YoloBallDetector::inferenceLoop()
       localH            = frameH;
       localCameraInfo   = frameCameraInfo;
       localCameraMatrix = frameCameraMatrix;
+      localBallRadius   = frameBallRadius;
       localSequence     = frameSequence;
       frameReady        = false;
     }
@@ -260,6 +267,10 @@ void YoloBallDetector::inferenceLoop()
       result.cameraMatrix = localCameraMatrix;
       if(enableKalman)
       {
+        if(hasPrevCamera)
+          kalman.applyEgomotion(prevCameraMatrix, prevCameraInfo,
+                                localCameraMatrix, localCameraInfo,
+                                localBallRadius);
         const TrackState state = kalman.update(detections);
         if(state.active && (state.visible || (publishPredictedPercepts && state.predictedOnly)))
         {
@@ -293,6 +304,10 @@ void YoloBallDetector::inferenceLoop()
     {
       OUTPUT_ERROR("[YoloBallDetector] " << e.what());
     }
+
+    prevCameraMatrix = localCameraMatrix;
+    prevCameraInfo   = localCameraInfo;
+    hasPrevCamera    = true;
 
     // Throttle: sleep AFTER inference so detection timestamp is fresh when read.
     std::this_thread::sleep_for(std::chrono::milliseconds(inferenceIntervalMs));
@@ -583,6 +598,42 @@ void YoloBallDetector::LightweightBallKalman::correct(const DetectionCandidate& 
   p = (Matrix6f::Identity() - k * h) * p;
   clampVelocity();
   lastConfidence = detection.confidence;
+}
+
+void YoloBallDetector::LightweightBallKalman::applyEgomotion(
+    const CameraMatrix& prevCam, const CameraInfo& prevInfo,
+    const CameraMatrix& currCam, const CameraInfo& currInfo,
+    float ballRadius)
+{
+  if(!active)
+    return;
+
+  // Unproject tracked pixel position into field coords using the previous camera matrix.
+  // Using the ball-center plane (z = ballRadius) for accuracy.
+  const Vector2f ballInPrev(x[0], x[1]);
+  Vector2f fieldPos;
+  if(!Transformation::imageToRobotHorizontalPlane(ballInPrev, ballRadius, prevCam, prevInfo, fieldPos))
+    return;
+
+  // Reproject into the current camera frame.
+  Vector2f ballInCurr;
+  const Vector3f fieldPos3D(fieldPos.x(), fieldPos.y(), ballRadius);
+  if(!Transformation::robotToImage(fieldPos3D, currCam, currInfo, ballInCurr))
+    return;
+
+  // The delta is the pure camera-motion contribution to apparent ball displacement.
+  const float dx = ballInCurr.x() - x[0];
+  const float dy = ballInCurr.y() - x[1];
+
+  // Move position estimate to match the new camera frame.
+  x[0] += dx;
+  x[1] += dy;
+
+  // Remove the camera-motion component from the velocity estimate so
+  // x[2]/x[3] represents only the ball's own motion.
+  x[2] -= dx;
+  x[3] -= dy;
+  clampVelocity();
 }
 
 void YoloBallDetector::LightweightBallKalman::clampVelocity()

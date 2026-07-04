@@ -126,6 +126,14 @@ private:
     void reset();
     TrackState update(const std::vector<DetectionCandidate>& detections, float dt = 1.f);
 
+    // Compensate Kalman state for camera egomotion between frames.
+    // Projects the tracked position from the previous camera frame into the
+    // current one, removing the camera-motion component from the velocity
+    // estimate so only ball-own motion remains.
+    void applyEgomotion(const CameraMatrix& prevCam, const CameraInfo& prevInfo,
+                        const CameraMatrix& currCam, const CameraInfo& currInfo,
+                        float ballRadius);
+
   private:
     bool confirmInitialDetection(const DetectionCandidate& detection);
     const DetectionCandidate* selectDetection(const std::vector<DetectionCandidate>& detections);
@@ -169,11 +177,12 @@ private:
                           std::vector<float>& out);
 
   // ── Frame handoff (camera thread -> BG thread) ───────────────────────────
-  std::vector<unsigned char> frameBuf;   // raw YUYV bytes
-  unsigned                   frameW = 0; // actual camera width  (e.g. 320)
-  unsigned                   frameH = 0; // actual camera height (e.g. 240)
+  std::vector<unsigned char> frameBuf;         // raw YUYV bytes
+  unsigned                   frameW = 0;       // actual camera width  (e.g. 320)
+  unsigned                   frameH = 0;       // actual camera height (e.g. 240)
   CameraInfo                 frameCameraInfo;
   CameraMatrix               frameCameraMatrix;
+  float                      frameBallRadius = 0.05f;
   unsigned                   frameSequence = 0;
   bool                       frameReady  = false;
   std::mutex                 frameMtx;
