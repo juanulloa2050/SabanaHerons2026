@@ -391,6 +391,15 @@ if [ ! -z $SCENARIO ]; then
   fi
 fi
 
+if [ "$SCENARIO" = "4v4_NoRLBlock" ]; then
+  RL_DISABLE=1
+  RL_STRIKER_PLAYERS=
+  RL_DEFENDER_PLAYERS=
+  RL_TEAM_V42_PLAYERS=
+  RL_MERGED_PLAYERS=
+  RL_GK=off
+fi
+
 if [ ! -z $LOCATION ]; then
   if [ "$(ls ../../Config/Locations/ | grep ${LOCATION})" == "" ]; then
     if [ "$(ls ../../Config/Locations/ | grep -i ${LOCATION})" != "" ]; then

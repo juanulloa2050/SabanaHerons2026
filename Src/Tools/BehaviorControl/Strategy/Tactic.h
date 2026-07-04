@@ -33,6 +33,7 @@ STREAMABLE(Tactic,
     t13_3v3_full,
     t22_3v3_full,
     t13_4v4_full,
+    t4v4_no_rl_block,
   });
 
   STREAMABLE(Position,
