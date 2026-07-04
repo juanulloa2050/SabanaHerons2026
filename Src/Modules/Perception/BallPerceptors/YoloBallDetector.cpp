@@ -613,13 +613,27 @@ void YoloBallDetector::LightweightBallKalman::applyEgomotion(
   const Vector2f ballInPrev(x[0], x[1]);
   Vector2f fieldPos;
   if(!Transformation::imageToRobotHorizontalPlane(ballInPrev, ballRadius, prevCam, prevInfo, fieldPos))
+  {
+    // Cannot unproject — camera pose unreliable. Kill velocity so prediction doesn't drift.
+    x[2] = 0.f;
+    x[3] = 0.f;
+    if(missed <= strongPredictionMissed)
+      missed = strongPredictionMissed + 1;
     return;
+  }
 
   // Reproject into the current camera frame.
   Vector2f ballInCurr;
   const Vector3f fieldPos3D(fieldPos.x(), fieldPos.y(), ballRadius);
   if(!Transformation::robotToImage(fieldPos3D, currCam, currInfo, ballInCurr))
+  {
+    // Ball rotated out of frame — zero velocity and widen gate so re-lock is easy.
+    x[2] = 0.f;
+    x[3] = 0.f;
+    if(missed <= strongPredictionMissed)
+      missed = strongPredictionMissed + 1;
     return;
+  }
 
   // The delta is the pure camera-motion contribution to apparent ball displacement.
   const float dx = ballInCurr.x() - x[0];
