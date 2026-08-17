@@ -71,6 +71,8 @@ namespace
 
   float boundedDistance(float value, const FieldDimensions& fieldDimensions)
   {
+    // "No obstacle" must map to a large, finite value because infinities were not
+    // part of the policy's training distribution.
     if(value == std::numeric_limits<float>::max())
       return fieldDimensions.xPosOpponentGroundLine * 2.f;
     return value;
@@ -82,6 +84,8 @@ namespace
     unsigned& lastNaturalBallSeenTimestamp,
     bool& hasNaturalBallSeenTimestamp)
   {
+    // BallModel can be corrected by team/game-state information. Keep a separate
+    // age based only on camera percepts so the action gates do not trust corrections.
     if(ballPercept.status == BallPercept::seen)
     {
       lastNaturalBallSeenTimestamp = frameInfo.time;

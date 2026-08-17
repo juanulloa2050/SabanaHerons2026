@@ -182,6 +182,8 @@ void SelfLocator::update(RobotPose& robotPose)
      !theExtendedGameState.returnFromManualPenalty &&
      robotPose.quality != RobotPose::poor)
   {
+    // Remember only a confident pre-penalty side. While penalized the pose can jump,
+    // so updating this hint then would destroy the information needed on return.
     const float minAbsYForSidelineHint = theFieldDimensions.centerCircleRadius * 0.5f;
     if(robotPose.translation.y() > minAbsYForSidelineHint)
       returnFromPenaltySidelineHint = 1;
@@ -569,6 +571,8 @@ void SelfLocator::handleGameStateChanges()
   {
     if(returnFromPenaltySidelineHint != 0)
     {
+      // The GameController returns a robot on the same sideline it left from. Seeding
+      // all particles there avoids the symmetric wrong-side hypothesis.
       const bool returnOnLeftSideline = returnFromPenaltySidelineHint > 0;
       for(int i = 0; i < samples->size(); ++i)
         samples->at(i).init(getNewPoseReturnFromPenaltyPosition(returnOnLeftSideline), returnFromPenaltyPoseDeviation, nextSampleNumber++, 0.5f);

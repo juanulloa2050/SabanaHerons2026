@@ -788,6 +788,8 @@ void GameStateProvider::updateIllegalPosition()
 
 void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
 {
+  // MotionInfo covers this robot and BehaviorStatus covers teammates. Comparing their
+  // timestamps gives one ordered stream of touches without adding a new team message.
   if(theMotionInfo.lastKickTimestamp > lastOwnKickTimestamp)
   {
     lastOwnKickTimestamp = theMotionInfo.lastKickTimestamp;
@@ -833,6 +835,8 @@ void GameStateProvider::updateOwnKickOffGoalRestriction(GameState& gameState)
 
   if(!gameState.ownKickOffGoalRestrictionActive)
   {
+    // Establish the first touch once. Later updates only look for the touch that makes
+    // scoring legal under the team-size-dependent HSL rule.
     KickTouch firstTouch;
     firstTouch.timestamp = std::numeric_limits<unsigned>::max();
     forEachOwnKickTouch([&](const KickTouch& touch)
@@ -889,6 +893,7 @@ void GameStateProvider::clearOwnKickOffGoalRestriction(GameState& gameState)
 
 bool GameStateProvider::isBallOutsideCenterCircle() const
 {
+  // A stale percept must not release the restriction based on a projected ball pose.
   if(theBallModel.timeWhenLastSeen <= theFrameInfo.time - 500)
     return false;
 

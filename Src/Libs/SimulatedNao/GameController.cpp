@@ -178,6 +178,8 @@ bool GameController::competitionPhaseRoundrobin()
 
 bool GameController::competitionTypeSmallFoundation()
 {
+  // These presets encode the HSL division roster and half duration together so a
+  // console command cannot accidentally combine rules from different divisions.
   if(gameControllerData.state != STATE_INITIAL)
     return false;
   gameControllerData.competitionType = COMPETITION_TYPE_SMALL;

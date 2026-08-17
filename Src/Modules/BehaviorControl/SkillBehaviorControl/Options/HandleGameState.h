@@ -66,6 +66,8 @@ option(HandleGameState)
       {
         if(theGameState.isPenaltyKick())
         {
+          // During penalties the mark is the only useful fixed target; for other SET
+          // plays active scanning is preferable because the ball may be repositioned.
           const Vector2f targetOnField(theGameState.isForOwnTeam() ?
                                        theFieldDimensions.xPosOpponentPenaltyMark :
                                        theFieldDimensions.xPosOwnPenaltyMark, 0.f);

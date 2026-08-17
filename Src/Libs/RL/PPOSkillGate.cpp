@@ -65,6 +65,8 @@ void RL::PPOSkillGate::reset()
 
 RL::PPOGateDecision RL::PPOSkillGate::step(const PPOGateObservation& observation)
 {
+  // Each gate has stricter enter limits than hold limits. This hysteresis keeps a
+  // marginal ball estimate from enabling and disabling a skill on consecutive frames.
   const float dBall = std::hypot(observation.ballRelX, observation.ballRelY);
   const float aBall = std::abs(std::atan2(observation.ballRelY, observation.ballRelX));
   const float natAgeMs = observation.naturalTimeSinceBallSeenMs;
@@ -122,6 +124,8 @@ RL::PPOGateDecision RL::PPOSkillGate::step(const PPOGateObservation& observation
 
 RL::PPOGateDecision RL::PPOSkillGate::stepDefender(const PPOGateObservation& observation, const bool hasPassTarget, const bool engageAllowed)
 {
+  // Passing requires both a valid receiver and a clear local lane; engaging is kept
+  // separate so role arbitration can forbid a defender from chasing the ball.
   const float dBall = std::hypot(observation.ballRelX, observation.ballRelY);
   const float aBall = std::abs(std::atan2(observation.ballRelY, observation.ballRelX));
   const float ageMs = observation.timeSinceBallSeenMs;

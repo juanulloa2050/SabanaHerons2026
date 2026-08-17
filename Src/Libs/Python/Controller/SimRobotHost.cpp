@@ -172,6 +172,8 @@ public:
     registeredModules.clear();
     statusLabels.clear();
 
+    // Modules depend on objects registered by earlier modules, so tear them down in
+    // reverse load order just like a stack of shared-library dependencies.
     for(auto module = loadedModules.rbegin(); module != loadedModules.rend(); ++module)
       (*module).reset();
     loadedModules.clear();
@@ -540,6 +542,8 @@ bool SimRobotHost::setRobotPose(const std::string& robotName, float x, float y, 
       return false;
 
     const float position[2] = {x, y};
+    // Teleporting is an episode reset, not an impulse: discard the old velocity so
+    // the first observation of the new episode starts from the requested pose.
     body->move(position, theta);
     body->resetDynamics();
     return true;
@@ -553,6 +557,7 @@ bool SimRobotHost::setRobotPose(const std::string& robotName, float x, float y, 
   float position[3] = {x, y, currentPosition ? currentPosition[2] : 0.f};
   float rotation[3][3];
   makeYawRotation(theta, rotation);
+  // Preserve the 3-D body's configured height while replacing its planar pose.
   body->move(position, rotation);
   body->resetDynamics();
   return true;

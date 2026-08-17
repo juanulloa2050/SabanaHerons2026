@@ -81,6 +81,8 @@ class KickAtGoalImpl : public KickAtGoalImplBase
       !theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot &&
       theGameState.ownKickOffKickingPlayerNumber == theGameState.playerNumber;
 
+    // In games with fewer than three active robots, the same kicker may make the
+    // second touch, but it still has to carry the ball beyond the centre circle.
     if(ownKickOffBallStillInCenterCircle || retryLimitedTeamKickOff)
     {
       theDirectKickOffSkill();

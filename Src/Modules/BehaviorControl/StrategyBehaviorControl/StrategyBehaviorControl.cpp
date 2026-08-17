@@ -504,6 +504,8 @@ void StrategyBehaviorControl::update(StrategyStatus& strategyStatus)
 
 bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 {
+  // Every embedded role follows the same safety contract below: mask illegal skills,
+  // validate model output and yield to the regular B-Human behavior on any failure.
   if(usesExternalRLOverride(theGameState) ||
      !usesEmbeddedPPO(theGameState) ||
      theGameState.playerState != GameState::active ||

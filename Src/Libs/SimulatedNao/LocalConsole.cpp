@@ -230,6 +230,8 @@ void LocalConsole::update()
       JointRequest requestForSimulation = jointRequest;
       if(rlSharedStateEnabled)
       {
+        // Replay the exact joint request exported by MotionEngine when available;
+        // otherwise keep the normal console request for non-RL simulations.
         RLPlayerIO& io = RLSharedState::instance().player(playerNumber);
         io.lock();
         if(io.motionJointRequestValid)
@@ -245,6 +247,8 @@ void LocalConsole::update()
       bool appliedRootAssist = false;
       if(usePyBHRLRootAssist())
       {
+        // Root assist is a diagnostic fallback for headless RL scenes. It only acts
+        // after the normal motion pipeline has accepted a grounded walking request.
         float targetX = 0.f;
         float targetY = 0.f;
         float targetTheta = 0.f;
@@ -365,6 +369,8 @@ void LocalConsole::applyPendingRLReset()
   io.lock();
   if(io.resetPending && io.resetAppliedId != io.resetRequestId)
   {
+    // Claim the request and copy it locally before manipulating SimRobot. Holding the
+    // process-shared mutex across simulator calls could stall the Python control loop.
     ballX = io.resetBallX;
     ballY = io.resetBallY;
     robotX = io.resetRobotX;
@@ -406,6 +412,8 @@ void LocalConsole::applyPendingRLReset()
 
   if(error.empty())
   {
+    // Disable physics for the complete batch so robots cannot fall between individual
+    // teleports and the resulting observation represents one atomic world reset.
     simulatedRobot->enablePhysics(false);
     simulatedRobot->moveRobotPerTeam(
       Vector3f(robotX, robotY, ctrl->is2D ? 0.f : 320.f),
@@ -477,6 +485,8 @@ void LocalConsole::applyPendingRLDynamicWorld()
   io.lock();
   if(io.dynamicPending && io.dynamicAppliedId != io.dynamicRequestId)
   {
+    // Dynamic edits share the reset handshake but each component is optional, allowing
+    // curriculum code to move only the ball or only a subset of players.
     ballX = io.dynamicBallX;
     ballY = io.dynamicBallY;
     hasBall = io.dynamicHasBall;

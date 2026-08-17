@@ -45,6 +45,8 @@ struct BoundWorldPlayer
 
 std::vector<BoundWorldPlayer> parseWorldPlayers(const py::iterable& players, const char* label, bool allowNonUpright)
 {
+  // Validate the entire Python payload before touching shared memory or SimRobot;
+  // callers therefore never observe a partially applied world update.
   std::vector<BoundWorldPlayer> parsed;
   std::unordered_set<int> seenNumbers;
   for(py::handle item : players)
@@ -91,6 +93,7 @@ void appendWorldPlayers(std::vector<GroundTruthWorldState::GroundTruthPlayer>& d
 template<typename T, std::size_t N>
 void copyWorldPlayers(std::array<T, N>& destination, int& count, const std::vector<BoundWorldPlayer>& players)
 {
+  // Clear unused slots because this fixed-size array persists between Python calls.
   count = static_cast<int>(players.size());
   for(std::size_t i = 0; i < destination.size(); ++i)
     destination[i] = T{};

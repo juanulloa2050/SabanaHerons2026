@@ -24,6 +24,8 @@ namespace RL
 
   struct PPOGateObservation
   {
+    // Positions are millimetres and angles are radians. Absolute coordinates use the
+    // field frame; members ending in Rel are expressed in the robot frame.
     float robotX = 0.f;
     float robotY = 0.f;
     float robotTheta = 0.f;
@@ -54,6 +56,8 @@ namespace RL
 
   struct PPOGateDecision
   {
+    // Gates are deliberately stateful: the policy sees both the permission bit and
+    // the progress towards it, avoiding actions that flicker around a threshold.
     bool shootArmed = false;
     bool dribbleArmed = false;
     bool passArmed = false;
