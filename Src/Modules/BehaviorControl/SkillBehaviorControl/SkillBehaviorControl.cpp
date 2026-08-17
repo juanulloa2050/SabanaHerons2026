@@ -127,6 +127,8 @@ void SkillBehaviorControl::update(ActivationGraph&)
 
   if(theMotionInfo.lastKickTimestamp > lastReportedKickTimestamp)
   {
+    // Capture the ball location at the kick frame. Teammates use this bit to decide
+    // whether a small-sided kick-off has legally carried the ball out of the circle.
     lastReportedKickTimestamp = theMotionInfo.lastKickTimestamp;
     const float centerCircleRadius = theFieldDimensions.centerCircleRadius +
                                      theFieldDimensions.fieldLinesWidth * 0.5f +

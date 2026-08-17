@@ -47,6 +47,8 @@ SkillRequest PlayBall::smashOrPass(const Agent& self, const Agents& teammates)
        ? self.number == theGameState.ownKickOffKickingPlayerNumber
        : self.number != theGameState.ownKickOffKickingPlayerNumber ||
          ballPosition.squaredNorm() < sqr(theFieldDimensions.centerCircleRadius));
+  // Keep the ordinary action scorer running, but remove direct shots until the
+  // required second touch (or centre-circle exit in a small-sided game) is observed.
   float maxValue = theExpectedGoals.getRating(ballPosition);
   float maxPassDistance = p.maxPassDistance;
   if((theGameState.isFreeKick() && theGameState.isForOwnTeam()) || ownKickOffGoalStillBlocked)

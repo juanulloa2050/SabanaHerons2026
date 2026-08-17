@@ -29,6 +29,8 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   float tx, ty, tt;
   int passTarget;
   {
+    // Snapshot the complete Python command under one lock. Reading fields separately
+    // could combine the skill from one step with the target from the next one.
     io.lock();
     skill = io.getSkill();
     tx    = io.targetX;
@@ -93,6 +95,7 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
   }
   else
   {
+    // Unknown or empty commands fail closed; Python must explicitly request motion.
     skillRequest = SkillRequest::Builder::stand();
     io.lock();
     io.debugProviderMotionRequest = static_cast<int>(MotionRequest::stand);

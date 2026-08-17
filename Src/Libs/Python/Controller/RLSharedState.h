@@ -37,14 +37,19 @@ struct RLWorldPlayer
 
 struct RLPlayerIO
 {
+  // The mutex and semaphore are process-shared; every compound read/write of the
+  // fields below must be protected even when both callers live in C++.
   pthread_mutex_t mutex;
 
+  // Action written by Python and consumed by cognition.
   char skill[16];
   float targetX = 0.f;
   float targetY = 0.f;
   float targetTheta = 0.f;
   int passTarget = -1;
 
+  // Observation exported by cognition. Ground-truth and estimated poses coexist so
+  // training can select a mode without changing this shared-memory ABI.
   float ballX = 0.f;
   float ballY = 0.f;
   float robotX = 0.f;
@@ -112,6 +117,8 @@ struct RLPlayerIO
   bool debugObstacleArmContact = false;
   bool debugObstacleFootContact = false;
 
+  // Episode resets are acknowledged with request/applied ids, rather than by merely
+  // clearing a flag, so Python can wait for the exact reset it submitted.
   float resetBallX = 0.f;
   float resetBallY = 0.f;
   float resetRobotX = 0.f;
@@ -127,6 +134,7 @@ struct RLPlayerIO
   bool resetPending = false;
   bool selfLocatorResetPending = false;
 
+  // Dynamic world edits use a separate handshake because they can occur mid-episode.
   float dynamicBallX = 0.f;
   float dynamicBallY = 0.f;
   bool dynamicHasBall = false;
@@ -150,6 +158,7 @@ struct RLPlayerIO
   bool worldResultOk = true;
   char worldResultError[160]{};
 
+  // Cross-layer breadcrumbs used to locate where an action stopped propagating.
   int debugMotionRequest = -1;
   int debugProviderMotionRequest = -1;
   int debugProviderCallCount = 0;

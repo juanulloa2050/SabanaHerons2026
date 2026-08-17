@@ -45,6 +45,8 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
     const Pose2f targetRelative = theRobotPose.inverse() * p.target;
     const int timeUntilSetStarts = -theFrameInfo.getTimeSince(theGameState.timeWhenStateEnds);
     const bool opponentPenaltyKickGoalkeeper = theGameState.state == GameState::setupOpponentPenaltyKick && theGameState.isGoalkeeper();
+    // Start reacting halfway through READY so a pose that is legal now does not become
+    // illegal exactly when SET begins.
     const float durationUntilAnticipatedIllegal = (theGameState.timeWhenStateEnds - theGameState.timeWhenStateStarted) * 0.5f;
 
     initial_state(walkToPointReady)
@@ -185,6 +187,8 @@ class WalkToPointReadyImpl : public WalkToPointReadyImplBase
     {
       action
       {
+        // With little setup time left, preserve the legal translation and only align
+        // the heading; a late path-planning detour is more harmful than pose error.
         theLookActiveSkill({.ignoreBall = true});
         theWalkToPointObstacleSkill({.target = {targetRelative.rotation},
                                      .reduceWalkingSpeed = false,

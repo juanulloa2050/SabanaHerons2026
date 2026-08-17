@@ -41,6 +41,8 @@ bool usePyBHRLAbstractMotion()
 
 Pose2f clampWalkStep(const Pose2f& target, float dt)
 {
+  // Abstract motion bypasses joint physics, so enforce conservative NAO-like speeds
+  // here to keep trajectories comparable across simulation step lengths.
   constexpr float maxForwardSpeed = 300.f;
   constexpr float maxBackwardSpeed = 180.f;
   constexpr float maxSideSpeed = 220.f;
@@ -433,6 +435,8 @@ void SimulatedRobot3D::getAndSetMotionData(const MotionRequest& motionRequest, M
   if(!usePyBHRLAbstractMotion())
     return;
 
+  // This mode advances the root body directly for fast policy training; the regular
+  // path above remains responsible for physically simulated joint motion.
   const float dt = RoboCupCtrl::controller->simStepLength * 0.001f;
   Pose2f robotPose;
   getPose2f(robot, robotPose);

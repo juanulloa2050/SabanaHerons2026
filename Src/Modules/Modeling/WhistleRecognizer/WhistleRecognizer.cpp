@@ -656,6 +656,8 @@ void WhistleRecognizer::update(Whistle& theWhistle)
     bool haveBestFeatures = false;
     FrameFeatures bestFeatures;
 
+    // A single healthy microphone/profile may open the detector. The remaining
+    // channels still contribute diagnostics, but defects never veto a valid channel.
     for(size_t i = 0; i < buffers.size(); ++i)
     {
       if(theDamageConfigurationHead.audioChannelsDefect[i] || !buffers[i].full())
@@ -703,6 +705,8 @@ void WhistleRecognizer::update(Whistle& theWhistle)
 
         if(active)
         {
+          // This is a confidence score for ranking detections, not another gate: all
+          // mandatory spectral checks have already passed in `ok` above.
           const float snrScore = clamp01((feat.snrDb - profile.snrDbMin) / 15.0f);
           const float flatScore = std::max(0.0f, 1.0f - feat.flatness / std::max(profile.flatMax, 1e-6f));
           const float eRatioScore = clamp01((feat.eRatio - profile.eRatioMin) /

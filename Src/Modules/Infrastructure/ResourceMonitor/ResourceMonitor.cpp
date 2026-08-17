@@ -107,9 +107,7 @@ void ResourceMonitor::update(ResourceStats& resourceStats)
   uint64_t usedRamBytes = static_cast<uint64_t>(si.totalram - si.freeram - si.bufferram) * si.mem_unit;
   uint64_t procRssBytes = getProcRssBytes();
 
-  // ===========================
-  // PROMEDIADO MÓVIL
-  // ===========================
+  // Smooth frame-to-frame scheduler noise before publishing system-wide metrics.
   cpuSystemHistory.push_back(cpuSystemPct);
   if(cpuSystemHistory.size() > maxSamples)
       cpuSystemHistory.pop_front();
@@ -122,14 +120,12 @@ void ResourceMonitor::update(ResourceStats& resourceStats)
   if(ramUsedHistory.size() > maxSamples)
       ramUsedHistory.pop_front();
 
-  // calcular promedio de cada métrica
+  // Each history is non-empty because the current sample was inserted above.
   float avgCpuSystem = std::accumulate(cpuSystemHistory.begin(), cpuSystemHistory.end(), 0.0f) / cpuSystemHistory.size();
   float avgCpuProc   = std::accumulate(cpuProcHistory.begin(), cpuProcHistory.end(), 0.0f) / cpuProcHistory.size();
   uint64_t avgRamUsed = std::accumulate(ramUsedHistory.begin(), ramUsedHistory.end(), 0ULL) / ramUsedHistory.size();
 
-  // ===========================
-  // Rellenar representation con valores suavizados
-  // ===========================
+  // Process RSS is instantaneous; the noisier CPU and system RAM values are averaged.
   resourceStats.cpuUsageProcess = avgCpuProc;
   resourceStats.cpuUsageSystem  = avgCpuSystem;
   resourceStats.ramUsedProcess  = procRssBytes;
@@ -137,12 +133,11 @@ void ResourceMonitor::update(ResourceStats& resourceStats)
   resourceStats.ramUsedSystem   = avgRamUsed;
   resourceStats.timestamp       = nowMs;
 
-  // plotting para SimRobot
+  // Expose the same values to SimRobot plots and the periodic text log.
   PLOT("ResourceCPUSystem", resourceStats.cpuUsageSystem);
   PLOT("ResourceCPUProcess", resourceStats.cpuUsageProcess);
   PLOT("ResourceRamUsedMB", static_cast<float>(resourceStats.ramUsedSystem) / (1024.0f * 1024.0f));
 
-  // imprimir cada sampleIntervalMs
   if(elapsedSinceLastPrint >= (unsigned)sampleIntervalMs)
   {
     lastPrintedTimeMs = nowMs;

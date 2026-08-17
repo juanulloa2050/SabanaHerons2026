@@ -35,6 +35,8 @@ std::string resolveShmName()
 void RLPlayerIO::lock()
 {
   const int result = pthread_mutex_lock(&mutex);
+  // A robust mutex lets a new simulator process recover the shared block after a
+  // previous Python/controller process died while owning the lock.
   if(result == EOWNERDEAD)
     pthread_mutex_consistent(&mutex);
   else if(result != 0)
@@ -48,6 +50,8 @@ void RLPlayerIO::unlock()
 
 bool RLPlayerIO::waitForObs(unsigned timeoutMs)
 {
+  // A zero timeout means "wait indefinitely" for backwards compatibility with the
+  // original blocking controller API; positive values use an absolute deadline.
   if(timeoutMs == 0)
     return sem_wait(&obsSignal) == 0;
 

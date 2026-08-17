@@ -52,6 +52,8 @@ namespace
 
   Pose2f defenderGuardTarget(const RL::PPOGateObservation& observation)
   {
+    // Move along a conservative corridor in front of our goal and mirror the ball
+    // laterally; this is the deterministic anchor to which PPO adds no residual.
     const float threat = std::clamp((defenderMaxX - observation.ballX) / (defenderMaxX - ownGoalX), 0.f, 1.f);
     float x = defenderMinX + (defenderMaxX - defenderMinX) * (1.f - threat);
     if(observation.ballX > 600.f)
@@ -59,6 +61,8 @@ namespace
     float y = std::clamp(observation.ballY * 0.65f, -defenderMaxAbsY, defenderMaxAbsY);
     if(std::hypot(x - observation.robotX, y - observation.robotY) < defenderMinWalkStep)
     {
+      // A minimum displacement prevents a repeated "walk" decision from degenerating
+      // into standing when the robot is already close to the nominal guard point.
       const float side = observation.ballY >= 0.f ? -1.f : 1.f;
       x = clampFieldX(x - 450.f);
       y = clampFieldY(y + side * 650.f);
@@ -100,6 +104,7 @@ SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation,
     skill = static_cast<SkillType>(skillIndex);
 
   if(skill != SkillType::stand && skill != SkillType::walk && skill != SkillType::shoot && skill != SkillType::dribble)
+    // This decoder serves the legacy striker model, whose action space has four skills.
     skill = SkillType::walk;
 
   const auto mask = paramMaskForSkill(skill);
