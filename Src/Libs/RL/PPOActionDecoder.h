@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Translate a selected field-player action into a B-Human SkillRequest, using tactical
+ * anchors and valid pass targets rather than joint commands.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "PPOCommon.h"

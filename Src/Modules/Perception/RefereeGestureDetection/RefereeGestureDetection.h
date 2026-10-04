@@ -6,6 +6,12 @@
  * @author Thomas Röfer
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Reject gesture candidates outside the configured image geometry before adding them to the
+ * temporal histogram.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Framework/Module.h"

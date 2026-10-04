@@ -34,6 +34,11 @@
  * @author Tim Laue
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Exclude sent-off players as well as substitutes when assigning setup poses.
+ * Release overview and commit references: README.md.
+ */
+
 #include "SetupPosesProvider.h"
 
 SetupPosesProvider::SetupPosesProvider()
@@ -67,6 +72,7 @@ bool SetupPosesProvider::updateRobotOrder()
   std::vector<int> currentRobotOrder;
   for(unsigned long i=0; i<theGameState.ownTeam.playerStates.size(); i++)
   {
+    // SabanaHerons: a sent-off player must not occupy a setup slot after permanent removal.
     if(theGameState.ownTeam.playerStates[i] != GameState::substitute &&
        theGameState.ownTeam.playerStates[i] != GameState::sentOff)
       currentRobotOrder.push_back(static_cast<int>(i)+1);

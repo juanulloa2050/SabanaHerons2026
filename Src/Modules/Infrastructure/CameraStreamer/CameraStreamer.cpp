@@ -13,6 +13,12 @@
  * producing a standard JPEG that any viewer can display.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Stream camera frames and raw detector patches for operation and data collection without
+ * replacing the perception pipeline.
+ * Release overview and commit references: README.md.
+ */
+
 #include "CameraStreamer.h"
 #include "Streaming/Output.h"
 

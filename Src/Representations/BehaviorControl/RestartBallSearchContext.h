@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Represent restart type, remembered ball position, and ranked placement candidates shared
+ * by search and strategy modules.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Math/Eigen.h"

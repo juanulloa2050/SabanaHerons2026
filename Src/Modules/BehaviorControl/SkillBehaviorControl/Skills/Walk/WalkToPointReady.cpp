@@ -7,6 +7,12 @@
  * @author Fynn Böse
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Document early illegal-area anticipation and late heading alignment in the READY
+ * positioning path.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Representations/BehaviorControl/IllegalAreas.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"

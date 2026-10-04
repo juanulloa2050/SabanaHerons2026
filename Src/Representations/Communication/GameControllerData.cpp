@@ -7,6 +7,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Serialize HSL v20 stopped/cautions fields while retaining a separate legacy internal
+ * competition-phase field.
+ * Release overview and commit references: README.md.
+ */
+
 #include "GameControllerData.h"
 
 static_assert(GAMECONTROLLER_STRUCT_VERSION == 20);

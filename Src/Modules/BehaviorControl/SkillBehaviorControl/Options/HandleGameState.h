@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Handle HSL stop play explicitly and search for the ball with the head during SET while
+ * preserving the required body posture.
+ * Release overview and commit references: README.md.
+ */
+
 option(HandleGameState)
 {
   common_transition

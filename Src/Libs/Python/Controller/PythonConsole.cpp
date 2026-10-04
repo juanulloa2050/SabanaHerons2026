@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Synchronize Python stepping with simulator updates and expose the robot data used by the
+ * RL bridge.
+ * Release overview and commit references: README.md.
+ */
+
 #include "PythonConsole.h"
 #include "Framework/Communication.h"
 #include "Framework/Debug.h"

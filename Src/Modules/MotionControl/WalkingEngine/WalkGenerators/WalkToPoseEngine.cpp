@@ -7,6 +7,12 @@
  * @author Philip Reichenberg
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Export planned steps and obstacle-avoidance data to RL telemetry without replacing the
+ * walking phase generator.
+ * Release overview and commit references: README.md.
+ */
+
 #include "WalkToPoseEngine.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Math/BHMath.h"

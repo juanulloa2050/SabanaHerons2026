@@ -4,6 +4,12 @@
  * @author Andreas Stolpmann
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Publish RL obstacle-avoidance diagnostics and compare free directions using normalized
+ * angular offsets.
+ * Release overview and commit references: README.md.
+ */
+
 #include "LibWalkProvider.h"
 #include "Python/Controller/RLSharedState.h"
 

@@ -1,6 +1,12 @@
 /**
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Cache source row pointers when gathering bilinear samples for CNN patches while keeping
+ * the SIMD interpolation path.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "ImageProcessing/AVX.h"

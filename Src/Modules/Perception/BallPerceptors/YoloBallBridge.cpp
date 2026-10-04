@@ -2,6 +2,12 @@
  * @file YoloBallBridge.cpp
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Accept external detector results for experimental camera-stream workflows and convert them
+ * into the standard ball-perception representation.
+ * Release overview and commit references: README.md.
+ */
+
 #include "YoloBallBridge.h"
 #include "Tools/Math/Transformation.h"
 #include "Streaming/Output.h"

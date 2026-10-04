@@ -3,6 +3,11 @@
  * @author Philip Reichenberg
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Customize spoken gyro-calibration prompts while retaining calibration state transitions.
+ * Release overview and commit references: README.md.
+ */
+
 #include "GyroOffsetProvider.h"
 #include "Debugging/Annotation.h"
 #include "Platform/SystemCall.h"

@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Map HSL packets into internal game states and retain touch-based kickoff restrictions,
+ * ball-free timing, cautions, and removal semantics.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/BehaviorControl/BehaviorStatus.h"

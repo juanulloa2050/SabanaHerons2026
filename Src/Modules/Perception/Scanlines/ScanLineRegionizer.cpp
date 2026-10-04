@@ -9,6 +9,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Clamp scanline starts to nonnegative image coordinates when the field boundary lies above
+ * the image.
+ * Release overview and commit references: README.md.
+ */
+
 #include "ScanLineRegionizer.h"
 #include "Debugging/DebugDrawings.h"
 #include "Tools/Math/Transformation.h"

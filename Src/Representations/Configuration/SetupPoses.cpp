@@ -9,6 +9,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Fall back to a usable setup pose for an unmapped player number, excluding the special
+ * player-99 entry.
+ * Release overview and commit references: README.md.
+ */
+
 #include "SetupPoses.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Debugging/Debugging.h"

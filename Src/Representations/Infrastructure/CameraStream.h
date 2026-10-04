@@ -5,6 +5,11 @@
  * Carries streaming status for the current camera thread.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Expose camera streaming status as a module representation for monitoring.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

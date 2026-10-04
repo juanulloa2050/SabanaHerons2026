@@ -9,6 +9,12 @@
  * file can be used as a drop-in replacement after review.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Replace the whistle detector with configurable spectral profiles and temporal gates while
+ * preserving the Whistle representation consumed by game-state control.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/Configuration/DamageConfiguration.h"

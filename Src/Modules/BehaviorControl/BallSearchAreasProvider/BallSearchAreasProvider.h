@@ -6,6 +6,12 @@
  * @author Sina Schreiber
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Prioritize restart candidates and the last shared ball position in the search grid when
+ * the live ball is unavailable.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Framework/Module.h"

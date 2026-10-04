@@ -6,6 +6,12 @@
  * @author Thomas Röfer
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Expose the TCP connection state so the robot debug thread can decide whether queued output
+ * can be flushed.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #ifdef TARGET_ROBOT

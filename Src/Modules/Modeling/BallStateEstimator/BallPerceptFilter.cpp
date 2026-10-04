@@ -17,6 +17,12 @@
  * @author Tim Laue
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Add temporal and motion-consistency filtering for ball candidates before they enter the
+ * existing ball-state estimator.
+ * Release overview and commit references: README.md.
+ */
+
 #include "BallPerceptFilter.h"
 #include "Debugging/Annotation.h"
 #include "Streaming/Output.h"

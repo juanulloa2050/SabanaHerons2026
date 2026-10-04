@@ -2,6 +2,12 @@
  * @file Platform/File.cpp
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Handle Config in the current working directory when resolving the B-Human root for an
+ * embedded host.
+ * Release overview and commit references: README.md.
+ */
+
 #include "File.h"
 #include "Platform/BHAssert.h"
 #include <cstdarg>

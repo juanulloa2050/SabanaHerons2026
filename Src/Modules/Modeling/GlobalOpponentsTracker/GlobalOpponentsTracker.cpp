@@ -9,6 +9,11 @@
  * @author Michelle Gusev
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Exclude sent-off opponents from the active-player count.
+ * Release overview and commit references: README.md.
+ */
+
 #include "GlobalOpponentsTracker.h"
 #include "Debugging/DebugDrawings.h"
 

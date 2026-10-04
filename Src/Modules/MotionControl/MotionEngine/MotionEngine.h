@@ -18,6 +18,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Export requested versus executed motion for RL diagnostics while retaining the normal
+ * JointRequest generation and emergency handling.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Modules/Infrastructure/InterThreadProviders/PerceptionProviders.h"

@@ -15,6 +15,11 @@
  * @author SabanaHerons 2026
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Generate Trionda ball candidates using the team's image-region and geometry checks.
+ * Release overview and commit references: README.md.
+ */
+
 #include "TriondaBallSpotsProvider.h"
 #include "Debugging/Debugging.h"
 #include "Streaming/Output.h"

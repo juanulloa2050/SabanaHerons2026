@@ -6,6 +6,11 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Register the team's 5v5, attack, defense, turtle, and HSL 3v3/4v4 strategy configurations.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "ActiveRole.h"

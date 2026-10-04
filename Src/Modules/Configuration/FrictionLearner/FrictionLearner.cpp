@@ -7,6 +7,11 @@
  * @author Felix Wenk
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Suppress repeated friction-fit console output to keep ball-detection diagnostics readable.
+ * Release overview and commit references: README.md.
+ */
+
 #include "FrictionLearner.h"
 
 MAKE_MODULE(FrictionLearner);

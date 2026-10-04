@@ -6,6 +6,12 @@
  * @author Arne Hasselbring (from former KickoffStrikerCard.cpp in 2019).
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * For teams with at most two active robots, send the first touch out of the center circle
+ * before allowing a scoring attempt.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BallSpecification.h"

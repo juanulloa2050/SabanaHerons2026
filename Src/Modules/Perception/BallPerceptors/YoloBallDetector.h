@@ -15,6 +15,12 @@
  *   Output: [1, 5, N]     float32 cx,cy,w,h,conf in model-pixel coords.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Run ONNX ball detection asynchronously from YUYV camera data, validate detections, and
+ * publish BallPercept for downstream filtering/tracking.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/Configuration/BallSpecification.h"

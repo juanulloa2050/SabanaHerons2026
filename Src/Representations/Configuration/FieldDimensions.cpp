@@ -6,6 +6,12 @@
  * @author Max Risler
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Load dimensions from the selected configuration stream instead of silently overriding them
+ * with the legacy field_dimensions.json path.
+ * Release overview and commit references: README.md.
+ */
+
 #include "FieldDimensions.h"
 #include "Debugging/Modify.h"
 #include "Streaming/InStreams.h"

@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Provide an explicit debug switch for injected ball coordinates already expressed at the
+ * current pose, avoiding a second odometry compensation.
+ * Release overview and commit references: README.md.
+ */
+
 #include "WalkToBallAndKickEngine.h"
 #include "Modules/MotionControl/KickEngine/KickEngineParameters.h"
 #include "Platform/BHAssert.h"

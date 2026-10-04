@@ -31,12 +31,19 @@
  * @author Thomas Röfer
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Disable automatic entry into the legacy SPL referee-signal sequence and use the revised
+ * substitution gesture representation.
+ * Release overview and commit references: README.md.
+ */
+
 /**
  * Are we in a situation where a referee signal could be shown?
  * @return Are we?
  */
 bool beginOfRefereeSignal() const
 {
+  // SabanaHerons: legacy SPL signal activation is intentionally disabled in this baseline.
   return false;
 }
 

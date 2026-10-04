@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Load and validate ONNX field-player policy tensors before inference; incompatible shapes
+ * or failed inference must not become skill commands.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "PPOCommon.h"

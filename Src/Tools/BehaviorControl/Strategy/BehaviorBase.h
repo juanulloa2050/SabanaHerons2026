@@ -7,6 +7,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Expose RestartBallSearchContext to behaviors through the standard representation accessor
+ * list.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/BehaviorControl/BallSearchAreas.h"

@@ -7,6 +7,12 @@
  * @author Jo Lienhoop
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Integrate restart search and kickoff/penalty restrictions into the active ball-playing
+ * role.
+ * Release overview and commit references: README.md.
+ */
+
 #include "PlayBall.h"
 #include "Representations/Communication/TeamData.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"

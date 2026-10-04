@@ -123,3 +123,4 @@ if(MSVC)
 endif()
 
 source_group(TREE "${BHUMAN_ROOT_DIR}" FILES ${BHUMAN_SOURCES})
+# SabanaHerons: compile policy runtime and shared-state bridge into the robot behavior library.

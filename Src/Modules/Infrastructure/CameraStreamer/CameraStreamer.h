@@ -13,6 +13,12 @@
  * All socket calls are non-blocking; the module never delays the perception thread.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Stream camera frames and raw detector patches for operation and data collection without
+ * replacing the perception pipeline.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/Infrastructure/CameraImage.h"

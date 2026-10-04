@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Expose the controller state needed by the Python/SimRobot host while retaining the normal
+ * simulator controller lifecycle.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Controller.h"
 #include "Framework/Communication.h"
 #include "Platform/BHAssert.h"

@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Smooth and briefly predict ball-tracking targets, with bounded head speed and lead
+ * distance to avoid abrupt tracking motion.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Libraries/LibLookActive.h"
@@ -232,6 +238,7 @@ class HeadControlImpl : public HeadControlImplBase
 
   Vector3f predictBallTarget(const Vector2f& ballPosition, const Vector2f& ballVelocity) const
   {
+    // SabanaHerons: bounded lead reduces tracking lag without amplifying a noisy velocity estimate.
     const float lookaheadTime = std::max(ballTrackingLookaheadTime, 0.f);
     const Vector2f rawLead = ballVelocity * lookaheadTime;
     const Vector2f lead = rawLead.squaredNorm() > sqr(maxBallTrackingLeadDistance) ?

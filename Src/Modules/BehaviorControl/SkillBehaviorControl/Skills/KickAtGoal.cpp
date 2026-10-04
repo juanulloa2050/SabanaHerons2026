@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Preserve kickoff scoring restrictions beyond the kickoff state and prohibit direct goals
+ * specifically on own indirect free kicks.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BallSpecification.h"
@@ -68,6 +74,7 @@ class KickAtGoalImpl : public KickAtGoalImplBase
     const bool ballOutsideCenterCircle =
       theFieldBall.positionOnField.squaredNorm() >=
       sqr(theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + theBallSpecification.radius);
+    // SabanaHerons: the restriction survives the transition to playing; state alone is insufficient.
     const bool ownKickOffGoalStillBlocked =
       theGameState.ownKickOffGoalRestrictionActive &&
       (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot

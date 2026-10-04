@@ -2,6 +2,12 @@
  * @file YoloBallDetector.cpp
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Run ONNX ball detection asynchronously from YUYV camera data, validate detections, and
+ * publish BallPercept for downstream filtering/tracking.
+ * Release overview and commit references: README.md.
+ */
+
 #include "YoloBallDetector.h"
 #include "Platform/File.h"
 #include "Tools/Math/Transformation.h"
@@ -112,6 +118,7 @@ void YoloBallDetector::update(BallPercept& bp)
 
   const auto now   = std::chrono::steady_clock::now();
   const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detectionTime).count();
+  // SabanaHerons: inference is asynchronous, so a valid result may already be too old.
   if(!det.valid || ageMs > timeoutMs)
   {
     consecutiveSeen = 0;

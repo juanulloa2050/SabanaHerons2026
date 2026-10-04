@@ -6,6 +6,12 @@
  * independently loaded shared objects such as controller.so and libSimulatedNao.so.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Share per-player commands, episode resets, observations, and motion diagnostics between
+ * Python and C++ under explicit synchronization.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include <pthread.h>

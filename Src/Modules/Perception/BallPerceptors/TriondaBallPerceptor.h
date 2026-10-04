@@ -8,6 +8,12 @@
  * @author SabanaHerons 2026
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Project the largest Trionda blob candidate with a configured image radius into a standard
+ * BallPercept using measurement covariance.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Framework/Module.h"

@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Combine normal B-Human strategy with selective external RL, embedded field-player PPO, and
+ * independent goalkeeper PPO; failed embedded decisions retain the classical request.
+ * Release overview and commit references: README.md.
+ */
+
 #include "StrategyBehaviorControl.h"
 #include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
@@ -340,6 +346,8 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
 
 void StrategyBehaviorControl::update(SkillRequest& skillRequest)
 {
+  // SabanaHerons: the external bridge is selected explicitly by team/player.
+  // It requests skills here; SkillBehaviorControl still handles game-state posture and motion.
   if(usesExternalRLOverride(theGameState))
   {
     logRLModeIfChanged(RLRuntimeMode::externalOverride, "external override env active");
@@ -461,6 +469,7 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
   {
     ASSERT(self);
 
+    // SabanaHerons: compute the classical request first so embedded inference has a fallback.
     skillRequest = theBehavior.update(strategy, *self, agents);
 
     theStrategyStatus.proposedTactic = self->proposedTactic;
@@ -504,6 +513,8 @@ void StrategyBehaviorControl::update(StrategyStatus& strategyStatus)
 
 bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 {
+  // SabanaHerons: only a successful policy decision replaces the caller's B-Human request.
+  // Observation encoding, legal-action masks, and decoding share the exported model contract.
   // Every embedded role follows the same safety contract below: mask illegal skills,
   // validate model output and yield to the regular B-Human behavior on any failure.
   if(usesExternalRLOverride(theGameState) ||
@@ -1310,6 +1321,8 @@ int StrategyBehaviorControl::chooseGKPassTarget() const
 
 bool StrategyBehaviorControl::updateEmbeddedGK(SkillRequest& skillRequest)
 {
+  // SabanaHerons: keeper inference is independent of field-player PPO and uses keeper skills.
+  // Its decoded request still passes through the configurable interception/dive execution path.
   if(usesExternalRLOverride(theGameState) || !usesEmbeddedGK(theGameState))
     return false;
   if(!ensureEmbeddedGKLoaded())

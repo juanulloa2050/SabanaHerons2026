@@ -6,6 +6,11 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Register the team's attack, solo, defense, and full-field kickoff configurations.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "SetPlay.h"

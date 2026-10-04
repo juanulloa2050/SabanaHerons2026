@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SabanaHerons: web robot operation and camera-watcher/recording controls.
+# Operational tooling is independent of embedded match strategy; see README.md.
 """
 SabanaHerons - Web Control Server
 Abre http://<ip_laptop>:8080 en cualquier celular de la red para controlar robots.

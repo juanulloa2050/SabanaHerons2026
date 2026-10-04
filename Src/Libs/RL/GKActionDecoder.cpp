@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Convert goalkeeper policy actions into positioning, interception, dive, clearance, pass,
+ * or dribble SkillRequests.
+ * Release overview and commit references: README.md.
+ */
+
 #include "GKActionDecoder.h"
 
 #include "Representations/MotionControl/MotionRequest.h"

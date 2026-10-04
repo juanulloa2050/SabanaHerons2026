@@ -9,6 +9,12 @@
  *   3. update(SkillRequest) reads action → provides SkillRequest
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Translate synchronized Python commands into SkillRequests for dedicated RL scenarios;
+ * empty or unknown commands request standing.
+ * Release overview and commit references: README.md.
+ */
+
 #include "RLSkillProvider.h"
 #include "Python/Controller/RLSharedState.h"
 
@@ -44,6 +50,8 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
     io.unlock();
   }
 
+  // SabanaHerons: dedicated RL scenes use this provider instead of normal strategy selection.
+  // The output is still a SkillRequest, keeping skill execution and walking in B-Human.
   if(skill == "walkTo" || skill == "walk")
   {
     skillRequest = SkillRequest::Builder::walkTo(Pose2f(tt, tx, ty));

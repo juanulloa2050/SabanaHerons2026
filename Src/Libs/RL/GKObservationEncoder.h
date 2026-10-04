@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Encode goalkeeper observations from pose, ball, obstacles, and game context using the
+ * normalization expected by the keeper model.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "GKCommon.h"

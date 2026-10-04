@@ -6,6 +6,12 @@
  * @author Thomas Röfer
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Reject gesture candidates outside the configured image geometry before adding them to the
+ * temporal histogram.
+ * Release overview and commit references: README.md.
+ */
+
 #include "RefereeGestureDetection.h"
 #include "Debugging/Debugging.h"
 #include "Platform/SystemCall.h"

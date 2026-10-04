@@ -1,3 +1,8 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Publish process/system CPU and memory measurements for runtime diagnostics.
+ * Release overview and commit references: README.md.
+ */
+
 #include "ResourceMonitor.h"
 #include "Debugging/Plot.h"
 #include <fstream>

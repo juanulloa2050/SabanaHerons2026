@@ -5,6 +5,12 @@
  *
  * @author Sina Schreiber
  */
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Prioritize restart candidates and the last shared ball position in the search grid when
+ * the live ball is unavailable.
+ * Release overview and commit references: README.md.
+ */
+
 #include "BallSearchAreasProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Math/BHMath.h"

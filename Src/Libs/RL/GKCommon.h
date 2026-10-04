@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Define the independent goalkeeper policy contract with 64 observations and 12 goalkeeper
+ * skills.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 // Goalkeeper RL policy contract (mirrors RL/docs/39 and goalkeeper_action.py /

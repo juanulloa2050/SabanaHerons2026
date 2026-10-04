@@ -6,6 +6,12 @@
  * @author Arne Hasselbring et al
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Add opt-in RL simulation motion aids and headless handling; these simulator helpers are
+ * separate from the physical NAO motion path.
+ * Release overview and commit references: README.md.
+ */
+
 #include "SimulatedRobot3D.h"
 #include "SimulatedNao/RoboCupCtrl.h"
 #include "Platform/Time.h"

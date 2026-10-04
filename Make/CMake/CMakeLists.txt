@@ -560,3 +560,4 @@ endif()
 source_group(".PCH" REGULAR_EXPRESSION ".*[ch]xx$")
 source_group(".Visualizers" REGULAR_EXPRESSION ".*natvis$")
 source_group(".CMake Rules" REGULAR_EXPRESSION ".*rule$")
+# SabanaHerons: preserve a chosen compiler, isolate ccache temp files, and support Python-only Qt builds.

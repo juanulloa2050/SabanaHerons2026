@@ -21,6 +21,12 @@
  * @author Philip Reichenberg
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Export duel activation to RL telemetry and handle a failed field-line intersection without
+ * assuming a valid kick endpoint.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Framework/ModuleGraphRunner.h"
 #include "Platform/SystemCall.h"
 #include "Representations/BehaviorControl/FieldBall.h"

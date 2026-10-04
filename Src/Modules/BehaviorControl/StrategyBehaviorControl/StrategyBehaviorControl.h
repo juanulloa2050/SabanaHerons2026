@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Combine normal B-Human strategy with selective external RL, embedded field-player PPO, and
+ * independent goalkeeper PPO; failed embedded decisions retain the classical request.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Behavior.h"

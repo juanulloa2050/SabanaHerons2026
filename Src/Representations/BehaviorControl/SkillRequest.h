@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Add goalkeeper interception and exact dive requests so RL goalkeeper actions still pass
+ * through the standard skill/motion interface.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Math/Pose2f.h"

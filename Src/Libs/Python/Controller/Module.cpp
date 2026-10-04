@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Extend pybh with per-player RL actions, world resets, observations, and telemetry;
+ * simulation state and perceived state are separate outputs.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Controller.h"
 #include "RLSharedState.h"
 #include "SimRobotHost.h"

@@ -7,6 +7,12 @@
  * @author Fynn Böse
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Keep dropped-ball setup outside the center circle and defend opponent goal kicks from
+ * outside the entire penalty area.
+ * Release overview and commit references: README.md.
+ */
+
 #include "IllegalAreaProvider.h"
 #include "Tools/BehaviorControl/Strategy/Role.h"
 #include "Math/BHMath.h"

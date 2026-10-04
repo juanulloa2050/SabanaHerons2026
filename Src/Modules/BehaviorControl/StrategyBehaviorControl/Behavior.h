@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Select HSL-specific set plays and legal setup positions, including dropped ball, penalty
+ * kicks, and kickoff taker coordination.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"

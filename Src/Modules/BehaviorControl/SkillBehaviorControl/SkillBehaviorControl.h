@@ -6,6 +6,12 @@
  * @author Arne Hasselbring
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Dispatch RL goalkeeper requests through normal skills and export perceived ball,
+ * obstacles, and skill execution telemetry to the bridge.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Libs/Math/Random.h"

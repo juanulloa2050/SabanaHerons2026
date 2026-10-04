@@ -7,6 +7,12 @@
  * @author Philip Reichenberg
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Tune dribble range and angular margins at the field boundary and goalposts for the team's
+ * behavior.
+ * Release overview and commit references: README.md.
+ */
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/FieldRating.h"
 #include "Representations/BehaviorControl/Skills.h"

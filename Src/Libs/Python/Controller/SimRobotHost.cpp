@@ -1,3 +1,9 @@
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Host SimRobot for Python experiments, including visible/headless operation and the update
+ * lifecycle needed for RL stepping.
+ * Release overview and commit references: README.md.
+ */
+
 #include "SimRobotHost.h"
 
 #include "Platform/File.h"

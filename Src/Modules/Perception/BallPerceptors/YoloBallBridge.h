@@ -14,6 +14,12 @@
  * If no detection arrives within timeoutMs, publishes notSeen.
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Accept external detector results for experimental camera-stream workflows and convert them
+ * into the standard ball-perception representation.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Representations/Configuration/BallSpecification.h"

@@ -6,6 +6,12 @@
  * @author Andreas Stolpmann
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Default goalkeeper jumping to disabled in the representation; deployed scenario parameters
+ * may explicitly enable it.
+ * Release overview and commit references: README.md.
+ */
+
 #pragma once
 
 #include "Math/Angle.h"

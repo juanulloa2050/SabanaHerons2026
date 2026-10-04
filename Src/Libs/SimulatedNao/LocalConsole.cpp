@@ -7,6 +7,12 @@
  * @author <A href="mailto:kspiess@tzi.de">Kai Spiess</A>
  */
 
+/* SabanaHerons fork extension (B-Human 2023 base).
+ * Apply RL episode resets and dynamic world updates in the simulator console and publish
+ * synchronized observations and motion telemetry.
+ * Release overview and commit references: README.md.
+ */
+
 #include "LocalConsole.h"
 #include "SimulatedNao/ConsoleRoboCupCtrl.h"
 #include "SimulatedNao/SimulatedRobot2D.h"
