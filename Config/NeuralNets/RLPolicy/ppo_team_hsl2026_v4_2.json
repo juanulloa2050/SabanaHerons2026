@@ -39,5 +39,5 @@
   "checkpoint": "runs/multiagent_v4_2/checkpoint_stage7_step12000.pt",
   "onnx_sha256": "1de359e735d997ea9bcb60532fb27fc3cae4605426476f2a826fde4324324633",
   "deterministic": true,
-  "notes": "Striker-only deploy: force is_striker=1 in obs[44]. See doc-37."
+  "notes": "Striker-only deploy: force is_striker=1 in obs[44]. See docs/37 in the RL repository."
 }

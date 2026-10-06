@@ -5,7 +5,7 @@
     "pass",
     "block"
   ],
-  "checkpoint": "/home/rafael/Documentos/Robocup2026/RL/.deps/obs26-base/runs/defender_bc/defender_bc_20260611_220007/checkpoint_defender_bc_step1280.pt",
+  "checkpoint": "runs/defender_bc/defender_bc_20260611_220007/checkpoint_defender_bc_step1280.pt",
   "checkpoint_sha256": "ee450116e050f64a290b2a1cf08854d7b2c6976b81b3532f0b977dc28bf7ea5c",
   "decoder_contract": "ppo_defender_obs26_skill_selector_v1",
   "deterministic": true,

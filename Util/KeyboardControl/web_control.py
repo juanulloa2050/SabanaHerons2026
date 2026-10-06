@@ -675,7 +675,7 @@ function connect() {
         recordingByRobot[msg.robot_id] = true;
       }
       updateRecBtn();
-      toast('Grabando → /home/limao/Desktop/SabanaHerons_Recordings');
+      toast('Grabando → ' + msg.upper + ' · ' + msg.lower);
       if (selectedId === msg.robot_id) {
         document.getElementById('rec-sub').textContent = msg.upper + ' · ' + msg.lower;
       }

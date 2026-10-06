@@ -728,9 +728,9 @@ def main():
     print()
     print("  Visualización : b=toggle spots   s=screenshot")
     print("  Recolección   : t=TRIONDA  n=NEGATIVO  r/f=radio bbox +/-")
-    print("  El recuadro CIAN muestra el bbox que se anotará al pulsar 't'")
+    print("  El recuadro AMARILLO muestra el bbox que se anotará al pulsar 't'")
     print()
-    print("  Overlay: verde=SEEN  amarillo=GUESSED  cian=BallSpot")
+    print("  Overlay: verde=SEEN  naranja=GUESSED  azul=BallSpot")
     print("  Al salir se imprime el resumen de frames guardados\n")
 
     if args.camera == "dual":

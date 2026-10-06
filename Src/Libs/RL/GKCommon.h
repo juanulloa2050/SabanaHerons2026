@@ -1,6 +1,6 @@
 #pragma once
 
-// Goalkeeper RL policy contract (mirrors RL/docs/39 and goalkeeper_action.py /
+// Goalkeeper RL policy contract (mirrors docs/39 of the RL repository and goalkeeper_action.py /
 // goalkeeper_teacher.py). This is a SEPARATE network from the striker/merged PPO
 // (PPOCommon.h): 64-dim observation, 12 keeper skills, its own legal-action mask.
 // Deployable model: Config/NeuralNets/RLPolicy/ppo_goalkeeper_hsl2026_gk_closedloop_elite.onnx

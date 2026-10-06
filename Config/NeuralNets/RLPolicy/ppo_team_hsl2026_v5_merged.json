@@ -51,5 +51,5 @@
     "defense_phase_enter_x": -300.0,
     "defense_phase_exit_x": 300.0
   },
-  "notes": "Merged striker+defender v5: role is INPUT (obs[44:47] one-hot). Role coordinator runs on all field players each frame. Support/defender walk anchors on EMA coordination target, not ball. Block-priority wrapper: if off_ball and argmax==mark and block armed and ball_front<opp_front -> choose block. See doc-38."
+  "notes": "Merged striker+defender v5: role is INPUT (obs[44:47] one-hot). Role coordinator runs on all field players each frame. Support/defender walk anchors on EMA coordination target, not ball. Block-priority wrapper: if off_ball and argmax==mark and block armed and ball_front<opp_front -> choose block. See docs/38 in the RL repository."
 }

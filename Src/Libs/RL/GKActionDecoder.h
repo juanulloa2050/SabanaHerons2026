@@ -8,7 +8,7 @@ namespace RLGK
 {
   // Maps a chosen GK skill + params to a B-Human SkillRequest using keeper
   // primitives (walkTo / observe / interceptBall / keeperDive / shoot / passTo /
-  // dribbleTo). See RL/docs/39 §3 T.4 for the skill -> behavior table.
+  // dribbleTo). See docs/39 in the RL repository §3 T.4 for the skill -> behavior table.
   class GKActionDecoder
   {
   public:

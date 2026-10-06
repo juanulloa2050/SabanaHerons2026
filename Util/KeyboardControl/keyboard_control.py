@@ -5,7 +5,7 @@ Keyboard Control for Real Nao Robot (B-Human framework)
 Connects to a Nao robot running B-Human software via the debug TCP protocol
 (port 9999) and controls its motion using keyboard input.
 
-Controls (same layout as KeyboardJoystick.con for SimRobot):
+Controls:
   Movement:          Head:
     Q W E              I
     A   D            J   L

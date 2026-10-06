@@ -5,7 +5,7 @@
     "dribble",
     "shoot"
   ],
-  "checkpoint": "/home/rafael/Documentos/Robocup2026/RL/.deps/obs26-base/runs/production_param_repair_v1/checkpoint_stage4_param_repair.pt",
+  "checkpoint": "runs/production_param_repair_v1/checkpoint_stage4_param_repair.pt",
   "checkpoint_sha256": "d9b1b79ee3f5d73c12ab658d63ff7d913ae4f37c940bd27cd564ca9bc4e7ed15",
   "compatibility": "SabanaHerons CompiledNN static batch opset11",
   "deterministic": true,
