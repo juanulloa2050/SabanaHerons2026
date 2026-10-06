@@ -10,12 +10,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Share completed-kick metadata and restart memory so teammates can coordinate kickoff
- * legality and ball search.
- * Release overview and commit references: README.md.
- */
-
 #include "TeamMessageHandler.h"
 #include "Representations/Communication/TeamData.h"
 #include "Debugging/Annotation.h"

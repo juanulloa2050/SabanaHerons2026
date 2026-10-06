@@ -1,8 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Latch a completed penalty touch so the taker does not kick the moving ball a second time.
- * Release overview and commit references: README.md.
- */
-
 std::array<unsigned, 3> obstacleCellTimestamps = {}; /**< The timestamps when an obstacles was in each cell. */
 
 option(PenaltyTaker)

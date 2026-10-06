@@ -5,12 +5,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Retain SPL-era internal names as aliases around the HSL v20 protocol header; aliases do
- * not restore the old packet layout.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include <cstdint>
@@ -25,7 +19,6 @@ namespace RoboCup
 #undef goalkeeperColour
 
 // Compatibility aliases for SabanaHerons modules that still use the SPL-era names internally.
-// SabanaHerons: the included protocol header defines the wire struct; these are source aliases only.
 // The wire format above is the Humanoid League GameController v20 format.
 #ifndef COMPETITION_PHASE_ROUNDROBIN
 #define COMPETITION_PHASE_ROUNDROBIN 0

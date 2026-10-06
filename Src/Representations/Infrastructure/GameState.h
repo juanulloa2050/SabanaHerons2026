@@ -7,12 +7,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Represent HSL stop play, dropped ball, restart types, cautions, removals, and persistent
- * kickoff scoring restrictions.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Framework/Settings.h"

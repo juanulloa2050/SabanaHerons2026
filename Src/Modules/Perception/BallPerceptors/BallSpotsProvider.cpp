@@ -3,12 +3,6 @@
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Log predicted spots, rejected candidates, and camera-specific counts for ball-detection
- * diagnostics.
- * Release overview and commit references: README.md.
- */
-
 #include "BallSpotsProvider.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"

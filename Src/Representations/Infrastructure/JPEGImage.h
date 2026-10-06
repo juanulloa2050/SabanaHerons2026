@@ -4,11 +4,6 @@
  * Declaration of struct JPEGImage
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Expose the encoded JPEG buffer and size for camera streaming without another image encode.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Representations/Infrastructure/CameraImage.h"

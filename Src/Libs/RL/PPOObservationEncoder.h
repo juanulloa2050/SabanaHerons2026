@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Build and normalize the 26-value striker and 47-value team observations from B-Human
- * representations; ordering must match the model manifest.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "PPOCommon.h"

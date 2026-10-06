@@ -4,12 +4,6 @@
  * @author Andreas Stolpmann
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Carry completed-kick timestamps and restart-memory metadata in the behavior status shared
- * with teammates.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Tools/Communication/BHumanMessageParticle.h"

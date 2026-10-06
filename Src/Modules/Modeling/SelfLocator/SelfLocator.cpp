@@ -6,12 +6,6 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Seed HSL penalty returns at the own penalty-mark touchline using a confident pre-penalty
- * side hint, and reset localization explicitly on RL episode teleports.
- * Release overview and commit references: README.md.
- */
-
 #include "SelfLocator.h"
 #include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
@@ -575,8 +569,6 @@ void SelfLocator::handleGameStateChanges()
   else if(theExtendedGameState.returnFromGameControllerPenalty || theExtendedGameState.returnFromManualPenalty ||
           (theGameState.playerState == GameState::calibration && theGameState.playerState != theExtendedGameState.playerStateLastFrame))
   {
-    // SabanaHerons: this is a remembered localization hint, not a side encoded in a GC packet.
-    // Without a confident hint, retain both sideline hypotheses instead of guessing a side.
     if(returnFromPenaltySidelineHint != 0)
     {
       // The GameController returns a robot on the same sideline it left from. Seeding

@@ -50,4 +50,3 @@ if(WINDOWS)
   add_custom_command(TARGET SimRobot POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:FFTW::FFTW>" "$<TARGET_FILE:FFTW::FFTWF>" "$<TARGET_FILE_DIR:SimRobot>")
 endif()
-# SabanaHerons: group simulator sources from the common library root for the extended controller tree.

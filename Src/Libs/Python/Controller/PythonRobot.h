@@ -6,12 +6,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Initialize and synchronize the Python-controlled robot with the RL-aware console update
- * path.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "PythonConsole.h"

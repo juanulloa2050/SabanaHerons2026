@@ -6,12 +6,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Register the restart-ball search role so strategy can select it through the normal role
- * interface.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Role.h"

@@ -7,12 +7,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Per-player RL modes and the goalkeeper dive switch are persisted with the team preset and
- * included in preset comparisons.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

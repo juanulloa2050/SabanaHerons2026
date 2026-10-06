@@ -6,12 +6,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Expose HSL division and restart commands in the simulator and support the headless mode
- * used by Python experiments.
- * Release overview and commit references: README.md.
- */
-
 #include "ConsoleRoboCupCtrl.h"
 #include "SimulatedNao/BHToolBar.h"
 #include "SimulatedNao/ControllerRobot.h"

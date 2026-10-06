@@ -8,12 +8,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Prepare an RGB referee patch with configurable masking and convert the network keypoints
- * back to image coordinates.
- * Release overview and commit references: README.md.
- */
-
 #include "KeypointsProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/DebugImages.h"

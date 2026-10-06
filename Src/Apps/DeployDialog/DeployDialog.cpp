@@ -7,12 +7,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * The team deploy dialog keeps one preset and launches deployment with the selected robot,
- * RL, and goalkeeper options.
- * Release overview and commit references: README.md.
- */
-
 #include "DeployDialog.h"
 #include <regex>
 #include <set>

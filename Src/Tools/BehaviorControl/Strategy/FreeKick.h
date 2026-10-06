@@ -6,12 +6,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Register full-field HSL restart plays and distinguish direct, indirect, throw-in,
- * goal-kick, and corner-kick applicability.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "SetPlay.h"

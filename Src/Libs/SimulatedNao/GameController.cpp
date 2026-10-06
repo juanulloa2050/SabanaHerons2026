@@ -5,12 +5,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Extend the simulated referee with HSL divisions, stop play, restarts, and indirect-kick
- * touch tracking.
- * Release overview and commit references: README.md.
- */
-
 #include "Tools/Communication/TeamMessageChannel.h"
 #include "GameController.h"
 #include "SimulatedRobot.h"

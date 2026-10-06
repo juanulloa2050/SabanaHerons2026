@@ -7,12 +7,6 @@
  * @author Florian Maaß
  * @author Jan Fiedler & Nicole Schrader
  */
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Preserve obstacle hypotheses in selected RL game states and export percept/filter
- * diagnostics; falling/get-up invalidation remains active.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "ObstacleHypothesis.h"

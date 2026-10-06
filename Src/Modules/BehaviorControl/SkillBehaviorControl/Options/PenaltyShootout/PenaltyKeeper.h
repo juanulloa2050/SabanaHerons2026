@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Prepare for penalty defense by standing high instead of entering the dive preparation
- * motion.
- * Release overview and commit references: README.md.
- */
-
 option(PenaltyKeeper)
 {
   // Martin Kroker, 14.04.2013?

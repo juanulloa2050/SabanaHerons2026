@@ -7,11 +7,6 @@
  * Python training scripts receive bit-identical patches to what the NN sees.
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Carry the exact detector patch to CameraStreamer for reproducible dataset capture.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

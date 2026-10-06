@@ -6,12 +6,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Apply RL episode resets and dynamic world updates in the simulator console and publish
- * synchronized observations and motion telemetry.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "SimulatedNao/RobotConsole.h"

@@ -5,12 +5,6 @@
  * and provides SkillRequest + StrategyStatus for the normal skill pipeline.
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Translate synchronized Python commands into SkillRequests for dedicated RL scenarios;
- * empty or unknown commands request standing.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Representations/BehaviorControl/SkillRequest.h"

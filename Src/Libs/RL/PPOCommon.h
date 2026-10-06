@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Define the field-player policy contract: eight skills, four parameters, and observation
- * structures shared by encoders, gates, and decoders.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include <array>

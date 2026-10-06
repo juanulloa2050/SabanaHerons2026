@@ -7,12 +7,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Scenario defaults, semantic RL selectors, and goalkeeper diving are translated into
- * arguments for Make/Common/deploy.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include <functional>

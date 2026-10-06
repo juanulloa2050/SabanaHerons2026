@@ -8,12 +8,6 @@
  * @author Gerrit Felsch
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Extend candidate validation and patch export for the Trionda ball while retaining the
- * configurable classic perception path.
- * Release overview and commit references: README.md.
- */
-
 #include "BallPerceptor.h"
 #include "Platform/File.h"
 #include "Platform/SystemCall.h"

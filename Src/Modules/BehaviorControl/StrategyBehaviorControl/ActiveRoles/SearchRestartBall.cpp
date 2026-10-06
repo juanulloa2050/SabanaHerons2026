@@ -2,12 +2,6 @@
  * @file SearchRestartBall.cpp
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Execute the restart candidate search selected by the strategy using the existing
- * observation and walking skills.
- * Release overview and commit references: README.md.
- */
-
 #include "SearchRestartBall.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"
 

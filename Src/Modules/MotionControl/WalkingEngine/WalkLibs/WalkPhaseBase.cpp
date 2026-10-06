@@ -4,12 +4,6 @@
  * @author Philip Reichenberg
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Use the requested joint angle when measured/start angles are off or ignored, avoiding
- * invalid values during walking initialization.
- * Release overview and commit references: README.md.
- */
-
 #include "WalkPhaseBase.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
@@ -398,7 +392,6 @@ void WalkPhaseBase::constructorOtherCase()
       continue;
     if(startJointAngles.angles[joint] == JointAngles::off || startJointAngles.angles[joint] == JointAngles::ignore)
     {
-      // SabanaHerons: an off/ignore sentinel cannot be used as a numeric interpolation start.
       const Angle measuredAngle = engine.theJointAngles.angles[joint];
       startJointAngles.angles[joint] = measuredAngle != JointAngles::off && measuredAngle != JointAngles::ignore ? measuredAngle : request.angles[joint];
     }

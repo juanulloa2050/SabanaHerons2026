@@ -355,4 +355,3 @@ class BallDetectorStreamRecorder:
             "upper_frames": self._states["Upper"].frames,
             "lower_frames": self._states["Lower"].frames,
         }
-# SabanaHerons: record streamed camera/detector data for offline perception inspection.

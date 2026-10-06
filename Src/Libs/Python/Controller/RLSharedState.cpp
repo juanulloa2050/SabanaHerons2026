@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Share per-player commands, episode resets, observations, and motion diagnostics between
- * Python and C++ under explicit synchronization.
- * Release overview and commit references: README.md.
- */
-
 #include "RLSharedState.h"
 
 #include <cerrno>

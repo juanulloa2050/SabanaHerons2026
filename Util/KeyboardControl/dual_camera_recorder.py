@@ -275,4 +275,3 @@ class DualCameraRecorder:
             "upper_frames": self._states["Upper"].frames,
             "lower_frames": self._states["Lower"].frames,
         }
-# SabanaHerons: capture upper/lower camera streams together for dataset collection.

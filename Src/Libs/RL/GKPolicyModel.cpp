@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Load and validate the independent goalkeeper ONNX model and expose inference failures to
- * the behavior fallback path.
- * Release overview and commit references: README.md.
- */
-
 #include "GKPolicyModel.h"
 
 #include "Platform/File.h"

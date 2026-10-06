@@ -7,12 +7,6 @@
  * @author Tim Laue
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Retain the last shared ball as a bounded prediction with age and contributor metadata for
- * search when fresh teammate sightings disappear.
- * Release overview and commit references: README.md.
- */
-
 #include "TeammatesBallModelProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Tools/Modeling/BallPhysics.h"

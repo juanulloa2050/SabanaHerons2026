@@ -7,12 +7,6 @@
  *   - mouth_whistle: wider raw-spectrum profile for lower lip-whistle energy
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Replace the whistle detector with configurable spectral profiles and temporal gates while
- * preserving the Whistle representation consumed by game-state control.
- * Release overview and commit references: README.md.
- */
-
 #include "WhistleRecognizer.h"
 #include "Platform/SystemCall.h"
 #include "Debugging/Annotation.h"

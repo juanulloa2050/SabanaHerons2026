@@ -4,12 +4,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Customize the team's pickup/ground-contact spoken feedback without changing contact
- * detection thresholds.
- * Release overview and commit references: README.md.
- */
-
 #include "GroundContactDetector.h"
 #include "Platform/SystemCall.h"
 

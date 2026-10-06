@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Mask field-player skills using ball visibility, geometry, possession, and threat checks
- * before selecting a policy action.
- * Release overview and commit references: README.md.
- */
-
 #include "PPOSkillGate.h"
 
 #include <algorithm>
@@ -71,8 +65,6 @@ void RL::PPOSkillGate::reset()
 
 RL::PPOGateDecision RL::PPOSkillGate::step(const PPOGateObservation& observation)
 {
-  // SabanaHerons: gates use the unnormalized physical observations, before policy argmax.
-  // This keeps an attractive network logit from enabling a shot without the required context.
   // Each gate has stricter enter limits than hold limits. This hysteresis keeps a
   // marginal ball estimate from enabling and disabling a skill on consecutive frames.
   const float dBall = std::hypot(observation.ballRelX, observation.ballRelY);

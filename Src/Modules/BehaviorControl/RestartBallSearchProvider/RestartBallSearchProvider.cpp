@@ -2,12 +2,6 @@
  * @file RestartBallSearchProvider.cpp
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Construct restart-specific ball candidates and freeze/share ball memory so search targets
- * remain useful after perception is lost.
- * Release overview and commit references: README.md.
- */
-
 #include "RestartBallSearchProvider.h"
 #include "Math/BHMath.h"
 #include "Streaming/TypeRegistry.h"
@@ -46,8 +40,6 @@ void RestartBallSearchProvider::update(RestartBallSearchContext& restartBallSear
     restartBallSearchContext.rememberedPositionOnField = memory.position;
     restartBallSearchContext.sourceTimestamp = memory.timestamp;
     restartBallSearchContext.sourceRobotNumber = memory.sourceRobotNumber;
-    // SabanaHerons: restart rules define the candidate locations; memory ranks them.
-    // A search hypothesis is not published as a newly observed ball.
     restartBallSearchContext.candidates = computeCandidates(restartType, memory);
     restartBallSearchContext.valid = !restartBallSearchContext.candidates.empty();
     restartBallSearchContext.fromDropInFallback = RestartBallSearchContext::isRefereePlaced(restartType) &&

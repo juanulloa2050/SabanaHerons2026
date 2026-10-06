@@ -13,12 +13,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Deployment arguments can be written to a caller-owned stream so the GUI can launch the
- * deployment process.
- * Release overview and commit references: README.md.
- */
-
 #include "RobotsTable.h"
 #include <iostream>
 #include "../../Util/SimRobot/Src/SimRobot/Theme.h"

@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Translate a selected field-player action into a B-Human SkillRequest, using tactical
- * anchors and valid pass targets rather than joint commands.
- * Release overview and commit references: README.md.
- */
-
 #include "PPOActionDecoder.h"
 
 #include <algorithm>
@@ -105,7 +99,6 @@ namespace
 
 SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation, int skillIndex, const std::array<float, ppoParamCount>& rawParams) const
 {
-  // SabanaHerons: policy parameters describe skill targets, never motor/joint commands.
   SkillType skill = SkillType::walk;
   if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
     skill = static_cast<SkillType>(skillIndex);

@@ -6,12 +6,6 @@
  * @author Arne Hasselbring, Sina Schreiber
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Extend team ball search with restart memory and candidate-based assignments rather than
- * relying only on a generic field sweep.
- * Release overview and commit references: README.md.
- */
-
 #include "BallSearch.h"
 #include "Representations/BehaviorControl/Skills.h"
 

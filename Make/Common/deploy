@@ -1,7 +1,5 @@
 #!/bin/bash
 # copies a bhuman distribution to a robot
-# SabanaHerons: deploy also selects embedded RL models and keeper permissions.
-# See README.md for the resulting mode and player-selection semantics.
 
 usage()
 {
@@ -98,8 +96,6 @@ strategyBehaviorControlReplacements()
     TEAM_STRIKER_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx\""
   fi
   if [ "$MERGED" != "[]" ]; then
-    # SabanaHerons: the merged list selects this model; it is not copied to STRIKERS.
-    # The runtime therefore applies complete mode to all eligible field players.
     MERGED_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v5_merged.onnx\""
   fi
   if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" -a "$MERGED" = "[]" ]; then

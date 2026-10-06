@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Build and normalize the 26-value striker and 47-value team observations from B-Human
- * representations; ordering must match the model manifest.
- * Release overview and commit references: README.md.
- */
-
 #include "PPOObservationEncoder.h"
 
 #include <algorithm>
@@ -254,8 +248,6 @@ namespace
 //   [44]    is_striker
 //   [45]    is_open_support
 //   [46]    is_off_ball_support
-// SabanaHerons: feature order and normalization are part of the ONNX contract;
-// changing a feature here requires a matching export, even if the tensor stays size 47.
 std::array<float, RL::ppoObsSize47> RL::PPOObservationEncoder::encode47(
   const PPOGateObservation& rawObservation,
   const PPOGateDecision& gateDecision,

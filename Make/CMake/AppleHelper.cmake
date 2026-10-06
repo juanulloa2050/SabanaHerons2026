@@ -17,4 +17,3 @@ if(MACOS)
 else()
   add_library(AppleHelper OBJECT IMPORTED)
 endif()
-# SabanaHerons: the source list also carries the team's HandlePatada option; no Apple runtime logic is added here.

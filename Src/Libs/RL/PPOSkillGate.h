@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Mask field-player skills using ball visibility, geometry, possession, and threat checks
- * before selecting a policy action.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "PPOCommon.h"

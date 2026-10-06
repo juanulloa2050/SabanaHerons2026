@@ -5,12 +5,6 @@
  * a motion and switching from off to working to finished (and so on)
  * @author Philip Reichenberg
  */
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Customize the team's spoken abort and recovery-help messages while retaining keyframe
- * recovery logic.
- * Release overview and commit references: README.md.
- */
-
 #include "KeyframePhaseBase.h"
 #include "Debugging/DebugDrawings3D.h"
 #include "Debugging/Plot.h"

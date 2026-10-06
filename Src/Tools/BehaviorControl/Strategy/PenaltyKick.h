@@ -6,11 +6,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Register full-field penalty plays alongside the existing penalty configuration types.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "SetPlay.h"

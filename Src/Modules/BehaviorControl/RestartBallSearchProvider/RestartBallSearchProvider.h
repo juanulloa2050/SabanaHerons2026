@@ -8,12 +8,6 @@
  * the candidate, since the ball stays at the foul position.
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Construct restart-specific ball candidates and freeze/share ball memory so search targets
- * remain useful after perception is lost.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Framework/Module.h"

@@ -6,12 +6,6 @@
  * @author Thomas Röfer
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Increase socket connection retries and retry delay so robot startup tolerates a slower
- * infrastructure connection.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Representations/Configuration/JointCalibration.h"

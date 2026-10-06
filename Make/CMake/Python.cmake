@@ -70,4 +70,3 @@ if(Python3_FOUND)
   target_include_directories(PythonController PRIVATE "${BHUMAN_PREFIX}/Util/SimRobot/Src/SimRobotCore2D")
   source_group(TREE "${PYTHON_ROOT_DIR}/Controller" FILES ${PYTHON_CONTROLLER_SOURCES})
 endif()
-# SabanaHerons: pybh includes the RL shared state and SimRobot host, with Qt/simulator dependencies.

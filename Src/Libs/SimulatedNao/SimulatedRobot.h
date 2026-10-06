@@ -5,12 +5,6 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Allow RL experiments to reset teammate/opponent poses by relative team number, converting
- * field millimeters to simulator meters.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Math/Eigen.h"

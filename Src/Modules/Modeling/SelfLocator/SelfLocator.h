@@ -6,12 +6,6 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Seed HSL penalty returns at the own penalty-mark touchline using a confident pre-penalty
- * side hint, and reset localization explicitly on RL episode teleports.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "UKFRobotPoseHypothesis.h"

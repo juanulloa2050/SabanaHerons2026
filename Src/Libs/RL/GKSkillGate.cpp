@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Mask goalkeeper actions that do not satisfy their ball, interception, or positioning
- * conditions before action selection.
- * Release overview and commit references: README.md.
- */
-
 #include "GKSkillGate.h"
 
 #include <cmath>

@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Load and validate ONNX field-player policy tensors before inference; incompatible shapes
- * or failed inference must not become skill commands.
- * Release overview and commit references: README.md.
- */
-
 #include "PPOPolicyModel.h"
 
 #include "Platform/File.h"
@@ -65,8 +59,6 @@ bool RL::PPOPolicyModel::load(const std::string& configuredModelPath, std::strin
     return false;
   }
 
-  // SabanaHerons: support combined or separate outputs, but require the skill/parameter sizes.
-  // A model that loads successfully can still be incompatible with the behavior interface.
   logitsOutputIndex = -1;
   paramsOutputIndex = -1;
   combinedOutput = false;

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# SabanaHerons: consume the camera stream with detection overlays and collect training frames.
 """
 Script 15: Live stream de la cámara del NAO con overlay de detección y
            recolección manual de datos de entrenamiento.

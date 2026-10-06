@@ -7,11 +7,6 @@
  * @author Jo Lienhoop
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Register the team's reduced-roster formations and full-field 3v3/4v4 tactics.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Math/Pose2f.h"

@@ -2,12 +2,6 @@
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Adjust the goalkeeper minimum distance from the ground line for the team's field
- * positioning.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Framework/Module.h"

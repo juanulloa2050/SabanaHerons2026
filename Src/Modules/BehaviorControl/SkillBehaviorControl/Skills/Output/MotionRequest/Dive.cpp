@@ -6,12 +6,6 @@
  * @author Arne Hasselbring
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Honor keeperJumpingOn at skill execution time and request standing when diving is
- * disabled.
- * Release overview and commit references: README.md.
- */
-
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BehaviorParameters.h"
@@ -32,7 +26,6 @@ class DiveImpl : public DiveImplBase
 {
   void execute(const Dive& p) override
   {
-    // SabanaHerons: enforce the deploy-time dive switch at execution, including RL requests.
     if(theBehaviorParameters.keeperJumpingOn)
     {
       theMotionRequest.motion = MotionRequest::dive;

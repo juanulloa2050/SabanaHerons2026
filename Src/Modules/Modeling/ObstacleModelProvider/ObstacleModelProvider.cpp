@@ -8,12 +8,6 @@
  * @author Jan Fiedler & Nicole Schrader
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Preserve obstacle hypotheses in selected RL game states and export percept/filter
- * diagnostics; falling/get-up invalidation remains active.
- * Release overview and commit references: README.md.
- */
-
 #include "ObstacleModelProvider.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
@@ -112,8 +106,6 @@ bool ObstacleModelProvider::clearAndFinish(ObstacleModel& obstacleModel)
   DEBUG_RESPONSE_ONCE("module:ObstacleModelProvider:clear")
     obstacleHypotheses.clear();
 
-  // SabanaHerons: bridge episodes may change game state while still needing obstacle perception.
-  // Only state-related clearing is relaxed; unstable-body motion still invalidates hypotheses.
   const bool rlMode = RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number);
   if((theGameState.isPenalized() && !rlMode)
      || (theGameState.isInitial() && !rlMode)

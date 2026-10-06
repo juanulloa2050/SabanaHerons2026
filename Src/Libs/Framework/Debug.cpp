@@ -7,12 +7,6 @@
  * @author Jan Fiedler
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Robot debug output waits when no client is connected to avoid a busy loop; messages are
- * routed to the selected thread.
- * Release overview and commit references: README.md.
- */
-
 #include "Debug.h"
 #include "Debugging/Debugging.h"
 #include "Platform/Time.h"

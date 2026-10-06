@@ -50,4 +50,3 @@ else()
     add_dependencies(Nao DeployDialog)
   endif()
 endif()
-# SabanaHerons: forward the parent build tool to the external NAO cross-compilation project.

@@ -7,12 +7,6 @@
  * @author <A href="mailto:tlaue@uni-bremen.de">Tim Laue</A>
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Distinguish fresh shared-ball sightings from prediction-only propagation, including age
- * and contributor count.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

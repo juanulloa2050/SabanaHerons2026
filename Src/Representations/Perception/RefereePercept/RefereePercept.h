@@ -1,9 +1,3 @@
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Use the revised referee gesture set, including initial-to-ready, instead of the removed
- * legacy classifier categories.
- * Release overview and commit references: README.md.
- */
-
 #pragma once
 /**
  * @file RefereePercept.h

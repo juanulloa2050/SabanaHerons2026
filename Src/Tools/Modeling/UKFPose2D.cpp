@@ -7,12 +7,6 @@
  * @author Colin Graf
  */
 
-/* SabanaHerons fork extension (B-Human 2023 base).
- * Accumulate landmark means in the sigma-point loop and combine covariance terms to simplify
- * the UKF update calculations.
- * Release overview and commit references: README.md.
- */
-
 #include "UKFPose2D.h"
 #include "Math/BHMath.h"
 #include "Math/Covariance.h"
