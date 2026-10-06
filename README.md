@@ -1,157 +1,234 @@
-# Sabana-Herons Code Release
+# Sabana Herons — Code Release 2026
 
-SabanaHerons2026 is based on the [B-Human 2023 code release](https://wiki.b-human.de/coderelease2023/). Building on that foundation, Sabana-Herons developed its own HSL adaptations, team strategies, ball detection, reinforcement-learning integration, and robot-operation tools.
+This is the code that team **Sabana Herons** (Universidad de La Sabana,
+Colombia) used in the **RoboCup 2026 Humanoid Soccer League (HSL)** with NAO
+V6 robots, 4v4 on the HSL Small field.
 
-This release brings together the team's previous SabanaHerons2024 developments and its 2026 contributions. The sections below describe those additions and how they work within the team's system.
+**It is based on the [B-Human Code Release 2023](https://github.com/bhuman/BHumanCodeRelease/releases/tag/coderelease2023).**
+B-Human's framework, motion (walking, kicks, get-up), perception, localization,
+team communication, behavior architecture, and tools (SimRobot, deploy dialog)
+are the foundation of everything here. On top of it we:
 
-## Improvements
+1. **migrated the code from the SPL to the HSL 2026 rules** and the HSL
+   GameController protocol v20;
+2. **adapted the team strategies** to 4v4 and 3v3 on the HSL Small field,
+   including set plays, kick-offs, dropped balls, and penalty kicks;
+3. **replaced the ball detection** with a YOLO network running on the robot
+   (ONNX), since the HSL ball is not the SPL ball;
+4. **rewrote the whistle recognizer** with three spectral profiles;
+5. **integrated reinforcement learning (RL)**: policies trained in SimRobot
+   decide which skill each player executes, and run embedded on the NAO;
+6. **added operation tools** for deployment, remote control, camera
+   streaming, and dataset collection.
 
-1. **HSL 2026 migration**: The project now includes the current HSL GameController protocol and the main HSL restart behavior updates, including stop play, direct and indirect free kicks, throw-ins, goal kicks, corner kicks, penalty kicks, and updated kick-off restrictions.
-2. **3v3 and 4v4 full-field strategies**: The team now has dedicated `3v3_Full` and `4v4_Full` scenarios and locations for HSL-style play, with updated field dimensions and set-play behavior.
-3. **Trionda ball detection**: The fork includes classic/Trionda perception variants, an external detector bridge, and on-robot YOLO ONNX inference. The current `4v4_Complete` camera configuration selects `YoloBallDetector` with `yolo_ball_best1.onnx`, followed by ball-percept filtering and state estimation.
-4. **New whistle implementation**: The baseline includes the current whistle recognizer and tuning used in the latest deployed match baseline.
-5. **Web control and operational tooling**: The codebase includes the current web control, camera streaming, and recording workflow used for robot operation and data collection.
-6. **Behavior and match fixes**: The baseline also includes the current kick-off, set-play, and field-behavior fixes that were merged into the deployed branch.
+The RL training itself was developed in a separate Python repository (see
+[Reinforcement learning](#5-reinforcement-learning)).
 
-## Ball Detection Baseline
+If you have used the B-Human 2023 release before, everything you know still
+applies: build, deploy, SimRobot, and the module/representation architecture
+are unchanged. The [B-Human 2023 documentation](https://wiki.b-human.de/coderelease2023/)
+is the reference for all of that.
 
-The current `4v4_Complete` configuration uses:
+---
 
-`Config/NeuralNets/BallDetector/yolo_ball_best1.onnx`
+## What we changed
 
-Check the selected scenario's `yoloBallDetector.cfg`, its module providers in `threads.cfg`, and robot-specific overrides for the effective detector. Earlier notes referring to `Trionda Final Model` or `yolo_ball.onnx` describe historical baselines; they do not select the model for a current deployment.
+### 1. HSL 2026 rules and GameController
 
-## Run this code
+The SPL GameController protocol (v18) was replaced by the HSL protocol (v20).
+`GameStateProvider` and `GameState` handle Stop Play, direct and indirect free
+kicks, throw-ins, goal kicks, corner kicks, penalty kicks, dropped balls,
+cautions, and sent-off players. The behavior enforces the HSL restart rules:
+no direct goal from kick-off (two-touch rule, or a touch outside the center
+circle when two or fewer robots are active), the 45 s free-kick limit,
+opponent goal kicks with the whole penalty area cleared, and HSL penalty-kick
+placement. The simulated GameController in SimRobot exposes the HSL commands.
 
-The project builds on B-Human's framework. Their [2023 documentation](https://wiki.b-human.de/coderelease2023/) provides the foundation for building and running it, together with the Sabana-Herons configurations and deployment options described here.
+Robots returning from a penalty are seeded by `SelfLocator` on the touchline
+at the height of their own penalty mark, using a side hint remembered before
+the penalty to break the left/right symmetry. For restarts, a new
+`RestartBallSearchProvider` predicts where the ball will be placed, so robots
+search there instead of waiting to see it.
 
-The build and deploy flow still follows the B-Human-style workflow. In practice, the team currently uses the configured scenarios and locations inside `Config/Scenarios` and `Config/Locations`, then deploys with `Make/Common/deploy`.
+Details and the list of rules that remain to be validated:
+[docs/HSL2026_Migration.md](docs/HSL2026_Migration.md).
 
-## RL and common SimRobot scenes
+### 2. Strategies for 4v4 and 3v3
 
-This repository contains the C++ SimRobot/pybh bridge and embedded policy runtime.
-The sibling `RL` checkout also contains a persistent sidecar integration with a
-different contract, described below.
+New strategies, tactics, setup poses, and locations for HSL-sized fields:
+`4v4_Full` and `3v3_Full` (field dimensions of the HSL 2026 Small field). In
+the final 4v4 configuration the goalkeeper dives, and the kick-off is a short
+lateral pass to receivers placed away from the center circle. The classical
+4v4 behavior (no RL) is the `4v4_Full` scenario.
 
-The recent SimRobot work here was mainly about keeping common scenes from
-freezing. The safe debugging order is:
+### 3. Ball detection
 
-1. compare against `master`
-2. confirm the scene really leaves `standby` and reaches `playing`
-3. only then inspect higher-level RL code
+The HSL uses a FIFA-style ball instead of the SPL ball, so we added:
 
-The core invariant that must stay intact is:
+- `YoloBallDetector`: a YOLO detector exported to ONNX and run asynchronously
+  on the NAO with ONNX Runtime, with a lightweight image-space Kalman tracker;
+  its output feeds B-Human's `BallPerceptFilter` and `BallStateEstimator`;
+- Trionda-specific candidate generation and classification modules, kept as
+  an alternative to the network;
+- `CameraStreamer` and `RawBallPatch` to collect images and ball patches for
+  training.
 
-```text
-Python -> RLSharedState -> SkillRequest -> SkillBehaviorControl ->
-MotionRequest -> MotionEngine / WalkingEngine -> JointRequest -> SimRobot
+The scenario used in matches selects `YoloBallDetector` with
+`Config/NeuralNets/BallDetector/yolo_ball_best1.onnx`.
+Details: [docs/BallDetection.md](docs/BallDetection.md).
+
+### 4. Whistle recognition
+
+`WhistleRecognizer` was rewritten around three independent profiles
+(standard referee whistle, hand-squeeze whistle, and mouth whistle), each
+using Goertzel band energy, SNR, spectral flatness, and temporal gates
+(onset confirmation, hang-over, gap filling). It still provides B-Human's
+`Whistle` representation, so the rest of the code is unchanged.
+
+### 5. Reinforcement learning
+
+The policies decide **which skill** to execute (stand, walk, shoot, pass,
+dribble, block, mark, observe) and four continuous parameters; B-Human still
+executes every skill and every motion. On the robot,
+`StrategyBehaviorControl` computes the classical decision first and replaces
+it with the policy's decision only during active play, after a legal-action
+gate. If a model is missing or inference fails, the classical behavior is
+used.
+
+| Policy | Observation | Used in |
+| --- | --- | --- |
+| Striker (`striker_base`) | 26 values | `4v4_StrikerBase` |
+| Defender/support (`baseline_attack`) | 26 values | `4v4_BaselineAttack` |
+| Team striker v4.2 (`mixed_attack`) | 47 values | `4v4_MixedAttack` |
+| Merged field-player brain v5 (`complete`) | 47 values + role | `4v4_Complete` (our match configuration) |
+| Goalkeeper | 64 values, 12 skills | any scenario, enabled with `--rl-gk on` |
+
+In the `complete` mode one network serves all field players: a C++ role
+coordinator assigns striker, open support, and off-ball support roles, and the
+role is part of the observation.
+
+The training pipeline (in the separate RL repository) is: rule-based teachers
+derived from B-Human's behavior → behavioral cloning → PPO/MAPPO in SimRobot
+with a curriculum and a KL anchor to the cloned policy → scenario-based
+evaluation → ONNX export. SimRobot is driven from Python through the `pybh`
+bindings and `RLSharedState`, so the policies are trained against the real
+B-Human behavior, motion, and perception stack.
+
+| Document | Content |
+| --- | --- |
+| [docs/RL/Integration.md](docs/RL/Integration.md) | How the policies run on the robot, models, deploy options, fallback |
+| [docs/RL/Environment.md](docs/RL/Environment.md) | Training environment: observation, action, skill gate, reward, curriculum |
+| [docs/RL/Training.md](docs/RL/Training.md) | BC + PPO/MAPPO training, evaluation, ONNX export, model lineage |
+
+Training with the RL repository requires the multi-agent observation fields
+of `RLSharedState`, which are in the `rl-simrobot3d` branch of this
+repository; `master` contains everything needed to run the trained policies.
+
+### 6. Tools and robustness
+
+- `Make/Common/deploy` and the deploy dialog select the RL mode per player,
+  the goalkeeper policy, and goalkeeper diving (see `Config/teams.cfg`).
+- [Util/KeyboardControl](Util/KeyboardControl/README.md): control robots from
+  a phone or browser, live camera view, recording, and ball dataset
+  collection.
+- Stability fixes: the debug thread no longer busy-waits without a client,
+  more connection retries at startup, safe handling of `off`/`ignore` joint
+  sentinels, non-negative scan-line starts, and a fallback in `Zweikampf` when
+  a field-line intersection fails.
+
+### Earlier work (2024–2025)
+
+This code base also contains the team's earlier work: robot identities,
+calibrations and network profiles, the 5v5 migration and the
+attack/defensive/"Tortuga" strategies of 2024, spoken feedback, a Windows
+deploy dialog, the referee-gesture pipeline (disabled by default in
+`HandleRefereeSignal.h`), and optimizations in `ImageTransform.h` (polar
+transform for the ball CNN) and `UKFPose2D`.
+
+---
+
+## Getting started
+
+Building, deploying, and running SimRobot work exactly as in B-Human 2023;
+follow the [B-Human 2023 documentation](https://wiki.b-human.de/coderelease2023/).
+After cloning, initialize the submodules:
+
+```bash
+git submodule update --init
 ```
 
-Practical guardrails:
+### Scenarios and locations
 
-- do not assume manual `F5` for visible RL scenes
-- do not break common scenario game-state flow when enabling RL
-- do not fix freezes by bypassing the normal B-Human motion path
+| Scenario | Description |
+| --- | --- |
+| `4v4_Complete` | Our match configuration: merged RL brain for field players, YOLO ball detector |
+| `4v4_Full` | Classical B-Human-style 4v4 behavior, no field-player RL |
+| `4v4_StrikerBase`, `4v4_BaselineAttack`, `4v4_MixedAttack` | Earlier RL policies, for comparison |
+| `3v3_Full`, `3v3_RL_TeamV42`, `3v3_RL_MergedV5` | 3v3 variants |
+| `4v4_RL2D`, `4v4_RL3D` | Scenarios driven by the Python RL environment |
 
-## Hybrid RL vs B-Human test
+Use the location `4v4_Full` (or `3v3_Full`) on the HSL Small field. Other
+scenarios and locations come from B-Human or from our earlier SPL work.
 
-Selective RL override is available through:
+### Deploying
 
-- `PYBH_RL_OVERRIDE_TEAM`
-- `PYBH_RL_ACTIVE_PLAYERS`
-
-That override lives in `StrategyBehaviorControl`, so only the requested jersey
-numbers are replaced by RL while the rest of the team keeps normal B-Human
-behavior.
-
-There is also a dedicated mixed scene for observing duels and `Zweikampf`:
-
-```text
-Config/Scenes/RLvsBH3v3_3D.ros2
-Config/Scenes/RLvsBH3v3_3D.con
+```bash
+cd Make/Common
+./deploy Release \
+  -r 1 <goalkeeper-ip> -r 2 <player-ip> -r 3 <player-ip> -r 4 <player-ip> \
+  -t <team-number> -s 4v4_Complete -l 4v4_Full \
+  --rl-complete 2,3,4 --rl-gk on --goalkeeper-dive on
 ```
 
-Layout:
+Use `--rl-disable --rl-gk off` with `-s 4v4_Full` for the classical behavior.
+All RL options are listed in [docs/RL/Integration.md](docs/RL/Integration.md#deployment).
+The robots, network profiles, and team number in `Config/` are ours; replace
+them with your own.
 
-- own team `24`
-- `robot1`: B-Human goalkeeper
-- `robot2` and `robot3`: RL-controlled field players
-- opponent team: three B-Human players
+### Simulation
 
-The console enables `Drawings/Zweikampf` so the scene can be used together with
-the Python runner from the `RL` repo to inspect when the duel skill gets
-entered.
+The usual B-Human scenes work (`Config/Scenes/*.ros2`). `RLvsBH3v3_3D.ros2`
+plays RL-controlled field players against a B-Human team; the `RL*` scenes
+are used by the Python training environment.
 
-## What changed in the fork
+---
 
-The earlier SabanaHerons2024 work includes robot identities, networks and calibrations, 5v5 migration, attack/defense/Tortuga strategies, kickoff and dribble tuning, spoken feedback, and Windows deployment tools. `ImageTransform.h` caches source row pointers for bilinear patch sampling; `UKFPose2D.cpp` reorganizes landmark mean/covariance accumulation. This review does not claim measured performance gains for those changes.
+## Repository layout
 
-HSL integration uses GameController protocol v20. `GameStateProvider` and `GameState` handle stopped play, dropped ball, distinct direct/indirect free kicks, throw-ins, cautions and permanent player removal. Legacy SPL names are source aliases, not v18 packet compatibility. The simulated GameController exposes HSL division/restart commands. Sent-off players no longer occupy setup-pose slots or count as active opponents.
+Only the folders that differ from B-Human 2023 are listed.
 
-Behavior adapts dropped-ball setup, opponent goal-kick exclusion over the full penalty area, restart selection, and direct-goal permissions. Kickoff restrictions survive the transition to `playing` and use completed-touch metadata shared by teammates. Teams with at most two active robots first send the ball outside the center circle. Penalty-taking logic prevents another kick after its completed touch. The final 4v4 kickoff uses a lateral pass with adjusted receiving positions.
-
-`RestartBallSearchProvider` creates rule-based ball-placement candidates; remembered local/team ball data ranks them. `RestartBallSearchContext`, `SearchRestartBall`, and `BallSearchAreasProvider` integrate those candidates into team search. `TeammatesBallModelProvider` keeps a bounded prediction with age/contributor metadata. Search hypotheses and predictions are distinct from fresh visual sightings. During SET the robot searches with its head while maintaining body posture; ball tracking smooths and bounds head targets.
-
-`SelfLocator` seeds penalty-return particles on the touchline at the own penalty-mark height. A confident pre-penalty side hint reduces wrong-side symmetry; without it both sides remain possible. That hint is remembered locally, not sent by the GameController. RL episode teleports reset localization explicitly rather than continuously forcing ground truth.
-
-Perception includes the extended classic `BallPerceptor`, Trionda blob-candidate modules, the experimental external `YoloBallBridge`, and asynchronous on-robot `YoloBallDetector`. The current YOLO path retains capture-associated camera geometry, expires stale results, and feeds `BallPerceptFilter` plus the existing `BallStateEstimator`. `RawBallPatch` and `CameraStreamer` support dataset capture.
-
-`WhistleRecognizer` adds three configurable spectral profiles and temporal gates, retaining the `Whistle` representation. Referee perception adds RGB patch preparation and geometric keypoint filtering; automatic entry into the legacy SPL referee-signal sequence remains disabled in `HandleRefereeSignal.h`.
-
-Stability changes include Debug waiting without a connected client to avoid busy-spin, increased startup connection retries, nonnegative scanline starts, safe handling of `off/ignore` joint-angle sentinels, and a fallback when a `Zweikampf` field-line intersection fails.
-
-### Representative commits
-
-| Contribution | Commits |
+| Path | Content |
 | --- | --- |
-| Inherited team/tactics and calculations | `8732007f`, `3206a6a3`, `f8e0d4ad`, `48343bf3`, `bb6d3edf`, `50b33ce8`, `7850f97c` |
-| HSL rules and protocol integration | `fcbc54da`, `2d8d3a6f`, `c3d26822` |
-| Restart search, localization and 4v4 behavior | `6d14a4ed`, `fe50d0a8`, `4938990b`, `3293a3d5`, `26217d8a`, `fe753f47`, `107f51cc` |
-| Ball detection and models | `ad1fe9e3`, `600034fb`, `712b3a41`, `0de53e3f`, `5ef33ae7`, `ca6bbbfb` |
-| Whistle and runtime stability | `cacef4cb`, `a0cd56ac`, `d4d75152`, `d4d30e43`, `23afa5ba`, `490cd276` |
-| RL bridge and embedded policies | `4a9029f4`, `e6003730`, `2eb15c9f`, `6d990c98`, `9b8b919c`, `5e8684ce`, `ad6a8642`, `d2261cf4`, `eeae9775` |
-| Deployment and operation | `941943dd`, `b721ff68`, `f139dcb2`, `8c22db44`, `12a1d78a`, `abe6ced9`, `698350fa` |
+| `Src/Libs/RL` | Observation encoders, skill gates, action decoders, ONNX policy wrappers |
+| `Src/Libs/Python/Controller` | `pybh` extensions and `RLSharedState` (Python ↔ SimRobot) |
+| `Src/Modules/BehaviorControl/StrategyBehaviorControl` | Embedded RL, role coordinator, 4v4/3v3 behavior, restart search |
+| `Src/Modules/Perception/BallPerceptors` | `YoloBallDetector`, Trionda modules, external detector bridge |
+| `Src/Modules/Modeling/WhistleRecognizer` | Three-profile whistle recognizer |
+| `Src/Modules/Infrastructure/RLSkillProvider` | Applies actions from Python during training |
+| `Src/Modules/Infrastructure/CameraStreamer` | Camera streaming for data collection |
+| `Config/NeuralNets/RLPolicy` | RL policies (ONNX) and manifests |
+| `Config/NeuralNets/BallDetector` | YOLO ball detector models |
+| `Config/Scenarios`, `Config/Locations` | HSL 4v4/3v3 and RL scenarios |
+| `Util/KeyboardControl` | Web/keyboard control and data collection tools |
+| `docs/` | Documentation of our contributions |
 
-## Embedded reinforcement learning
+## Known limitations
 
-`Src/Libs/RL` supplies encoders, model loaders, legal-action gates and decoders. `StrategyBehaviorControl` calculates the classical request first and replaces it after a valid enabled-policy decision. Field-player PPO requires active play and excludes the goalkeeper. Load/inference failures preserve the classical path; the stand watchdog can force walking or fall back with a cooldown according to configuration.
-
-| Field mode | Included contract/model |
-| --- | --- |
-| `striker_base` | 26 observations; `ppo_striker_hsl2026.onnx` |
-| `baseline_attack` | Defender/support policy; `ppo_defender_hsl2026_param_repair.onnx` is included |
-| `mixed_attack` | 47 observations; `ppo_team_hsl2026_v4_2.onnx` |
-| `complete` | 47 observations; `ppo_team_hsl2026_v5_merged.onnx`, with C++ role coordination and support anchors |
-
-Field policies use eight skills and four parameters. The independent goalkeeper policy uses 64 inputs (38 active features plus padding), 12 skills, and its own encoder/gate/decoder. Keeper interception and dives become `SkillRequest`s; `Dive.cpp` enforces `keeperJumpingOn`, including for RL requests. The networks do not generate joint commands.
-
-Models and available manifests reside in `Config/NeuralNets/RLPolicy`. Preserve feature/skill order, normalization and output format when replacing a model. Not every model has an equivalent JSON manifest.
-
-`RLSharedState` synchronizes external commands, resets, observations and motion diagnostics per player. Extensions to pybh, `PythonConsole`, `SimRobotHost`, `LocalConsole` and `SimulatedRobot` manage stepping/world updates. Dedicated RL scenarios translate commands through `RLSkillProvider`. Opt-in simulator abstract-motion/root-assist helpers are experimental aids; their use does not establish physical NAO execution.
-
-### How the sibling RL repository complements this code
-
-The sibling RL project provides CFG parsing, a multiagent environment, MAPPO training, positioning/handoff/takeover rewards, a persistent B-Human subprocess bridge with JSON-line transport, execution traces, smoke tests, and demonstrated-trajectory generation.
-
-Relevant files there include `bhuman_cfg_parser.py`, `config.py`, `environment.py`, `wrapper.py`, `reward.py`, `bhuman_sidecar.py`, `bridge/bridge_protocol.py`, `bridge/bhuman_bridge.cpp`, `runtime_paths.py`, `train.py`, and `trajectory_guidance_project`.
-
-Its positioning/handoff action contract differs from the embedded PPO contract of eight skills and four parameters. Exact training/export provenance for every bundled ONNX was not established, and compatibility of that persistent bridge with this master was not compiled or tested. The RL code distinguishes `real`, `contract_validation`, and `python_stub` backends; stub/contractual results do not establish real B-Human execution.
-
-## Deployment details
-
-The deploy script and GUI add RL mode selection, an independent keeper-policy toggle and a dive switch. The reviewed `Config/teams.cfg` preset selects team 49, scenario `4v4_Complete`, location `4v4_Full`, `gk` for the keeper, `complete` for field players and diving enabled.
-
-- The scenario enables field-player PPO but sets `enableEmbeddedGK = false`; the preset or `--rl-gk on` activates the keeper during deployment.
-- `--rl-complete` receives a player list but uses it to select the merged model, without persisting that list as a runtime filter. A configured merged model has priority; an empty internal list permits all eligible field players.
-
-Intermediate RL/deploy changes were reverted in `4099c50f`, `2804bea2`, `9e3fe7ae`, `f58f0d6c` and `b9664e99`. `ad6a8642` reapplied v4.2 and addressed a robot-deploy configuration failure; subsequent commits added merged v5 and the keeper. This README describes the final code rather than counting reverted attempts as separate features.
-
-`Util/KeyboardControl` contains web/keyboard operation, camera streaming, recording and the NAO watcher. These tools support robot operation and data collection independently of match strategy. Build extensions are in `Make/CMake`, the root CMake entry point and `Make/Python` for pybh packaging.
-
-## Validation status
-
-The prior HSL checklist retained open checks for real GameController timings, stop/timeout behavior, dropped-ball and ball-free semantics, penalty extensions/shootout, competition-ball measurements, communications limits and field/robot smoke tests. Implemented support does not imply those validations are complete.
+- Several HSL rules were implemented but not validated with the real HSL
+  GameController (Stop Play timing, timeouts, penalty-kick extension,
+  shoot-out); see [docs/HSL2026_Migration.md](docs/HSL2026_Migration.md).
+- The ball parameters (65 mm radius in `4v4_Full`) were not validated
+  against the competition ball.
+- The goalkeeper policy's save rate comes from a simulated benchmark; dive
+  reach was not calibrated on the real robot.
+- `--rl-complete` selects the merged model for all eligible field players; it
+  does not restrict it to the listed player numbers.
 
 ## License
 
-See [License.txt](License.txt) for the licensing terms and upstream attribution.
+This code is distributed under the B-Human license; see
+[License.md](License.md). It includes software developed by B-Human
+(<https://www.b-human.de>) and third-party libraries under their own
+licenses (`Util/`). If you use it, please acknowledge B-Human as the original
+authors of the framework (see [CITATION.cff](CITATION.cff)) and Sabana Herons
+for the changes described above.

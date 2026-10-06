@@ -31,7 +31,7 @@ Controles de recolección de datos:
     r / f    → subir / bajar radio de la bounding box (+/- 5 px)
 
 En modo dual, t/n guarda el frame de AMBAS cámaras simultáneamente.
-Los datos se guardan en data/sessions/ compatibles con 7_retrain.py.
+Los datos se guardan en data/sessions/ (formato Pascal VOC).
 """
 
 import argparse
@@ -51,8 +51,8 @@ import numpy as np
 MAGIC           = b'CAMF'
 BALL_META_SIZE  = 13
 DEFAULT_IP      = os.environ.get("NAO_WATCHER_IP", "192.168.49.2")
-PORT_UPPER      = 7777   # directo B-Human; usar 7787 cuando corre 24_yolo_on_nao.py
-PORT_LOWER      = 7778   # directo B-Human; usar 7788 cuando corre 24_yolo_on_nao.py
+PORT_UPPER      = 7777   # stream de CameraStreamer (B-Human)
+PORT_LOWER      = 7778   # stream de CameraStreamer (B-Human)
 CONNECT_TIMEOUT = 15.0
 
 NOT_SEEN = 0
@@ -159,7 +159,7 @@ def start_monitor(ip: str, key: str):
 class DataCollector:
     """
     Guarda frames JPEG + XMLs Pascal VOC en data/sessions/.
-    Formato compatible con 2b_extract_patches_color.py y 7_retrain.py.
+    Formato Pascal VOC (una imagen JPEG + un XML por frame).
     """
 
     SESSIONS_DIR = Path(os.environ.get(
@@ -694,9 +694,9 @@ def main():
     p.add_argument("--scale",       default=DEFAULT_SCALE, type=int)
     p.add_argument("--no-spots",    action="store_true")
     p.add_argument("--port-upper",  default=PORT_UPPER, type=int,
-                   help="Puerto cámara upper (7787 cuando corre 24_yolo_on_nao.py)")
+                   help="Puerto cámara upper")
     p.add_argument("--port-lower",  default=PORT_LOWER, type=int,
-                   help="Puerto cámara lower (7788 cuando corre 24_yolo_on_nao.py)")
+                   help="Puerto cámara lower")
     p.add_argument("--key",         default=DEFAULT_KEY,
                    help="SSH key para monitoreo de CPU/RAM del NAO")
     p.add_argument("--no-monitor",  action="store_true",
