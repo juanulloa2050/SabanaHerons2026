@@ -1,3 +1,5 @@
+// Sabana Herons: the penalty taker does not touch the ball a second time.
+
 std::array<unsigned, 3> obstacleCellTimestamps = {}; /**< The timestamps when an obstacles was in each cell. */
 
 option(PenaltyTaker)

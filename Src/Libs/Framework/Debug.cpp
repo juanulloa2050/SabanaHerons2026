@@ -7,6 +7,8 @@
  * @author Jan Fiedler
  */
 
+// Sabana Herons: debug output waits instead of busy-looping when no client is connected.
+
 #include "Debug.h"
 #include "Debugging/Debugging.h"
 #include "Platform/Time.h"

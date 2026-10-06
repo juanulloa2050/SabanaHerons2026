@@ -7,6 +7,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL game states: Stop Play, dropped ball, restarts, cautions, removals.
+
 #pragma once
 
 #include "Framework/Settings.h"

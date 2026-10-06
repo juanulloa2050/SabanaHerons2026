@@ -5,6 +5,8 @@
  * Carries streaming status for the current camera thread.
  */
 
+// Sabana Herons: camera streaming status.
+
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

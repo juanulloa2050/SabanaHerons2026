@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: pybh bindings for RL actions, world resets, observations and telemetry.
+
 #include "Controller.h"
 #include "RLSharedState.h"
 #include "SimRobotHost.h"

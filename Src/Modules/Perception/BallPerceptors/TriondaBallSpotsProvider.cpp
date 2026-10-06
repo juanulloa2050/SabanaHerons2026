@@ -15,6 +15,8 @@
  * @author SabanaHerons 2026
  */
 
+// Sabana Herons: ball candidates for the Trionda ball.
+
 #include "TriondaBallSpotsProvider.h"
 #include "Debugging/Debugging.h"
 #include "Streaming/Output.h"

@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL set plays and setup positions (dropped ball, penalty kick, kick-off taker).
+
 #include "Behavior.h"
 #include "BallSearch.h"
 #include "ActiveRoles/ClosestToTeammatesBall.h"

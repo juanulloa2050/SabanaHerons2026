@@ -50,3 +50,4 @@ else()
     add_dependencies(Nao DeployDialog)
   endif()
 endif()
+# Sabana Herons: pass the build tool to the NAO cross-compilation project.

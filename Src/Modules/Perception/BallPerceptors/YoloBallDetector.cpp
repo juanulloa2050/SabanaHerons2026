@@ -2,6 +2,8 @@
  * @file YoloBallDetector.cpp
  */
 
+// Sabana Herons: asynchronous YOLO (ONNX) ball detector.
+
 #include "YoloBallDetector.h"
 #include "Platform/File.h"
 #include "Tools/Math/Transformation.h"
@@ -112,6 +114,7 @@ void YoloBallDetector::update(BallPercept& bp)
 
   const auto now   = std::chrono::steady_clock::now();
   const auto ageMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - detectionTime).count();
+  // Inference is asynchronous; drop results that are too old.
   if(!det.valid || ageMs > timeoutMs)
   {
     consecutiveSeen = 0;

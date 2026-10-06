@@ -5,6 +5,8 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
+// Sabana Herons: RL resets can place teammates and opponents.
+
 #pragma once
 
 #include "Math/Eigen.h"

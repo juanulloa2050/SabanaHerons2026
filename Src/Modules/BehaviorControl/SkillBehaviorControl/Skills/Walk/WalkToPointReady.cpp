@@ -7,6 +7,8 @@
  * @author Fynn Böse
  */
 
+// Sabana Herons: READY positioning anticipates illegal areas and aligns the heading late.
+
 #include "Representations/BehaviorControl/IllegalAreas.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"

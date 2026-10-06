@@ -5,6 +5,8 @@
  *
  * @author Sina Schreiber
  */
+// Sabana Herons: ball search prioritizes restart candidates and the last shared ball.
+
 #include "BallSearchAreasProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Math/BHMath.h"

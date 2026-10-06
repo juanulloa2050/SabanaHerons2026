@@ -1,3 +1,5 @@
+// Sabana Herons: masks illegal field-player skills before the argmax.
+
 #include "PPOSkillGate.h"
 
 #include <algorithm>
@@ -65,6 +67,7 @@ void RL::PPOSkillGate::reset()
 
 RL::PPOGateDecision RL::PPOSkillGate::step(const PPOGateObservation& observation)
 {
+  // Gates use the unnormalized observation.
   // Each gate has stricter enter limits than hold limits. This hysteresis keeps a
   // marginal ball estimate from enabling and disabling a skill on consecutive frames.
   const float dBall = std::hypot(observation.ballRelX, observation.ballRelY);

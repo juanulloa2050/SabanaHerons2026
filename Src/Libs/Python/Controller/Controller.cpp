@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: exposes controller state to the Python/SimRobot host.
+
 #include "Controller.h"
 #include "Framework/Communication.h"
 #include "Platform/BHAssert.h"

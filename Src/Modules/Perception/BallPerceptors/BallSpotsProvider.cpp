@@ -3,6 +3,8 @@
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
 
+// Sabana Herons: ball-spot diagnostics.
+
 #include "BallSpotsProvider.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"

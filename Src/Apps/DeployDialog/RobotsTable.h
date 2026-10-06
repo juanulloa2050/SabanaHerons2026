@@ -13,6 +13,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: deploy arguments can be written to a stream so the GUI can launch the deploy.
+
 #pragma once
 
 #include <QDragMoveEvent>

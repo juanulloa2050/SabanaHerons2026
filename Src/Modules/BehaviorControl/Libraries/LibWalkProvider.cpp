@@ -4,6 +4,8 @@
  * @author Andreas Stolpmann
  */
 
+// Sabana Herons: obstacle-avoidance diagnostics for RL.
+
 #include "LibWalkProvider.h"
 #include "Python/Controller/RLSharedState.h"
 

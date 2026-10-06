@@ -1,3 +1,5 @@
+// Sabana Herons: masks illegal field-player skills before the argmax.
+
 #pragma once
 
 #include "PPOCommon.h"

@@ -31,12 +31,15 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: the legacy SPL referee-signal sequence is disabled.
+
 /**
  * Are we in a situation where a referee signal could be shown?
  * @return Are we?
  */
 bool beginOfRefereeSignal() const
 {
+  // The legacy SPL referee-signal sequence is disabled.
   return false;
 }
 

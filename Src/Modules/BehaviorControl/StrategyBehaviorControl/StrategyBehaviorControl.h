@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: embedded RL policies (field players and goalkeeper) with fallback to the classical behavior.
+
 #pragma once
 
 #include "Behavior.h"

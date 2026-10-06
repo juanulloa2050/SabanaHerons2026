@@ -8,6 +8,8 @@
  * @author Gerrit Felsch
  */
 
+// Sabana Herons: color encoder, circle fallback and patch export for the Trionda ball.
+
 #include "BallPerceptor.h"
 #include "Platform/File.h"
 #include "Platform/SystemCall.h"

@@ -5,6 +5,8 @@
  * and provides SkillRequest + StrategyStatus for the normal skill pipeline.
  */
 
+// Sabana Herons: turns Python RL commands into SkillRequests in the RL scenarios.
+
 #pragma once
 
 #include "Representations/BehaviorControl/SkillRequest.h"

@@ -21,6 +21,8 @@
  * @author Philip Reichenberg
  */
 
+// Sabana Herons: duel telemetry for RL; handles a failed field-line intersection.
+
 #include "Framework/ModuleGraphRunner.h"
 #include "Platform/SystemCall.h"
 #include "Representations/BehaviorControl/FieldBall.h"

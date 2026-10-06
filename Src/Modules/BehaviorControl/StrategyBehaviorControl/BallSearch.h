@@ -12,6 +12,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: team ball search with restart candidates.
+
 #pragma once
 
 #include "Debugging/Annotation.h"

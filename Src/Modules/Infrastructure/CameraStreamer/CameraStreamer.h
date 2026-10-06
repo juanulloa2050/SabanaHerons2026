@@ -13,6 +13,8 @@
  * All socket calls are non-blocking; the module never delays the perception thread.
  */
 
+// Sabana Herons: streams camera images and ball patches for data collection.
+
 #pragma once
 
 #include "Representations/Infrastructure/CameraImage.h"

@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: synchronizes Python stepping with the simulator.
+
 #include "PythonConsole.h"
 #include "Framework/Communication.h"
 #include "Framework/Debug.h"

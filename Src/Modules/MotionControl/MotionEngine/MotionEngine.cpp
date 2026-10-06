@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: exports requested vs. executed motion for RL diagnostics.
+
 #include "MotionEngine.h"
 #include "Platform/BHAssert.h"
 #include "Platform/SystemCall.h"

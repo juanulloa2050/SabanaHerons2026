@@ -1,3 +1,5 @@
+// Sabana Herons: field-player policy contract: 8 skills, 4 parameters.
+
 #pragma once
 
 #include <array>

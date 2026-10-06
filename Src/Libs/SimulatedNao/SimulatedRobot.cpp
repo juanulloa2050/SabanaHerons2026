@@ -5,6 +5,8 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
+// Sabana Herons: RL resets can place teammates and opponents.
+
 #include "SimulatedRobot.h"
 #include "SimulatedNao/RoboCupCtrl.h"
 #include "Platform/BHAssert.h"

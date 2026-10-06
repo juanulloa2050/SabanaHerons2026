@@ -7,6 +7,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: deploy dialog with a single team preset and RL/goalkeeper options.
+
 #include "DeployDialog.h"
 #include <regex>
 #include <set>

@@ -2,6 +2,8 @@
  * @file RestartBallSearchProvider.cpp
  */
 
+// Sabana Herons: predicts where the ball will be placed for a restart.
+
 #include "RestartBallSearchProvider.h"
 #include "Math/BHMath.h"
 #include "Streaming/TypeRegistry.h"
@@ -40,6 +42,7 @@ void RestartBallSearchProvider::update(RestartBallSearchContext& restartBallSear
     restartBallSearchContext.rememberedPositionOnField = memory.position;
     restartBallSearchContext.sourceTimestamp = memory.timestamp;
     restartBallSearchContext.sourceRobotNumber = memory.sourceRobotNumber;
+    // Candidates come from the restart rules; remembered ball data ranks them.
     restartBallSearchContext.candidates = computeCandidates(restartType, memory);
     restartBallSearchContext.valid = !restartBallSearchContext.candidates.empty();
     restartBallSearchContext.fromDropInFallback = RestartBallSearchContext::isRefereePlaced(restartType) &&

@@ -7,6 +7,8 @@
  * @author Fynn Böse
  */
 
+// Sabana Herons: HSL illegal areas for dropped balls and opponent goal kicks.
+
 #include "IllegalAreaProvider.h"
 #include "Tools/BehaviorControl/Strategy/Role.h"
 #include "Math/BHMath.h"

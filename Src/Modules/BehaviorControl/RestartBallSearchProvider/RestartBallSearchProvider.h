@@ -8,6 +8,8 @@
  * the candidate, since the ball stays at the foul position.
  */
 
+// Sabana Herons: predicts where the ball will be placed for a restart.
+
 #pragma once
 
 #include "Framework/Module.h"

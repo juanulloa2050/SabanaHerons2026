@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: debug switch for injected ball coordinates.
+
 #pragma once
 
 #include "Representations/Configuration/BallSpecification.h"

@@ -1,3 +1,5 @@
+// Sabana Herons: goalkeeper policy contract: 64 observations, 12 skills, 4 parameters.
+
 #pragma once
 
 // Goalkeeper RL policy contract (mirrors docs/39 of the RL repository and goalkeeper_action.py /

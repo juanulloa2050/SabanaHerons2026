@@ -6,6 +6,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: applies RL resets/world updates and publishes observations in the simulator.
+
 #pragma once
 
 #include "SimulatedNao/RobotConsole.h"

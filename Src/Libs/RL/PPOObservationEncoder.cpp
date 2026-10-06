@@ -1,3 +1,5 @@
+// Sabana Herons: builds the 26/47-value policy observation; order must match the model manifest.
+
 #include "PPOObservationEncoder.h"
 
 #include <algorithm>
@@ -248,6 +250,7 @@ namespace
 //   [44]    is_striker
 //   [45]    is_open_support
 //   [46]    is_off_ball_support
+// Feature order and normalization must match the exported model.
 std::array<float, RL::ppoObsSize47> RL::PPOObservationEncoder::encode47(
   const PPOGateObservation& rawObservation,
   const PPOGateDecision& gateDecision,

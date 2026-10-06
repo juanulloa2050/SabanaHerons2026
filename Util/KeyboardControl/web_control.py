@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Sabana Herons: web robot control, camera view and recording.
 """
 SabanaHerons - Web Control Server
 Abre http://<ip_laptop>:8080 en cualquier celular de la red para controlar robots.

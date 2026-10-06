@@ -9,6 +9,8 @@
  * file can be used as a drop-in replacement after review.
  */
 
+// Sabana Herons: whistle recognizer with three spectral profiles.
+
 #pragma once
 
 #include "Representations/Configuration/DamageConfiguration.h"

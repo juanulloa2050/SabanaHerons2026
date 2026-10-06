@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: smoothed ball tracking with bounded head speed and lead.
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Libraries/LibLookActive.h"
@@ -232,6 +234,7 @@ class HeadControlImpl : public HeadControlImplBase
 
   Vector3f predictBallTarget(const Vector2f& ballPosition, const Vector2f& ballVelocity) const
   {
+    // Bounded lead reduces tracking lag.
     const float lookaheadTime = std::max(ballTrackingLookaheadTime, 0.f);
     const Vector2f rawLead = ballVelocity * lookaheadTime;
     const Vector2f lead = rawLead.squaredNorm() > sqr(maxBallTrackingLeadDistance) ?

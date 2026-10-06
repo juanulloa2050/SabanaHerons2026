@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: embedded RL policies (field players and goalkeeper) with fallback to the classical behavior.
+
 #include "StrategyBehaviorControl.h"
 #include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
@@ -340,6 +342,7 @@ std::string StrategyBehaviorControl::embeddedPPOStatusReason(const GameState& ga
 
 void StrategyBehaviorControl::update(SkillRequest& skillRequest)
 {
+  // External RL control for the selected team/players.
   if(usesExternalRLOverride(theGameState))
   {
     logRLModeIfChanged(RLRuntimeMode::externalOverride, "external override env active");
@@ -461,6 +464,7 @@ void StrategyBehaviorControl::update(SkillRequest& skillRequest)
   {
     ASSERT(self);
 
+    // Classical decision first, as fallback for the policy.
     skillRequest = theBehavior.update(strategy, *self, agents);
 
     theStrategyStatus.proposedTactic = self->proposedTactic;
@@ -504,6 +508,7 @@ void StrategyBehaviorControl::update(StrategyStatus& strategyStatus)
 
 bool StrategyBehaviorControl::updateEmbeddedPPO(SkillRequest& skillRequest)
 {
+  // Only a valid policy decision replaces the classical request.
   // Every embedded role follows the same safety contract below: mask illegal skills,
   // validate model output and yield to the regular B-Human behavior on any failure.
   if(usesExternalRLOverride(theGameState) ||
@@ -1310,6 +1315,7 @@ int StrategyBehaviorControl::chooseGKPassTarget() const
 
 bool StrategyBehaviorControl::updateEmbeddedGK(SkillRequest& skillRequest)
 {
+  // Goalkeeper policy, independent of the field-player policy.
   if(usesExternalRLOverride(theGameState) || !usesEmbeddedGK(theGameState))
     return false;
   if(!ensureEmbeddedGKLoaded())

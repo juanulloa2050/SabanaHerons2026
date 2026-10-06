@@ -6,6 +6,8 @@
  * @author Arne Hasselbring, Sina Schreiber
  */
 
+// Sabana Herons: team ball search with restart candidates.
+
 #include "BallSearch.h"
 #include "Representations/BehaviorControl/Skills.h"
 

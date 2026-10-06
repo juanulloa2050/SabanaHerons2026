@@ -1,3 +1,5 @@
+// Sabana Herons: builds the 26/47-value policy observation; order must match the model manifest.
+
 #pragma once
 
 #include "PPOCommon.h"

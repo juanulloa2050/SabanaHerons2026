@@ -4,6 +4,8 @@
  * @author Philip Reichenberg
  */
 
+// Sabana Herons: uses the requested angle when the start angle is off/ignore.
+
 #include "WalkPhaseBase.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
@@ -392,6 +394,7 @@ void WalkPhaseBase::constructorOtherCase()
       continue;
     if(startJointAngles.angles[joint] == JointAngles::off || startJointAngles.angles[joint] == JointAngles::ignore)
     {
+      // off/ignore cannot be used as an interpolation start.
       const Angle measuredAngle = engine.theJointAngles.angles[joint];
       startJointAngles.angles[joint] = measuredAngle != JointAngles::off && measuredAngle != JointAngles::ignore ? measuredAngle : request.angles[joint];
     }

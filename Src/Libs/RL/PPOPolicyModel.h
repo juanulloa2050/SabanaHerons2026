@@ -1,3 +1,5 @@
+// Sabana Herons: loads and runs the field-player ONNX policy, checking tensor shapes.
+
 #pragma once
 
 #include "PPOCommon.h"

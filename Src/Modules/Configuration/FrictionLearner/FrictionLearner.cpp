@@ -7,6 +7,8 @@
  * @author Felix Wenk
  */
 
+// Sabana Herons: less console output from the friction learner.
+
 #include "FrictionLearner.h"
 
 MAKE_MODULE(FrictionLearner);

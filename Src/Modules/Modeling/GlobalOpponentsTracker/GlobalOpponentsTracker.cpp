@@ -9,6 +9,8 @@
  * @author Michelle Gusev
  */
 
+// Sabana Herons: sent-off opponents are not counted as active.
+
 #include "GlobalOpponentsTracker.h"
 #include "Debugging/DebugDrawings.h"
 

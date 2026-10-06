@@ -1,3 +1,5 @@
+// Sabana Herons: CPU and memory usage monitor.
+
 #pragma once
 #include "Representations/Infrastructure/ResourceStats.h"
 #include "Representations/Infrastructure/FrameInfo.h"

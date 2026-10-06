@@ -94,6 +94,7 @@ class CMakeBuild(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
+        # Sabana Herons: both pybh extensions share one CMake build.
         if not self._cmake_built:
             subprocess.check_call(
                 ['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp

@@ -18,6 +18,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: exports requested vs. executed motion for RL diagnostics.
+
 #pragma once
 
 #include "Modules/Infrastructure/InterThreadProviders/PerceptionProviders.h"

@@ -1,3 +1,5 @@
+// Sabana Herons: HSL Stop Play; head-only ball search during SET.
+
 option(HandleGameState)
 {
   common_transition

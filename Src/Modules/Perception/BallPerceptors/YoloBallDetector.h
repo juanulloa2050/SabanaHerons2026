@@ -15,6 +15,8 @@
  *   Output: [1, 5, N]     float32 cx,cy,w,h,conf in model-pixel coords.
  */
 
+// Sabana Herons: asynchronous YOLO (ONNX) ball detector.
+
 #pragma once
 
 #include "Representations/Configuration/BallSpecification.h"

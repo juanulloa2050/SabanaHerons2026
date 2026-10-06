@@ -4,6 +4,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: team voice messages for ground contact.
+
 #include "GroundContactDetector.h"
 #include "Platform/SystemCall.h"
 

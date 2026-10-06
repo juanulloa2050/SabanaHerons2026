@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: maps HSL GameController packets to the internal game state.
+
 #pragma once
 
 #include "Representations/BehaviorControl/BehaviorStatus.h"

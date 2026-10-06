@@ -1,3 +1,5 @@
+// Sabana Herons: shared memory between Python and C++ for RL commands, resets and observations.
+
 #include "RLSharedState.h"
 
 #include <cerrno>

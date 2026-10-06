@@ -5,6 +5,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: HSL GameController protocol v20; SPL names are kept as source aliases only.
+
 #pragma once
 
 #include <cstdint>
@@ -19,6 +21,7 @@ namespace RoboCup
 #undef goalkeeperColour
 
 // Compatibility aliases for SabanaHerons modules that still use the SPL-era names internally.
+// Source-level aliases only; the wire format is v20.
 // The wire format above is the Humanoid League GameController v20 format.
 #ifndef COMPETITION_PHASE_ROUNDROBIN
 #define COMPETITION_PHASE_ROUNDROBIN 0

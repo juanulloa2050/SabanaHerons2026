@@ -2,6 +2,8 @@
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
 
+// Sabana Herons: adjusted goalkeeper distance to the ground line.
+
 #pragma once
 
 #include "Framework/Module.h"

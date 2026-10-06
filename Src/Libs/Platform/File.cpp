@@ -2,6 +2,8 @@
  * @file Platform/File.cpp
  */
 
+// Sabana Herons: finds the Config directory from the current working directory (embedded host).
+
 #include "File.h"
 #include "Platform/BHAssert.h"
 #include <cstdarg>

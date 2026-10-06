@@ -1,5 +1,6 @@
 #!/bin/bash
 # copies a bhuman distribution to a robot
+# Sabana Herons: also selects the embedded RL models and goalkeeper diving.
 
 usage()
 {
@@ -96,6 +97,7 @@ strategyBehaviorControlReplacements()
     TEAM_STRIKER_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v4_2.onnx\""
   fi
   if [ "$MERGED" != "[]" ]; then
+    # The merged model applies to all eligible field players, not only the listed ones.
     MERGED_MODEL="\"Config/NeuralNets/RLPolicy/ppo_team_hsl2026_v5_merged.onnx\""
   fi
   if [ ! -z "$RL_DISABLE" ] || [ "$STRIKERS" = "[]" -a "$DEFENDERS" = "[]" -a "$MERGED" = "[]" ]; then

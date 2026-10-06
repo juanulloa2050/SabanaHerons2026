@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL set plays and setup positions (dropped ball, penalty kick, kick-off taker).
+
 #pragma once
 
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"

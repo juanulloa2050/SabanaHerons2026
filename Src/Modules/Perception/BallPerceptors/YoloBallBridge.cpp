@@ -2,6 +2,8 @@
  * @file YoloBallBridge.cpp
  */
 
+// Sabana Herons: receives ball detections from an external detector (experimental).
+
 #include "YoloBallBridge.h"
 #include "Tools/Math/Transformation.h"
 #include "Streaming/Output.h"

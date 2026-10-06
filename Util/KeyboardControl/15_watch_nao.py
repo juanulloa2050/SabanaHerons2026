@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Sabana Herons: camera viewer with detection overlay and dataset capture.
 """
 Script 15: Live stream de la cámara del NAO con overlay de detección y
            recolección manual de datos de entrenamiento.

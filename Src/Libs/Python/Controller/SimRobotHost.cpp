@@ -1,3 +1,5 @@
+// Sabana Herons: hosts SimRobot (visible or headless) inside a Python process.
+
 #include "SimRobotHost.h"
 
 #include "Platform/File.h"

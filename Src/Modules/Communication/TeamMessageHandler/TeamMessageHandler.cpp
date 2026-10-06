@@ -10,6 +10,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: shares kick and restart-search information with teammates.
+
 #include "TeamMessageHandler.h"
 #include "Representations/Communication/TeamData.h"
 #include "Debugging/Annotation.h"

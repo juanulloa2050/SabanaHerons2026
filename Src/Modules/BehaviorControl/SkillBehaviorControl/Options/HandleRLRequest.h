@@ -1,3 +1,5 @@
+// Sabana Herons: executes skills requested by the Python RL bridge.
+
 option(HandleRLRequest)
 {
   initial_state(start)

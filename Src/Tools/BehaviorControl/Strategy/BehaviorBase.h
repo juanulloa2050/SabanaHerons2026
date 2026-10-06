@@ -7,6 +7,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: exposes RestartBallSearchContext to behaviors.
+
 #pragma once
 
 #include "Representations/BehaviorControl/BallSearchAreas.h"

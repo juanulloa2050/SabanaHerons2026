@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: team strategies (5v5, attack, defense, Tortuga, HSL 3v3/4v4).
+
 #pragma once
 
 #include "ActiveRole.h"

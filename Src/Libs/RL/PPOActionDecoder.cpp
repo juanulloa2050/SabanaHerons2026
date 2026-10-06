@@ -1,3 +1,5 @@
+// Sabana Herons: turns field-player policy actions into SkillRequests.
+
 #include "PPOActionDecoder.h"
 
 #include <algorithm>
@@ -99,6 +101,7 @@ namespace
 
 SkillRequest RL::PPOActionDecoder::decode(const PPOGateObservation& observation, int skillIndex, const std::array<float, ppoParamCount>& rawParams) const
 {
+  // Parameters are skill targets, never joint commands.
   SkillType skill = SkillType::walk;
   if(skillIndex >= static_cast<int>(SkillType::stand) && skillIndex <= static_cast<int>(SkillType::observe))
     skill = static_cast<SkillType>(skillIndex);

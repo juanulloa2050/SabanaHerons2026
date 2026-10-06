@@ -1,3 +1,5 @@
+// Sabana Herons: restart type and predicted ball placements.
+
 #pragma once
 
 #include "Math/Eigen.h"

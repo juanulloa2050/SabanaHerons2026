@@ -1,3 +1,5 @@
+// Sabana Herons: turns field-player policy actions into SkillRequests.
+
 #pragma once
 
 #include "PPOCommon.h"

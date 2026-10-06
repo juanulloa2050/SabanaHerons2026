@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: full-field penalty plays.
+
 #pragma once
 
 #include "SetPlay.h"

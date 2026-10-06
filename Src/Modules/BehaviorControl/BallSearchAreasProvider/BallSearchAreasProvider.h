@@ -6,6 +6,8 @@
  * @author Sina Schreiber
  */
 
+// Sabana Herons: ball search prioritizes restart candidates and the last shared ball.
+
 #pragma once
 
 #include "Framework/Module.h"

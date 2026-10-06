@@ -1,3 +1,5 @@
+// Sabana Herons: masks illegal goalkeeper skills before the argmax.
+
 #include "GKSkillGate.h"
 
 #include <cmath>

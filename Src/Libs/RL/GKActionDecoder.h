@@ -1,3 +1,5 @@
+// Sabana Herons: turns goalkeeper policy actions into SkillRequests.
+
 #pragma once
 
 #include "GKCommon.h"

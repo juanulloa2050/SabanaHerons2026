@@ -7,6 +7,8 @@
  * @author Colin Graf
  */
 
+// Sabana Herons: simplified UKF landmark update.
+
 #include "UKFPose2D.h"
 #include "Math/BHMath.h"
 #include "Math/Covariance.h"

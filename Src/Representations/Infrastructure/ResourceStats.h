@@ -1,3 +1,5 @@
+// Sabana Herons: CPU and memory usage.
+
 #pragma once
 #include "Streaming/AutoStreamable.h" // ruta según tu árbol
 

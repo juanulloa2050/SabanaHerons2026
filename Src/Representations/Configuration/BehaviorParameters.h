@@ -6,6 +6,8 @@
  * @author Andreas Stolpmann
  */
 
+// Sabana Herons: goalkeeper diving is disabled by default.
+
 #pragma once
 
 #include "Math/Angle.h"

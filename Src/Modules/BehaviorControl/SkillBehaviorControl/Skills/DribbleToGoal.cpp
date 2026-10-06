@@ -7,6 +7,8 @@
  * @author Philip Reichenberg
  */
 
+// Sabana Herons: tuned dribble ranges near the field border and goalposts.
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/FieldRating.h"
 #include "Representations/BehaviorControl/Skills.h"

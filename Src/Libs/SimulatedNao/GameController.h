@@ -4,6 +4,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: simulated GameController with HSL divisions, Stop Play and restarts.
+
 #pragma once
 
 #include "Representations/Communication/GameControllerData.h"

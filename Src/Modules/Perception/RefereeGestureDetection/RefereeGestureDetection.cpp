@@ -6,6 +6,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: rejects gesture candidates outside the configured image area.
+
 #include "RefereeGestureDetection.h"
 #include "Debugging/Debugging.h"
 #include "Platform/SystemCall.h"

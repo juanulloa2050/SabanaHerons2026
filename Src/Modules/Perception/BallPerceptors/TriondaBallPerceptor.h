@@ -8,6 +8,8 @@
  * @author SabanaHerons 2026
  */
 
+// Sabana Herons: ball percept from the largest Trionda candidate.
+
 #pragma once
 
 #include "Framework/Module.h"

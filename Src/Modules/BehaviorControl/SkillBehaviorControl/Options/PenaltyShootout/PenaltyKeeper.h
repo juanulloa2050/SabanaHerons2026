@@ -1,3 +1,5 @@
+// Sabana Herons: penalty keeper stands high instead of preparing to dive.
+
 option(PenaltyKeeper)
 {
   // Martin Kroker, 14.04.2013?

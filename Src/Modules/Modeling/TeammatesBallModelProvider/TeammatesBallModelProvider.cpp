@@ -7,6 +7,8 @@
  * @author Tim Laue
  */
 
+// Sabana Herons: keeps the last shared ball as a prediction for ball search.
+
 #include "TeammatesBallModelProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Tools/Modeling/BallPhysics.h"

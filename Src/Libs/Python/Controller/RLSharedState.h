@@ -6,6 +6,8 @@
  * independently loaded shared objects such as controller.so and libSimulatedNao.so.
  */
 
+// Sabana Herons: shared memory between Python and C++ for RL commands, resets and observations.
+
 #pragma once
 
 #include <pthread.h>

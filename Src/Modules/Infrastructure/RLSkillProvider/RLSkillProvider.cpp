@@ -9,6 +9,8 @@
  *   3. update(SkillRequest) reads action → provides SkillRequest
  */
 
+// Sabana Herons: turns Python RL commands into SkillRequests in the RL scenarios.
+
 #include "RLSkillProvider.h"
 #include "Python/Controller/RLSharedState.h"
 
@@ -44,6 +46,7 @@ void RLSkillProvider::update(SkillRequest& skillRequest)
     io.unlock();
   }
 
+  // Used by the RL scenarios instead of the strategy; the output is still a SkillRequest.
   if(skill == "walkTo" || skill == "walk")
   {
     skillRequest = SkillRequest::Builder::walkTo(Pose2f(tt, tx, ty));

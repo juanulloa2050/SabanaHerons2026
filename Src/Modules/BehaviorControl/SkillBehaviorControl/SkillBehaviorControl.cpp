@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: RL goalkeeper requests and telemetry for the RL bridge.
+
 #include "SkillBehaviorControl.h"
 #include "Python/Controller/RLSharedState.h"
 #include "Streaming/TypeRegistry.h"

@@ -1,3 +1,5 @@
+// Sabana Herons: builds the goalkeeper policy observation from B-Human representations.
+
 #pragma once
 
 #include "GKCommon.h"

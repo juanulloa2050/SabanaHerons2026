@@ -7,6 +7,8 @@
  * @author Florian Maaß
  * @author Jan Fiedler & Nicole Schrader
  */
+// Sabana Herons: keeps obstacles in RL game states; exports diagnostics.
+
 #pragma once
 
 #include "ObstacleHypothesis.h"

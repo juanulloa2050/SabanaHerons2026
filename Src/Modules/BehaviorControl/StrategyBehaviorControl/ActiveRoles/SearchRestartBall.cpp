@@ -2,6 +2,8 @@
  * @file SearchRestartBall.cpp
  */
 
+// Sabana Herons: role that searches the ball at the predicted restart position.
+
 #include "SearchRestartBall.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"
 

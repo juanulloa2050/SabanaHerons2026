@@ -6,6 +6,8 @@
  * @author Max Risler
  */
 
+// Sabana Herons: field dimensions are read from the selected configuration.
+
 #include "FieldDimensions.h"
 #include "Debugging/Modify.h"
 #include "Streaming/InStreams.h"

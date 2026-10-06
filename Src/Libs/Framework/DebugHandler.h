@@ -6,6 +6,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: exposes the TCP connection state to the debug thread.
+
 #pragma once
 
 #ifdef TARGET_ROBOT

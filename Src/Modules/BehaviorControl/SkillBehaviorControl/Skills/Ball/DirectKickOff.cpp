@@ -6,6 +6,8 @@
  * @author Arne Hasselbring (from former KickoffStrikerCard.cpp in 2019).
  */
 
+// Sabana Herons: with two or fewer robots, the first kick-off touch leaves the center circle.
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BallSpecification.h"

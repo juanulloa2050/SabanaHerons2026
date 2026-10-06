@@ -6,6 +6,7 @@
  *
  * @author Tim Laue
  */
+// Sabana Herons: keeps the last shared ball as a prediction for ball search.
 
 #pragma once
 

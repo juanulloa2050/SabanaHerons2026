@@ -8,6 +8,8 @@
  * @author Jan Fiedler & Nicole Schrader
  */
 
+// Sabana Herons: keeps obstacles in RL game states; exports diagnostics.
+
 #include "ObstacleModelProvider.h"
 #include "Debugging/Annotation.h"
 #include "Debugging/DebugDrawings.h"
@@ -106,6 +108,7 @@ bool ObstacleModelProvider::clearAndFinish(ObstacleModel& obstacleModel)
   DEBUG_RESPONSE_ONCE("module:ObstacleModelProvider:clear")
     obstacleHypotheses.clear();
 
+  // Keep obstacles across RL game-state changes; falling still clears them.
   const bool rlMode = RLSharedStateBridge::isEnabledForTeam(theGameState.ownTeam.number);
   if((theGameState.isPenalized() && !rlMode)
      || (theGameState.isInitial() && !rlMode)

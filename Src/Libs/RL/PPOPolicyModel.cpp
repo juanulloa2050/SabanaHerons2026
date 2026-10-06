@@ -1,3 +1,5 @@
+// Sabana Herons: loads and runs the field-player ONNX policy, checking tensor shapes.
+
 #include "PPOPolicyModel.h"
 
 #include "Platform/File.h"
@@ -59,6 +61,7 @@ bool RL::PPOPolicyModel::load(const std::string& configuredModelPath, std::strin
     return false;
   }
 
+  // Accept one combined or two separate outputs with the expected sizes.
   logitsOutputIndex = -1;
   paramsOutputIndex = -1;
   combinedOutput = false;

@@ -6,6 +6,8 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
+// Sabana Herons: penalty returns are seeded on the touchline; explicit reset on RL teleports.
+
 #include "SelfLocator.h"
 #include "Debugging/Annotation.h"
 #include "Python/Controller/RLSharedState.h"
@@ -569,6 +571,7 @@ void SelfLocator::handleGameStateChanges()
   else if(theExtendedGameState.returnFromGameControllerPenalty || theExtendedGameState.returnFromManualPenalty ||
           (theGameState.playerState == GameState::calibration && theGameState.playerState != theExtendedGameState.playerStateLastFrame))
   {
+    // Side hint remembered before the penalty; without it both sides are kept.
     if(returnFromPenaltySidelineHint != 0)
     {
       // The GameController returns a robot on the same sideline it left from. Seeding

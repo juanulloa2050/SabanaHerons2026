@@ -1,3 +1,5 @@
+// Sabana Herons: revised referee gesture set.
+
 #pragma once
 /**
  * @file RefereePercept.h

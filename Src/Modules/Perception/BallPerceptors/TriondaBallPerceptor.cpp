@@ -4,6 +4,8 @@
  * @author SabanaHerons 2026
  */
 
+// Sabana Herons: ball percept from the largest Trionda candidate.
+
 #include "TriondaBallPerceptor.h"
 #include "Debugging/Annotation.h"
 #include "Streaming/Output.h"

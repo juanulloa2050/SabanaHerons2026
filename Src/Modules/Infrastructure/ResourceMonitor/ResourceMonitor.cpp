@@ -1,3 +1,5 @@
+// Sabana Herons: CPU and memory usage monitor.
+
 #include "ResourceMonitor.h"
 #include "Debugging/Plot.h"
 #include <fstream>

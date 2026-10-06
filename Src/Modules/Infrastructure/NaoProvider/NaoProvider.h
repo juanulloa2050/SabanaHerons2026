@@ -6,6 +6,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: more connection retries at startup.
+
 #pragma once
 
 #include "Representations/Configuration/JointCalibration.h"

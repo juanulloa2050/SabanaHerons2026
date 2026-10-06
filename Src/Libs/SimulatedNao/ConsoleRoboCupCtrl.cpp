@@ -6,6 +6,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: HSL GameController commands and headless mode for Python experiments.
+
 #include "ConsoleRoboCupCtrl.h"
 #include "SimulatedNao/BHToolBar.h"
 #include "SimulatedNao/ControllerRobot.h"

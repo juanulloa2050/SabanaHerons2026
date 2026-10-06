@@ -1,6 +1,8 @@
 /**
  * @author <a href="mailto:jesse@tzi.de">Jesse Richter-Klug</a>
  */
+// Sabana Herons: caches source row pointers when sampling CNN patches.
+
 #pragma once
 
 #include "ImageProcessing/AVX.h"

@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: team kick-off configurations.
+
 #pragma once
 
 #include "SetPlay.h"

@@ -9,6 +9,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: fallback setup pose for unmapped player numbers.
+
 #include "SetupPoses.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Debugging/Debugging.h"

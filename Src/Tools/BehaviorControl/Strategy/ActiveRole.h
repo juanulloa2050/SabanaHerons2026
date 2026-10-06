@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: restart ball search role.
+
 #pragma once
 
 #include "Role.h"

@@ -8,6 +8,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: RGB referee patch preparation.
+
 #pragma once
 
 #include "Framework/Module.h"

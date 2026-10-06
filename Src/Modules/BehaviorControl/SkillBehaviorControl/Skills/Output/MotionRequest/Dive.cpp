@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: diving obeys keeperJumpingOn, also for RL requests.
+
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BehaviorParameters.h"
@@ -26,6 +28,7 @@ class DiveImpl : public DiveImplBase
 {
   void execute(const Dive& p) override
   {
+    // Respect the deploy-time dive switch, also for RL requests.
     if(theBehaviorParameters.keeperJumpingOn)
     {
       theMotionRequest.motion = MotionRequest::dive;

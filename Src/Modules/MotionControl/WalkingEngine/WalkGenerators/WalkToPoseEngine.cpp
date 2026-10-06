@@ -7,6 +7,8 @@
  * @author Philip Reichenberg
  */
 
+// Sabana Herons: exports planned steps to RL telemetry.
+
 #include "WalkToPoseEngine.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Math/BHMath.h"

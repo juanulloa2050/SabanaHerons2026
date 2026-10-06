@@ -1,3 +1,5 @@
+// Sabana Herons: loads and runs the goalkeeper ONNX policy.
+
 #pragma once
 
 #include "GKCommon.h"

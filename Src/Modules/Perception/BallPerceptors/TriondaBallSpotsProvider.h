@@ -16,6 +16,8 @@
  * @author SabanaHerons 2026
  */
 
+// Sabana Herons: ball candidates for the Trionda ball.
+
 #pragma once
 
 #include "Framework/Module.h"

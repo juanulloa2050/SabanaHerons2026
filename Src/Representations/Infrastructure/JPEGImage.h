@@ -4,6 +4,8 @@
  * Declaration of struct JPEGImage
  */
 
+// Sabana Herons: access to the encoded JPEG buffer for streaming.
+
 #pragma once
 
 #include "Representations/Infrastructure/CameraImage.h"

@@ -7,6 +7,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: translates the RL modes and goalkeeper diving into Make/Common/deploy arguments.
+
 #include "SettingsArea.h"
 #include <iostream>
 #include <QCheckBox>

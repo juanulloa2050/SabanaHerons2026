@@ -6,6 +6,8 @@
  * @author <a href="mailto:tlaue@uni-bremen.de">Tim Laue</a>
  */
 
+// Sabana Herons: penalty returns are seeded on the touchline; explicit reset on RL teleports.
+
 #pragma once
 
 #include "UKFRobotPoseHypothesis.h"

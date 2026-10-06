@@ -7,6 +7,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: presets store the per-player RL mode and the goalkeeper dive switch.
+
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

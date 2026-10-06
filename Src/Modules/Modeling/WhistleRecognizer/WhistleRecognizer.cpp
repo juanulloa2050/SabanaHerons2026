@@ -7,6 +7,8 @@
  *   - mouth_whistle: wider raw-spectrum profile for lower lip-whistle energy
  */
 
+// Sabana Herons: whistle recognizer with three spectral profiles.
+
 #include "WhistleRecognizer.h"
 #include "Platform/SystemCall.h"
 #include "Debugging/Annotation.h"

@@ -14,6 +14,8 @@
  * If no detection arrives within timeoutMs, publishes notSeen.
  */
 
+// Sabana Herons: receives ball detections from an external detector (experimental).
+
 #pragma once
 
 #include "Representations/Configuration/BallSpecification.h"

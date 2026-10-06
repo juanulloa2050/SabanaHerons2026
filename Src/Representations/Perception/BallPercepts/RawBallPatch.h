@@ -7,6 +7,8 @@
  * Python training scripts receive bit-identical patches to what the NN sees.
  */
 
+// Sabana Herons: ball patch sent to CameraStreamer for dataset capture.
+
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

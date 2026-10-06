@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: goalkeeper intercept and dive requests for the RL goalkeeper.
+
 #pragma once
 
 #include "Math/Pose2f.h"

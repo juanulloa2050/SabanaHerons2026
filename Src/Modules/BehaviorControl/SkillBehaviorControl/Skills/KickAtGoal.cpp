@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL kick-off and indirect free-kick restrictions on scoring.
+
 #include "Representations/BehaviorControl/FieldBall.h"
 #include "Representations/BehaviorControl/Skills.h"
 #include "Representations/Configuration/BallSpecification.h"
@@ -68,6 +70,7 @@ class KickAtGoalImpl : public KickAtGoalImplBase
     const bool ballOutsideCenterCircle =
       theFieldBall.positionOnField.squaredNorm() >=
       sqr(theFieldDimensions.centerCircleRadius + theFieldDimensions.fieldLinesWidth * 0.5f + theBallSpecification.radius);
+    // The restriction persists after the switch to playing.
     const bool ownKickOffGoalStillBlocked =
       theGameState.ownKickOffGoalRestrictionActive &&
       (theGameState.ownKickOffGoalRestrictionRequiresDifferentRobot

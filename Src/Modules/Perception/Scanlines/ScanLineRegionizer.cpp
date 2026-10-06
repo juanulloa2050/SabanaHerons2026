@@ -9,6 +9,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: scan lines never start at negative image coordinates.
+
 #include "ScanLineRegionizer.h"
 #include "Debugging/DebugDrawings.h"
 #include "Tools/Math/Transformation.h"

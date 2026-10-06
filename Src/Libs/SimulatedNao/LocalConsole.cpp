@@ -7,6 +7,8 @@
  * @author <A href="mailto:kspiess@tzi.de">Kai Spiess</A>
  */
 
+// Sabana Herons: applies RL resets/world updates and publishes observations in the simulator.
+
 #include "LocalConsole.h"
 #include "SimulatedNao/ConsoleRoboCupCtrl.h"
 #include "SimulatedNao/SimulatedRobot2D.h"

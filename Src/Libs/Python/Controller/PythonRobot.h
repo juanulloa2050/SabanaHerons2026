@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: initializes the Python-controlled robot for RL stepping.
+
 #pragma once
 
 #include "PythonConsole.h"

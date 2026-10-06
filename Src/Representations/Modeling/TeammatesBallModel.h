@@ -7,6 +7,8 @@
  * @author <A href="mailto:tlaue@uni-bremen.de">Tim Laue</A>
  */
 
+// Sabana Herons: distinguishes fresh shared-ball sightings from predictions.
+
 #pragma once
 
 #include "Streaming/AutoStreamable.h"

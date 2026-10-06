@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: RL goalkeeper requests and telemetry for the RL bridge.
+
 #pragma once
 
 #include "Libs/Math/Random.h"

@@ -7,6 +7,8 @@
  * @author Jo Lienhoop
  */
 
+// Sabana Herons: restart search and HSL kick-off/penalty restrictions.
+
 #include "PlayBall.h"
 #include "Representations/Communication/TeamData.h"
 #include "Tools/BehaviorControl/Strategy/Agent.h"

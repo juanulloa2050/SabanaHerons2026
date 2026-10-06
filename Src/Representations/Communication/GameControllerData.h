@@ -7,6 +7,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL v20 stopped and cautions fields.
+
 #pragma once
 
 #include "Network/RoboCupGameControlData.h"

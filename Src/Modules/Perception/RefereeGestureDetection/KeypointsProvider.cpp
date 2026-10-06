@@ -8,6 +8,8 @@
  * @author Thomas Röfer
  */
 
+// Sabana Herons: RGB referee patch preparation.
+
 #include "KeypointsProvider.h"
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/DebugImages.h"

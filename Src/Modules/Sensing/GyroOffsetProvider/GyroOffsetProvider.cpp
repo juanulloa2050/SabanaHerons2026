@@ -3,6 +3,8 @@
  * @author Philip Reichenberg
  */
 
+// Sabana Herons: team voice messages for gyro calibration.
+
 #include "GyroOffsetProvider.h"
 #include "Debugging/Annotation.h"
 #include "Platform/SystemCall.h"

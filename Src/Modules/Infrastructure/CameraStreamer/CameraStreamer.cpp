@@ -13,6 +13,8 @@
  * producing a standard JPEG that any viewer can display.
  */
 
+// Sabana Herons: streams camera images and ball patches for data collection.
+
 #include "CameraStreamer.h"
 #include "Streaming/Output.h"
 

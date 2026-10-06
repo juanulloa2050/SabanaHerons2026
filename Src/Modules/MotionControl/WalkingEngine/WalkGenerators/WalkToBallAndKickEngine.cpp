@@ -6,6 +6,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: debug switch for injected ball coordinates.
+
 #include "WalkToBallAndKickEngine.h"
 #include "Modules/MotionControl/KickEngine/KickEngineParameters.h"
 #include "Platform/BHAssert.h"

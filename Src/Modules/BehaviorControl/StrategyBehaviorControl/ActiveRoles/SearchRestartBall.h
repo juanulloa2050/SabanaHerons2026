@@ -2,6 +2,8 @@
  * @file SearchRestartBall.h
  */
 
+// Sabana Herons: role that searches the ball at the predicted restart position.
+
 #pragma once
 
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"

@@ -17,6 +17,8 @@
  * @author Tim Laue
  */
 
+// Sabana Herons: extra temporal filtering of ball percepts.
+
 #include "BallPerceptFilter.h"
 #include "Debugging/Annotation.h"
 #include "Streaming/Output.h"

@@ -7,6 +7,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: HSL v20 stopped and cautions fields.
+
 #include "GameControllerData.h"
 
 static_assert(GAMECONTROLLER_STRUCT_VERSION == 20);

@@ -7,6 +7,8 @@
  * @author Jo Lienhoop
  */
 
+// Sabana Herons: team formations and 3v3/4v4 tactics.
+
 #pragma once
 
 #include "Math/Pose2f.h"

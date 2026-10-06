@@ -6,6 +6,8 @@
  * @author Arne Hasselbring et al
  */
 
+// Sabana Herons: optional simulator-only motion aids for RL experiments.
+
 #include "SimulatedRobot3D.h"
 #include "SimulatedNao/RoboCupCtrl.h"
 #include "Platform/Time.h"

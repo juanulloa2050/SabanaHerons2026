@@ -5,6 +5,8 @@
  * @author Arne Hasselbring
  */
 
+// Sabana Herons: simulated GameController with HSL divisions, Stop Play and restarts.
+
 #include "Tools/Communication/TeamMessageChannel.h"
 #include "GameController.h"
 #include "SimulatedRobot.h"

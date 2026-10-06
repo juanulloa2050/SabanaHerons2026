@@ -34,6 +34,8 @@
  * @author Tim Laue
  */
 
+// Sabana Herons: sent-off players do not take a setup pose.
+
 #include "SetupPosesProvider.h"
 
 SetupPosesProvider::SetupPosesProvider()
@@ -67,6 +69,7 @@ bool SetupPosesProvider::updateRobotOrder()
   std::vector<int> currentRobotOrder;
   for(unsigned long i=0; i<theGameState.ownTeam.playerStates.size(); i++)
   {
+    // Sent-off players do not take a setup slot.
     if(theGameState.ownTeam.playerStates[i] != GameState::substitute &&
        theGameState.ownTeam.playerStates[i] != GameState::sentOff)
       currentRobotOrder.push_back(static_cast<int>(i)+1);

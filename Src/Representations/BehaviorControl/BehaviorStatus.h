@@ -4,6 +4,8 @@
  * @author Andreas Stolpmann
  */
 
+// Sabana Herons: kick timestamps and restart information shared with teammates.
+
 #pragma once
 
 #include "Tools/Communication/BHumanMessageParticle.h"
