@@ -4,9 +4,9 @@ The B-Human 2023 code release targets the Standard Platform League (SPL
 rules 2023/2024 and GameController protocol v18). Sabana Herons plays the
 Humanoid Soccer League (HSL) 2026 with NAO robots, so the code base was
 migrated to the HSL GameController protocol (v20) and to the HSL 2026 rules
-(Small field, Foundation 4v4). This document lists what was changed and what
-remains to be validated. It may be useful to other teams that start from a
-B-Human release for the HSL.
+(Small field, Foundation 4v4). This document lists what was changed; it is the
+code we played with at RoboCup 2026. It may be useful to other teams that
+start from a B-Human release for the HSL.
 
 References used: SPL rules 2024, HSL rules 2026 (draft of 2026-05-26), the
 SPL GameController (protocol v18) and the HSL GameController (protocol v20).
@@ -93,31 +93,3 @@ Restart placements are often not visible from where a robot stands.
 should be placed, ranked by remembered local/team ball information, and
 `SearchRestartBall` and `BallSearchAreasProvider` integrate them into the team
 search. These hypotheses are kept separate from real ball sightings.
-
-## Open items
-
-These rules were not, or not completely, validated with the real HSL
-GameController and real robots:
-
-- READY durations (45 s, 30 s for penalty kicks) and the 60 s penalty-kick
-  duration.
-- Stop Play on real robots: robots must stop immediately and not get up during
-  a short stop. Reception of `PENALTY_MOTION_IN_STOP`.
-- Ball Stop Rule and Penalty Kick Extension Rule (depend on the GameController;
-  ending a half is a manual action in the version we used).
-- Team/referee timeouts, retained restarts, mercy rule (10 goals), and
-  allowance-for-time-lost message budget.
-- Dropped ball during `PLAYING`: ball in play immediately, direct goals allowed.
-- Free-kick placement rules inside the goal/penalty area, and the "ball free"
-  direct-goal rule for indirect free kicks.
-- Penalty shoot-out workflow (up to six prepared robots, substitutes).
-- Ball holding (10 s keeper, 5 s others), request for pick-up, incapable
-  robots, stance width, arm/hand contact, leaving the field, goal-area
-  occupancy (at most three players).
-- Team communication limits (UDP broadcast, 512 B payload, port
-  10000 + team number, 12 000 messages per game) and debug communication
-  (one packet per second to one wired device).
-- Ball parameters for the FIFA mini ball used in competition (`4v4_Full`
-  uses a 65 mm radius; mass, friction, and kick distances were not measured),
-  and SimRobot field assets matching the HSL Small field.
-- Localization and perception on the HSL field, turf, and lighting.

@@ -50,8 +50,7 @@ the penalty to break the left/right symmetry. For restarts, a new
 `RestartBallSearchProvider` predicts where the ball will be placed, so robots
 search there instead of waiting to see it.
 
-Details and the list of rules that remain to be validated:
-[docs/HSL2026_Migration.md](docs/HSL2026_Migration.md).
+Details: [docs/HSL2026_Migration.md](docs/HSL2026_Migration.md).
 
 ### 2. Strategies for 4v4 and 3v3
 

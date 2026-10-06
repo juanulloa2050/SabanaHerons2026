@@ -20,8 +20,7 @@ full camera image, and provides `BallPercept` directly. Downstream of
 
 In [Locations/4v4_Full/ballSpecification.cfg](../Config/Locations/4v4_Full/ballSpecification.cfg),
 the ball radius is 65 mm (B-Human: 50 mm). This value is used for every
-image-to-field projection. The ball parameters for the competition ball are
-still to be validated (see [HSL2026_Migration.md](HSL2026_Migration.md)).
+image-to-field projection.
 
 ## Pipeline
 
