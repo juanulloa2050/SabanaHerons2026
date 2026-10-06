@@ -217,5 +217,4 @@ private:
 #include "Options/PenaltyShootout/PenaltyTaker.h"
 #include "Options/HandleCameraCalibrationDataCollection.h"
 #include "Options/HandleReturnFromSideline.h"
-#include "Options/HandlePatada.h"
 };

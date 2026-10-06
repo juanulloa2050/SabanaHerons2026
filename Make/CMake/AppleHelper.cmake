@@ -3,8 +3,7 @@ if(MACOS)
 
   set(APPLEHELPER_SOURCES
       "${APPLEHELPER_ROOT_DIR}/Helper.mm"
-      "${APPLEHELPER_ROOT_DIR}/Helper.h"
-          ../../Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandlePatada.h)
+      "${APPLEHELPER_ROOT_DIR}/Helper.h")
 
   add_library(AppleHelper STATIC ${APPLEHELPER_SOURCES})
   set_property(TARGET AppleHelper PROPERTY FOLDER Libs)
