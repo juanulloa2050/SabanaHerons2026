@@ -1,3 +1,4 @@
+# Sabana Herons: builds the YOLO dataset from labeled sessions and retrains the ball model.
 """
 7_retrain.py — Reentrenamiento del modelo YOLO de detección de balón.
 

@@ -32,7 +32,7 @@ Controles de recolección de datos:
     r / f    → subir / bajar radio de la bounding box (+/- 5 px)
 
 En modo dual, t/n guarda el frame de AMBAS cámaras simultáneamente.
-Los datos se guardan en data/sessions/ (formato Pascal VOC).
+Los datos se guardan en data/sessions/ (formato Pascal VOC), listos para 7_retrain.py.
 """
 
 import argparse

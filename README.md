@@ -65,16 +65,17 @@ lateral pass to receivers placed away from the center circle. The classical
 
 The HSL uses a FIFA-style ball instead of the SPL ball, so we added:
 
-- `YoloBallDetector`: a YOLO detector exported to ONNX and run asynchronously
-  on the NAO with ONNX Runtime, with a lightweight image-space Kalman tracker;
-  its output feeds B-Human's `BallPerceptFilter` and `BallStateEstimator`;
+- `YoloBallDetector`: a YOLOv8n detector (320×320) exported to ONNX and run
+  asynchronously on the NAO with ONNX Runtime, with a lightweight image-space
+  Kalman tracker that compensates for camera motion; its output feeds
+  B-Human's `BallPerceptFilter` and `BallStateEstimator`;
 - Trionda-specific candidate generation and classification modules, kept as
   an alternative to the network;
 - `CameraStreamer` and `RawBallPatch` to collect images and ball patches for
   training.
 
 The scenario used in matches selects `YoloBallDetector` with
-`Config/NeuralNets/BallDetector/yolo_ball_best1.onnx`.
+`Config/NeuralNets/BallDetector/yolo_ball_320.onnx`.
 Details: [docs/BallDetection.md](docs/BallDetection.md).
 
 ### 4. Whistle recognition
@@ -163,6 +164,7 @@ git submodule update --init
 | --- | --- |
 | `4v4_Complete` | Our match configuration: merged RL brain for field players, YOLO ball detector |
 | `4v4_Full` | Classical B-Human-style 4v4 behavior, no field-player RL |
+| `4v4_NoRLBlock` | Classical 4v4 with its own blocking formation; the deploy script disables all RL policies |
 | `4v4_StrikerBase`, `4v4_BaselineAttack`, `4v4_MixedAttack` | Earlier RL policies, for comparison |
 | `3v3_Full`, `3v3_RL_TeamV42`, `3v3_RL_MergedV5` | 3v3 variants |
 | `4v4_RL2D`, `4v4_RL3D` | Scenarios driven by the Python RL environment |

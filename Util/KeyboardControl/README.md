@@ -147,6 +147,7 @@ In dual mode `t`/`n` save both cameras. Sessions are written to `manual_<timesta
 
 | File | Purpose |
 |------|---------|
+| `7_retrain.py` | Converts the labeled sessions in `data/sessions/` to a YOLO dataset, trains with Ultralytics (`pip install ultralytics`) and exports the ONNX ball model |
 | `ball_detector_stream_recorder.py` | CAMF client (`connect_camf_stream`, `read_camf_frame`) and the two-camera AVI recorder used by `web_control.py` |
 | `dual_camera_recorder.py` | Alternative recorder that captures `representation:JPEGImage` through the debug connection (port 9999) instead of CAMF; not used by the web UI |
 | `setup_nao_watcher_env.sh` | Creates `.venv` and installs `requirements.txt` |

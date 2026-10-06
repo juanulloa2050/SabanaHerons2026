@@ -102,6 +102,13 @@ Provides `BallPercept` and `RawBallPatch`.
   - On a miss, the velocity decays by `kalmanMissedVelocityDecay`. The track
     is dropped after `kalmanMaxMissed` misses. Speed is clamped to
     `kalmanMaxSpeedPx`.
+  - **Egomotion compensation.** Before each prediction, the tracked position
+    is projected to the field with the camera matrix of the previous frame
+    and back into the image with the current one. The resulting shift is
+    removed from the velocity, so head and body rotation do not look like
+    ball motion. If the projection fails (for example, the ball left the
+    image), the velocity is reset and the gate is widened so that the next
+    real detection can re-lock the track.
   - Only measured states are published. Predicted-only states are published
     only if `publishPredictedPercepts` is true.
 - **Projection.** The image position is projected to the horizontal plane at
@@ -213,7 +220,7 @@ module:
 
 | Scenario(s) | `BallPercept` / `RawBallPatch` | `BallSpots` |
 | --- | --- | --- |
-| `4v4_Full`, `4v4_Complete`, `Default`, `Tortuga`, `3v3_Full`, `3v3_Scaled`, `4v4_BaselineAttack`, `4v4_MixedAttack`, `4v4_StrikerBase`, `4v4_RL2D`, `4v4_RL3D` | `YoloBallDetector` | `TriondaBallSpotsProvider` |
+| `4v4_Full`, `4v4_Complete`, `4v4_NoRLBlock`, `Default`, `Tortuga`, `3v3_Full`, `3v3_Scaled`, `4v4_BaselineAttack`, `4v4_MixedAttack`, `4v4_StrikerBase`, `4v4_RL2D`, `4v4_RL3D` | `YoloBallDetector` | `TriondaBallSpotsProvider` |
 | Scenarios without their own `threads.cfg` (e.g. `4v4_Scaled`, `CompetitionWalk`) | inherited from `Scenarios/Default` | |
 | `AnyPlaceDemo` | `YoloBallDetector` | `CNSBallSpotsProvider` |
 | `2D` | none (`BallModel` from `OracledWorldModelProvider`) | |
@@ -234,20 +241,20 @@ The values are identical in all scenarios that run YOLO.
 | Parameter | Value | Meaning |
 | --- | --- | --- |
 | `enabled` | true | If false, `BallPercept` is always `notSeen` (there is no fallback). |
-| `modelName` | `NeuralNets/BallDetector/yolo_ball_best1.onnx` | Relative to `Config/`. |
-| `upperConf` / `lowerConf` | 0.55 / 0.20 | Per-camera confidence threshold (only without the tracker). |
+| `modelName` | `NeuralNets/BallDetector/yolo_ball_320.onnx` | Relative to `Config/`. |
+| `upperConf` / `lowerConf` | 0.40 / 0.20 | Per-camera confidence threshold (only without the tracker). |
 | `upperMinConsecutive` / `lowerMinConsecutive` | 1 / 1 | New detections required before `seen` is published. |
 | `timeoutMs` | 500 | Maximum age of a detection that is still published (the header default is 2000). |
-| `inferenceIntervalMs` | 200 | Sleep after each inference. |
+| `inferenceIntervalMs` | 150 | Sleep after each inference. |
 | `enableKalman` | true | Enables the image-space tracker. |
 | `publishPredictedPercepts` | false | Publish track predictions without a measurement. |
-| `kalmanInitConf` / `kalmanInstantInitConf` | 0.35 / 0.55 | Confirmed start / immediate start of a track. |
+| `kalmanInitConf` / `kalmanInstantInitConf` | 0.28 / 0.55 | Confirmed start / immediate start of a track. |
 | `kalmanInitConfirmFrames` / `kalmanInitGatePx` | 2 / 65 | Confirmations needed to start a track, and the gate between them. |
 | `kalmanActiveConf` | 0.18 | Minimum confidence to update an active track. |
 | `kalmanFarGatePx` / `kalmanNearGateScale` | 55 / 2.5 | Association gate: `max(far, size · scale)`. |
-| `kalmanMaxMissed` / `kalmanStrongPredictionMissed` | 10 / 3 | Misses until the track is dropped / until the gate is widened. |
-| `kalmanMaxSpeedPx` / `kalmanMissedVelocityDecay` | 85 / 0.82 | Velocity clamp (px per inference) and decay per miss. |
-| `kalmanProcessNoise` / `kalmanMeasurementNoise` | 8 / 18 | Kalman noise terms. |
+| `kalmanMaxMissed` / `kalmanStrongPredictionMissed` | 15 / 3 | Misses until the track is dropped / until the gate is widened. |
+| `kalmanMaxSpeedPx` / `kalmanMissedVelocityDecay` | 160 / 0.82 | Velocity clamp (px per inference) and decay per miss. |
+| `kalmanProcessNoise` / `kalmanMeasurementNoise` | 12 / 18 | Kalman noise terms. |
 
 Other files: `yoloBallBridge.cfg` (ports 7779/7780, `timeoutMs` 500),
 `cameraStreamer.cfg` (ports 7777/7778, `enabled`) and `ballPerceptor.cfg`
@@ -258,19 +265,21 @@ networks, and the circle fallback parameters).
 
 | File | Used by | Input (N×C×H×W) | Output | Class | Exported |
 | --- | --- | --- | --- | --- | --- |
-| [`yolo_ball_best1.onnx`](../Config/NeuralNets/BallDetector) | all YOLO scenarios, module default | 1×3×256×320 | 1×5×1600 | `trionda` | 2026-07-03 |
+| [`yolo_ball_320.onnx`](../Config/NeuralNets/BallDetector) | all YOLO scenarios, module default | 1×3×320×320 | 1×5×2100 | `trionda` | 2026-07-04 |
 
-The model was exported with Ultralytics 8.4.48 (opset 12, static shape, no
-NMS). According to the ONNX metadata, it is a custom nano variant based on
-YOLO26n. The 1600 candidates are the cells of a stride-8 grid (40×32) and a
-stride-16 grid (20×16).
+The model is a YOLOv8n trained with Ultralytics at 320×320 on about 22,000
+images (6,779 positives labeled by five team members), exported to ONNX
+(opset 12, static shape, no NMS). Its best mAP50 on our validation split
+was 0.829. The 2100 candidates are the cells of the stride-8, 16, and 32
+grids (40×40 + 20×20 + 10×10).
 
-History: in early June 2026 we played with a 160×160 single-class model.
-The current 320×256 model replaced it in July 2026.
+History: until June 2026 we used a 160×160 model. Small, distant balls
+covered only 4–8 pixels at that resolution and were often missed, so we
+moved to 320×320 input for the final games.
 
-With the 320×256 input, the upper 640×480 image is downscaled by 0.5. The
-lower 320×240 image is used at full resolution. In both cases 8 rows of
-padding are added at the top and at the bottom.
+With the 320×320 input, the upper 640×480 image is downscaled by 0.5 and
+the lower 320×240 image is used at full resolution; in both cases rows of
+gray padding are added at the top and at the bottom.
 
 ONNX Runtime 1.10.0 is in [Util/onnxruntime](../Util/onnxruntime).
 `Make/Common/deploy` copies `libonnxruntime.so.1.10.0` to the robot. Each
@@ -307,11 +316,14 @@ The full usage is described in the folder's
 - **`dual_camera_recorder.py`** does the same through the B-Human debug
   connection (`representation:JPEGImage`).
 
-Training, dataset curation, and export are done outside this repository with
-Ultralytics, from frames recorded with these tools. The resulting `.onnx`
-file is placed in `Config/NeuralNets/BallDetector/` and selected with
-`modelName`. Neither the training scripts nor the dataset are part of this
-release. The only trace of the dataset is the name in the ONNX metadata.
+- **`7_retrain.py`** converts the labeled sessions from `data/sessions/`
+  (Pascal VOC) into a YOLO dataset, trains with Ultralytics (`pip install
+  ultralytics`), and exports the ONNX model. Run it with `--help` for the
+  options (sessions folder, input size, base model).
+
+The resulting `.onnx` file is placed in `Config/NeuralNets/BallDetector/`
+and selected with `modelName`. The dataset itself is not part of this
+release.
 
 ## Known limitations
 
@@ -325,10 +337,10 @@ release. The only trace of the dataset is the name in the ONNX metadata.
 - **No `guessed` and no fallback.** If the model fails to load, the robot is
   blind to the ball. Watch for the `[YoloBallDetector] Cannot load model`
   message.
-- **CPU load.** In June 2026 tests on a field player, moving from the
-  160×160 model to a larger one together with the tracker caused perception
-  timing warnings. `inferenceIntervalMs` is the main knob to reduce the
-  load.
+- **CPU load.** The 320×320 model needs roughly four times the computation
+  of the 160×160 one on the NAO CPU. Inference runs in the background, so it
+  lowers the detection rate rather than blocking the camera threads;
+  `inferenceIntervalMs` is the main knob to trade rate for load.
 - **Spot provider runs only for streaming.** `TriondaBallSpotsProvider` runs
   every frame only to feed `CameraStreamer`. Its color thresholds are fixed
   in code and were tuned for our ball and lab lighting.

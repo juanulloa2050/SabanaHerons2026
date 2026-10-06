@@ -10,7 +10,7 @@
  *
  * Inference runs in a background thread (never blocks the RT camera thread).
  *
- * Model: Config/NeuralNets/BallDetector/yolo_ball_best1.onnx in the HSL scenarios.
+ * Model: Config/NeuralNets/BallDetector/yolo_ball_320.onnx in the HSL scenarios.
  *   Input:  [1, 3, H, W]  float32 RGB CHW normalized [0,1]; H/W are read from ONNX.
  *   Output: [1, 5, N]     float32 cx,cy,w,h,conf in model-pixel coords.
  */
@@ -48,7 +48,7 @@ MODULE(YoloBallDetector,
   LOADS_PARAMETERS(
   {,
     (bool)(true)   enabled,
-    (std::string)("NeuralNets/BallDetector/yolo_ball_best1.onnx") modelName,
+    (std::string)("NeuralNets/BallDetector/yolo_ball_320.onnx") modelName,
     (float)(0.20f) lowerConf,
     (float)(0.55f) upperConf,
     (int)(1)       lowerMinConsecutive,
