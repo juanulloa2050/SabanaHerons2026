@@ -216,21 +216,7 @@ Only the folders that differ from B-Human 2023 are listed.
 
 ## Known limitations
 
-- Several HSL rules were implemented but not validated with the real HSL
-  GameController (Stop Play timing, timeouts, penalty-kick extension,
-  shoot-out); see [docs/HSL2026_Migration.md](docs/HSL2026_Migration.md).
-- The ball parameters (65 mm radius in `4v4_Full`) were not validated
-  against the competition ball.
 - The goalkeeper policy's save rate comes from a simulated benchmark; dive
   reach was not calibrated on the real robot.
 - `--rl-complete` selects the merged model for all eligible field players; it
   does not restrict it to the listed player numbers.
-
-## License
-
-This code is distributed under the B-Human license; see
-[License.md](License.md). It includes software developed by B-Human
-(<https://www.b-human.de>) and third-party libraries under their own
-licenses (`Util/`). If you use it, please acknowledge B-Human as the original
-authors of the framework (see [CITATION.cff](CITATION.cff)) and Sabana Herons
-for the changes described above.
