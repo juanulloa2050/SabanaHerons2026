@@ -8,7 +8,7 @@ Ciudad de México).
 
 | Companion document | Content |
 |---|---|
-| [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) | Every ticket (MZ-001 … MZ-034, plus backlog MZ-035), owners, estimates, branches and acceptance criteria |
+| [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) | Every ticket (MZ-001 … MZ-034, plus backlog MZ-035 and MZ-036), owners, estimates, branches and acceptance criteria |
 | [GANTT_LABERINTO.md](GANTT_LABERINTO.md) | Gantt chart and the lab access request for the university |
 
 ---
@@ -457,6 +457,7 @@ here is required: the defaults must already work.
 | **Stretch, only if ahead** | Return-to-start exploration (≤2 min), EKF, sonar front-wall check |
 | **Cut next if late (in order)** | 1. Time-weighted turn costs → plain BFS. 2. WallPerceptor head scan → wall inference from tag distance. |
 | **Backlog, to review** | MZ-035: research and compare alternative strategies (left/right wall-follower, Pledge, Trémaux, plain BFS) against the chosen one in simulation. Not scheduled and outside the hour budget. |
+| **Backlog, after 3 Nov** | MZ-036: RL skills for fast in-place turns and corridor centring, built on the existing RL stack (`Src/Libs/RL`, `pybh`). Route planning stays classical because A\* is already optimal for a known map; RL targets the motion time instead. |
 
 ---
 

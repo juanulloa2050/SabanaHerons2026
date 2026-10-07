@@ -1,6 +1,6 @@
 # Maze Challenge Tickets — Copa NAO CCM MX 2026
 
-This file lists every ticket (MZ-001 … MZ-035) for the Maze challenge, grouped by sprint. Each
+This file lists every ticket (MZ-001 … MZ-036) for the Maze challenge, grouped by sprint. Each
 ticket says who owns it, how long it should take, what it depends on, which branch to use, and
 how to tell that it is done. Start with the summary table, then open your sprint.
 
@@ -75,8 +75,9 @@ every cell, tag centre at 30 cm above the floor**. If the answer differs, only t
 | MZ-033 | Lab 5: dress rehearsal (pairing) | Bryam + Wilson | Buffer | 2 + 2 | – | **yes** | MZ-032 |
 | MZ-034 | Logistics and packing list | Wilson | Buffer | 0.5 | – | no | – |
 | MZ-035 | Research and compare alternative maze-solving strategies (backlog, to review) | TBD | Backlog | not estimated | – | no | MZ-021, MZ-025 |
+| MZ-036 | RL skills for in-place turns and corridor centring (backlog, after 3 Nov) | TBD | Backlog | not estimated | – | yes (validation) | MZ-016, MZ-024, MZ-026 |
 
-MZ-035 is a **backlog** item: it is not scheduled and not counted in the 50 h / 45 h budget. It is reviewed at the end of each sprint and pulled in only if there is slack.
+MZ-035 and MZ-036 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 is reviewed at the end of each sprint and pulled in only if there is slack. MZ-036 is planned for after the competition (3 Nov).
 
 ---
 
@@ -1179,4 +1180,40 @@ strategy misbehaves on the real robot.
 - [ ] At least 4 strategies are described, with their guarantees and limits.
 - [ ] The decision to implement (or not) was taken at a sprint review and recorded in the document.
 - [ ] If implemented: all strategies are compared on the same mazes and noise levels, and the recommendation is backed by the table.
+
+### MZ-036 — RL skills for in-place turns and corridor centring
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — after the competition (3 Nov 2026).** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Owner | TBD |
+| Estimate | Not estimated (first step of the ticket) |
+| Depends on | MZ-016 (walk profile, baseline), MZ-024 (maze skills, baseline), MZ-026 (simulation campaign, baseline numbers) |
+| Lab / robot | **yes**, for validation on the bench (training runs in simulation) |
+| Branch | `feat/MZ-036-rl-maze-motion` |
+| Files | `Src/Libs/RL/` (observation encoder and action decoder for the maze skills); `Config/NeuralNets/RLPolicy/` (new ONNX policies and manifests); `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/` (switch between classic and learned skill); `docs/maze/RL_MOTION.md` (create) |
+
+**Description.** Route planning stays classical: time-weighted A\* is already optimal for a
+known map, so reinforcement learning cannot improve the route itself. Most of the run time is
+spent walking and turning, so RL is aimed there instead. The goal is to train two low-level
+skills with the team's existing RL stack and keep them only if they beat the classic B-Human
+walk in simulation **and** on the bench.
+1. **Fast in-place turn** (90° and 180°) that lowers `t_turn90` / `t_turn180` without losing balance.
+2. **Corridor centring**: walk forward through a ~48 cm corridor with a larger lateral margin, at equal or higher speed.
+
+Reuse the existing infrastructure: `Src/Libs/RL` (encoders, decoders, ONNX wrappers), the
+`pybh` simulation environment (`docs/RL/Environment.md`, `docs/RL/Training.md`) and the policy
+integration path described in `docs/RL/Integration.md`.
+
+**Steps**
+1. Measure the baseline with the classic walk: the Lab 2 times (MZ-023) and the simulation campaign (MZ-026).
+2. Define observation, action and reward for each skill. Reward: time to complete, heading or lateral error, wall contact (large penalty), fall (terminal).
+3. Train in simulation on corridors and junctions generated with `Util/MazeTools` (MZ-009, MZ-010).
+4. Integrate behind a configuration switch (`classic` / `learned`) so the classic skill stays as the fallback.
+5. Validate on the partial bench: 10 repetitions per skill, and compare with the baseline.
+
+**Acceptance criteria**
+- [ ] The baseline and the learned skill are measured on the same scenarios (simulation and bench).
+- [ ] The learned skill is kept only if it is faster **and** has 0 wall contacts and 0 falls in 10 bench repetitions. Otherwise the result is documented and the classic skill stays the default.
+- [ ] `docs/maze/RL_MOTION.md` records the reward design, the training setup and the comparison table.
 
