@@ -1,6 +1,6 @@
 # Maze Challenge Tickets — Copa NAO CCM MX 2026
 
-This file lists every ticket (MZ-001 … MZ-034) for the Maze challenge, grouped by sprint. Each
+This file lists every ticket (MZ-001 … MZ-035) for the Maze challenge, grouped by sprint. Each
 ticket says who owns it, how long it should take, what it depends on, which branch to use, and
 how to tell that it is done. Start with the summary table, then open your sprint.
 
@@ -25,7 +25,7 @@ Notes:
 
 ### Tickets needing the lab or the physical robot
 
-**5 of 34 tickets** need the lab: MZ-017, MZ-023, MZ-027, MZ-031, MZ-033 (11 h of room time in
+**5 of 34 scheduled tickets** need the lab: MZ-017, MZ-023, MZ-027, MZ-031, MZ-033 (11 h of room time in
 total). Everything else is done at a desk, in simulation, or on recorded logs.
 
 ### TAG-DEP marker
@@ -74,6 +74,9 @@ every cell, tag centre at 30 cm above the floor**. If the answer differs, only t
 | MZ-032 | Code freeze tag + deploy procedure | Wilson | 4 | 1 | B 0.25 | no | MZ-031 |
 | MZ-033 | Lab 5: dress rehearsal (pairing) | Bryam + Wilson | Buffer | 2 + 2 | – | **yes** | MZ-032 |
 | MZ-034 | Logistics and packing list | Wilson | Buffer | 0.5 | – | no | – |
+| MZ-035 | Research and compare alternative maze-solving strategies (backlog, to review) | TBD | Backlog | not estimated | – | no | MZ-021, MZ-025 |
+
+MZ-035 is a **backlog** item: it is not scheduled and not counted in the 50 h / 45 h budget. It is reviewed at the end of each sprint and pulled in only if there is slack.
 
 ---
 
@@ -1135,3 +1138,45 @@ turn". Only blocking problems may be fixed, through a PR reviewed by both people
 
 **Acceptance criteria**
 - [ ] The list is shared with the team by 1 Nov, and every item is checked off on 2 Nov.
+
+---
+
+## Backlog (to review, not scheduled)
+
+### MZ-035 — Research and compare alternative maze-solving strategies
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — to review.** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Owner | TBD (decided when it is pulled into a sprint) |
+| Estimate | Not estimated (first step of the ticket) |
+| Depends on | MZ-021 (simulation runner), MZ-025 (wall-follower) |
+| Lab / robot | no (simulation only) |
+| Branch | `docs/MZ-035-strategy-comparison` (plus `feat/MZ-035-<slug>` if code is needed) |
+| Files | `docs/maze/STRATEGY_COMPARISON.md` (create); possibly `Src/Tools/Maze/` and `Util/MazeTools/run_sim_campaign.py` (a strategy selector) |
+
+**Description.** Look for and design other strategies that solve the maze, and compare them
+with the chosen one (flood-fill exploration + time-weighted A\*, MZ-011) on the same mazes in
+simulation. The goal is evidence for the strategy decision, and a ranked fallback if the main
+strategy misbehaves on the real robot.
+
+**Candidate strategies (starting list, extend it)**
+- Left-hand wall-follower (already in MZ-025 as a fallback).
+- Right-hand wall-follower.
+- Pledge algorithm (wall-follower that escapes loops around the goal).
+- Trémaux's algorithm (marks visited passages).
+- Plain flood-fill / BFS without turn costs.
+- Flood-fill exploration + time-weighted A\* (current choice).
+- Variants of the current choice, for example exploring after the goal during the ≤2 min return.
+
+**Steps**
+1. List the strategies and, for each one, write a short note: how it works, whether it guarantees reaching the goal when the maze has loops, and what attempt 2 can reuse from attempt 1.
+2. Estimate the effort to implement each one in `Src/Tools/Maze/` behind a strategy parameter. Bring the estimate to the sprint review before writing code.
+3. If approved, run the MZ-026 campaign (same generated mazes, 2 attempts, noise levels) once per strategy.
+4. Write `docs/maze/STRATEGY_COMPARISON.md`: one table per noise level with success rate, mean T1, mean T2, mean Tfinal = 0.3·T1 + 0.7·T2, wall contacts and max stall, followed by a recommendation.
+
+**Acceptance criteria**
+- [ ] At least 4 strategies are described, with their guarantees and limits.
+- [ ] The decision to implement (or not) was taken at a sprint review and recorded in the document.
+- [ ] If implemented: all strategies are compared on the same mazes and noise levels, and the recommendation is backed by the table.
+
