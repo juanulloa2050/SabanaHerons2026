@@ -1,6 +1,6 @@
 # Maze Challenge Tickets — Copa NAO CCM MX 2026
 
-This file lists every ticket (MZ-001 … MZ-036) for the Maze challenge, grouped by sprint. Each
+This file lists every ticket (MZ-001 … MZ-037) for the Maze challenge, grouped by sprint. Each
 ticket says who owns it, how long it should take, what it depends on, which branch to use, and
 how to tell that it is done. Start with the summary table, then open your sprint.
 
@@ -76,8 +76,9 @@ every cell, tag centre at 30 cm above the floor**. If the answer differs, only t
 | MZ-034 | Logistics and packing list | Wilson | Buffer | 0.5 | – | no | – |
 | MZ-035 | Research and compare alternative maze-solving strategies (backlog, to review) | TBD | Backlog | not estimated | – | no | MZ-021, MZ-025 |
 | MZ-036 | RL skills for in-place turns and corridor centring (backlog, after 3 Nov) | TBD | Backlog | not estimated | – | yes (validation) | MZ-016, MZ-024, MZ-026 |
+| MZ-037 | Active perception: head and camera geometry, moving vs fixed head (backlog, to review) | TBD | Backlog | ~3 h (first guess) | – | yes (validation) | MZ-019, MZ-021, MZ-024 |
 
-MZ-035 and MZ-036 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 is reviewed at the end of each sprint and pulled in only if there is slack. MZ-036 is planned for after the competition (3 Nov).
+MZ-035, MZ-036 and MZ-037 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 and MZ-037 are reviewed at the end of each sprint and pulled in only if there is slack (or by swapping hours with another ticket). MZ-036 is planned for after the competition (3 Nov).
 
 ---
 
@@ -1216,4 +1217,49 @@ integration path described in `docs/RL/Integration.md`.
 - [ ] The baseline and the learned skill are measured on the same scenarios (simulation and bench).
 - [ ] The learned skill is kept only if it is faster **and** has 0 wall contacts and 0 falls in 10 bench repetitions. Otherwise the result is documented and the classic skill stays the default.
 - [ ] `docs/maze/RL_MOTION.md` records the reward design, the training setup and the comparison table.
+
+### MZ-037 — Active perception: head and camera geometry, moving vs fixed head
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — to review.** Not scheduled, not counted in the 50 h / 45 h budget. Can be pulled into Sprint 3 by swapping hours with another ticket. |
+| Owner | TBD (suggested split: geometry study and simulation runs for Wilson, skill changes for Bryam) |
+| Estimate | ~3 h first guess (≈1.5 h study and runs, ≈1.5 h skill changes); confirm in step 1 |
+| Depends on | MZ-019 (wall perceptor), MZ-021 (simulation runner), MZ-024 (maze skills) |
+| Lab / robot | **yes**, for validation (image blur and detection with a moving head can only be checked on real images) |
+| Branch | `feat/MZ-037-active-perception` |
+| Files | `Util/MazeTools/visibility_table.py` (create); `docs/maze/ACTIVE_PERCEPTION.md` (create); `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/MazeScanWalls.cpp` (modify); `Config/Scenarios/Maze/` (head-scan parameters) |
+
+**Description.** Use the head's range of motion and the camera geometry to map the maze faster
+in attempt 1, and measure whether moving the head is worth it compared with keeping it still.
+
+Facts this ticket builds on:
+- **Head range** (NAO v6 spec): yaw ±119.5°, pitch −38.5° to +29.5°. The robot can look at side walls, and partly behind, without turning its body. A head turn costs tenths of a second; a body turn costs ~2 s.
+- **Camera field of view:** 54.7° × 42.5° (`Config/Robots/Default/cameraIntrinsics.cfg`).
+- **Tag size in the image:** a 15 cm tag is ~90 px wide at 1 m and ~30 px at 3 m with the upper camera at 640×480, so tags several cells down a corridor should be readable.
+- **Corridor view:** looking along a corridor shows the side openings of several cells, so the robot could map cells it has not walked through and skip dead ends.
+
+**Head strategies to compare**
+
+| ID | Strategy | Description |
+|---|---|---|
+| H0 | Fixed head | Head always forward. Side walls are only seen after turning the body. |
+| H1 | Stop and scan | Current MZ-024 behaviour: stop at cells with unknown walls and pan the head (≤2 s). |
+| H2 | Scan while walking | Sweep the head left and right during corridor walks, without stopping. |
+| H3 | Look-ahead and information-driven gaze | Look down corridors to map several cells at once, and point the head at the unknown wall that would change the plan the most. |
+
+**Steps**
+1. Write `visibility_table.py`. From the centre of a cell, with the head at yaw −120° … +120° in 15° steps, compute which walls of the current and neighbouring cells are visible, and at what distance tags fall below 20 px wide. Use it to choose the head angles for H1–H3.
+2. Implement H0–H3 as a parameter of `MazeScanWalls`. Keep H1 as the default until the comparison is done.
+3. Run the MZ-026 simulation campaign once per strategy (same mazes and noise levels).
+4. On the bench, record logs with H0 and H2 to measure blur and the tag and wall detection rate while the head moves.
+5. Write `docs/maze/ACTIVE_PERCEPTION.md` with:
+   - the visibility table;
+   - per strategy: mean T1, map edges learned per second, % of the map known when the goal is reached, wall-classification errors and tag detection rate;
+   - a recommendation.
+
+**Acceptance criteria**
+- [ ] The visibility table covers the current cell and at least 2 cells ahead along a corridor.
+- [ ] H0–H3 are compared on the same mazes and noise levels, and the bench check reports detection with the head still and moving.
+- [ ] A strategy replaces H1 only if it lowers mean T1 **without** raising wall-classification errors or wall contacts.
 
