@@ -119,10 +119,25 @@ B-Human behavior, motion, and perception stack.
 | [docs/RL/Integration.md](docs/RL/Integration.md) | How the policies run on the robot, models, deploy options, fallback |
 | [docs/RL/Environment.md](docs/RL/Environment.md) | Training environment: observation, action, skill gate, reward, curriculum |
 | [docs/RL/Training.md](docs/RL/Training.md) | BC + PPO/MAPPO training, evaluation, ONNX export, model lineage |
+| [docs/RL/Coordination.md](docs/RL/Coordination.md) | Role coordinator, support placement, shoot-vs-pass arbitration, role-conditioned mask |
+
+The pipeline is described in the paper *A Teacher-Guided RL Pipeline for
+Role-Conditioned Football Cognition in Humanoid Robots*. The implementation
+details the paper refers to are documented here:
+
+| Topic | Document |
+| --- | --- |
+| SimRobot bridge and training environment | [docs/RL/Environment.md](docs/RL/Environment.md) |
+| Production scenarios and curriculum stages | [docs/RL/Environment.md](docs/RL/Environment.md#curriculum-and-world-generation-curriculumpy-production_curriculumpy), [docs/RL/Training.md](docs/RL/Training.md#behavioral-evaluation-behavioral_evaluatorpy) |
+| Team message structure | [docs/RL/Integration.md](docs/RL/Integration.md#team-communication) |
+| Teacher dataset generation and audit | [docs/RL/Training.md](docs/RL/Training.md#production-imitation-datasets-teacher_production_datasetpy-production_curriculumpy) |
+| Role-coordinator rules and constants | [docs/RL/Coordination.md](docs/RL/Coordination.md#role-coordinator) |
+| Shoot-vs-pass decision | [docs/RL/Coordination.md](docs/RL/Coordination.md#shoot-vs-pass-arbitration) |
 
 Training with the RL repository requires the multi-agent observation fields
-of `RLSharedState`, which are in the `rl-simrobot3d` branch of this
-repository; `master` contains everything needed to run the trained policies.
+of `RLSharedState`, which are in the
+[`rl-simrobot3d`](https://github.com/juanulloa2050/SabanaHerons2026/tree/rl-simrobot3d)
+branch of this repository; `master` contains everything needed to run the trained policies.
 
 ### 6. Tools and robustness
 

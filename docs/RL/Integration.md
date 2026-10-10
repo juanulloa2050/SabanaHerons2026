@@ -99,7 +99,9 @@ hysteresis to avoid constant switching; it computes smoothed support
 positions, appends the role one-hot to the observation, and decodes the same
 network's output differently for the striker and for the supporters. The
 learned policy makes the decision, while the C++ side contributes
-coordination, geometry, team communication, and safety constraints.
+coordination, geometry, team communication, and safety constraints. The role
+rules, support placement, shoot-vs-pass arbitration, and role-conditioned
+mask are documented in [Coordination.md](Coordination.md).
 
 ## Goalkeeper policy
 
@@ -130,6 +132,30 @@ for every request, including RL ones.
 The goalkeeper's save rate was measured in the RL repository with an
 analytical benchmark; dive reach on the real NAO should be calibrated before
 treating that number as on-robot performance.
+
+## Team communication
+
+The team message is defined in
+[Config/Scenarios/4v4_Complete/teamMessage.def](../../Config/Scenarios/4v4_Complete/teamMessage.def)
+(B-Human's format, extended with kick-off and restart-search fields). A robot
+sends at most one message per second (`minSendInterval = 1000` in
+[teamMessageHandler.cfg](../../Config/Scenarios/4v4_Complete/teamMessageHandler.cfg)),
+and only when its content changed. The coordinator and the policy use these
+fields:
+
+| Message part | Fields | Use |
+| --- | --- | --- |
+| `RobotPoseCompact` | `translation`, `rotation`, `quality` | Teammate positions for role assignment, support separation, pass targets, and `obs[26:32]`; `quality` weights each teammate's ball in the team ball model. |
+| `BallModel` | `estimate` (position, velocity), `timeWhenLastSeen`, `timeWhenDisappeared` | Team ball (`TeammatesBallModel`, `obs[32:35]`, `obs[38]`); teammate "engaging" flag when its ball is closer than 700 mm (`obs[35:38]`). |
+| `BehaviorStatus` | `walkingTo`, `speed` | Teammate positions are propagated from the last message to the current time (`Teammate::getEstimatedPosition`). |
+| `BehaviorStatus` | `passTarget` | The robot named as pass target executes B-Human's `ReceivePass` skill. |
+| `BehaviorStatus` | `lastKickTimestamp`, `lastKickWasOutsideCenterCircle`, `restartMemory*` | HSL kick-off restrictions and restart ball search (not used by the policy). |
+| `StrategyStatus` | `role`, tactic, set play, position | B-Human's classical strategy state. |
+| `FrameInfo` | `time` | Message age: teammates older than 1000 ms are stale, older than 2000 ms are ignored by the coordinator. |
+
+The RL role (striker, open support, off-ball support) is not transmitted:
+`StrategyStatus.role` carries B-Human's classical role. Each robot recomputes
+the RL roles locally from the received poses and its own ball estimate.
 
 ## Configuration and models
 

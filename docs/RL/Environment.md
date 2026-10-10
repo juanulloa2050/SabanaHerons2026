@@ -314,11 +314,19 @@ number, each with its own visible SimRobot instance, and exposes the union as
 a single PettingZoo `ParallelEnv`. `reset`/`step` dispatch to each slot in
 separate threads so each instance's simulation time isn't serialized.
 
+The multi-agent fields that these environments read through `pybh` (teammate
+poses, ages and activities, and the global team ball) are part of
+`RLSharedState` only in the
+[`rl-simrobot3d`](https://github.com/juanulloa2050/SabanaHerons2026/tree/rl-simrobot3d)
+branch of this repository; the `RLSharedState` on `master` does not include
+them.
+
 `TeamSlotSimRobotEnv` adds, on top of `ParallelSlotSimRobotEnv`, the team
 coordination layer:
 
 - **Role assignment**: each RL agent receives `striker`, `open_support`, or
-  `off_ball_support` per step, with hysteresis to avoid constant switching.
+  `off_ball_support` per step, with hysteresis to avoid constant switching
+  (rules and constants in [Coordination.md](Coordination.md)).
 - **Cross-slot observation injection**: each slot sees, in `obs[26:41]`, its
   teammates' positions and a team ball estimate built from the other slots'
   observations (`_inject_for`).
