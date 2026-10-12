@@ -28,6 +28,9 @@ target_link_libraries(Tests PRIVATE Math)
 target_link_libraries(Tests PRIVATE Platform)
 target_link_libraries(Tests PRIVATE Streaming)
 target_link_libraries(Tests PRIVATE GTest::GTest)
+if(TARGET apriltag::apriltag)
+  target_link_libraries(Tests PRIVATE apriltag::apriltag)
+endif()
 
 target_compile_definitions(Tests PRIVATE GTEST_DONT_DEFINE_FAIL GTEST_DONT_DEFINE_TEST GTEST_HAS_TR1_TUPLE=0)
 
