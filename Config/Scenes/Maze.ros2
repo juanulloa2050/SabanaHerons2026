@@ -1,0 +1,38 @@
+<Simulation>
+
+  <Include href="Includes/NaoV6H25.rsi2"/>
+  <Include href="Includes/Field2020SPL.rsi2"/>
+  <Include href="Includes/Maze/current.rsi2"/>
+
+  <Scene name="RoboCup" controller="SimulatedNao" stepLength="0.012" color="rgb(65%, 65%, 70%)" ERP="0.8" CFM="0.001" contactSoftERP="0.2" contactSoftCFM="0.005">
+    <PointLight z="9m" ambientColor="rgb(50%, 50%, 50%)"/>
+
+    <Compound name="teams">
+      <Compound name="Herons">
+        <Compound name="24"/>
+        <Compound name="black"/>
+        <Compound name="black"/>
+      </Compound>
+      <Compound name="Opponents">
+        <Compound name="70"/>
+        <Compound name="red"/>
+        <Compound name="blue"/>
+      </Compound>
+    </Compound>
+
+    <Compound name="location">
+      <Compound name="Default"/>
+    </Compound>
+
+    <Compound name="scenarios">
+      <Compound name="Maze"/>
+    </Compound>
+
+    <Compound ref="mazeRobots" name="robots"/>
+
+    <Compound name="extras"/>
+
+    <Compound ref="field"/>
+    <Compound ref="maze"/>
+  </Scene>
+</Simulation>

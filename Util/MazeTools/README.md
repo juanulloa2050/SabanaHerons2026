@@ -74,6 +74,29 @@ for s in $(seq 1 20); do python3 Util/MazeTools/generate_maze.py --seed $s --loo
 the maze is printed to stdout. `--validate` cannot be combined with generation options; errors go to
 stderr and the exit code is 1.
 
+## Scene converter (SimRobot)
+
+`maze_to_scene.py` turns a `.maze` file into `Config/Scenes/Includes/Maze/current.rsi2`, which
+`Config/Scenes/Maze.ros2` includes.
+
+```bash
+python3 Util/MazeTools/maze_to_scene.py Config/Mazes/generated/maze_1.maze --out Config/Scenes/Includes/Maze/current.rsi2
+Make/Linux/compile Develop SimRobot
+Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/Maze.ros2
+```
+
+The input is validated with `generate_maze.py`; an invalid file prints the broken rule to stderr and
+exits with 1. Without `--out` the scene is printed to stdout. Output is deterministic and starts with
+a comment naming the source file. Regenerate `current.rsi2` after changing the maze, then reopen the scene.
+
+- One `BoxGeometry` per `-` or `|` character, border included: 0.5 m cell side plus 1.5 cm overlap
+  (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.
+- The maze is centred on the simulator origin. Cell (row, col) is centred at
+  `x = (col - 3.5) * 0.5 m`, `y = (3.5 - row) * 0.5 m`, so row 0 (top of the file) is the +y side.
+- The robot (`mazeRobots` compound, placed in the `robots` group by `Maze.ros2`) stands at the centre of `S`
+  at z = 320 mm, heading towards the single open side: +x = 0, +y = 90, -x = 180, -y = -90 degrees.
+- SimRobot shows the ground-truth pose in the team frame, which is the world frame rotated by 180 degrees.
+
 ## Tests
 
 ```bash
