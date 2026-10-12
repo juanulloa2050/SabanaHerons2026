@@ -61,7 +61,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
 | [x] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
 | [x] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
-| [ ] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
+| [x] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [ ] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
 | [ ] | MZ-012 | Test mazes + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
@@ -337,7 +337,7 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 2 h |
 | Depends on | MZ-004 |
@@ -369,9 +369,9 @@ git push -u origin Maze-Challenge
 3. Document the format with the example above in `Util/MazeTools/README.md`.
 
 **Acceptance criteria**
-- [ ] `python3 -m unittest discover -s Util/MazeTools -v` passes.
-- [ ] `--validate` prints `OK` for all 20 generated mazes.
-- [ ] `Util/MazeTools/README.md` documents the format with the example above.
+- [x] `python3 -m unittest discover -s Util/MazeTools -v` passes.
+- [x] `--validate` prints `OK` for all 20 generated mazes.
+- [x] `Util/MazeTools/README.md` documents the format with the example above.
 
 ### MZ-010 — Maze → SimRobot scene converter
 
