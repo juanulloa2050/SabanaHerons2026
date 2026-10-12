@@ -55,7 +55,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 
 | Done | ID | Title | Owner | Sprint | Author h | Lab | Depends on |
 |---|---|---|---|---|---|---|---|
-| [ ] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
+| [x] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
 | [ ] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
 | [ ] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
@@ -181,7 +181,7 @@ Goal of the sprint: a working PR flow, both scenarios booting, the apriltag libr
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 0.25 h |
 | Depends on | – |
@@ -201,8 +201,8 @@ git push -u origin Maze-Challenge
 ```
 
 **Acceptance criteria**
-- [ ] `git ls-remote --heads origin Maze-Challenge` prints one line.
-- [ ] `Maze-Challenge` points to the same commit as `master` at creation time.
+- [x] `git ls-remote --heads origin Maze-Challenge` prints one line.
+- [x] `Maze-Challenge` points to the same commit as `master` at creation time.
 
 ### MZ-003 — Planning documents (roadmap, tickets, Gantt)
 
