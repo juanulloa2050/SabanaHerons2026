@@ -255,6 +255,20 @@ if(BUILD_DESKTOP)
 endif()
 
 if(BUILD_NAO)
+  add_library(Nao::apriltag::apriltag STATIC IMPORTED)
+  set_target_properties(Nao::apriltag::apriltag PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${BHUMAN_PREFIX}/Util/apriltag/include")
+  set_target_properties(Nao::apriltag::apriltag PROPERTIES IMPORTED_LOCATION "${BHUMAN_PREFIX}/Util/apriltag/lib/V6/libapriltag.a")
+endif()
+
+if(BUILD_DESKTOP AND LINUX AND X86)
+  # Only a Linux x86_64 archive is vendored.
+  add_library(apriltag::apriltag STATIC IMPORTED)
+  set_target_properties(apriltag::apriltag PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${BHUMAN_PREFIX}/Util/apriltag/include")
+  set_target_properties(apriltag::apriltag PROPERTIES INTERFACE_LINK_LIBRARIES "m;pthread")
+  set_target_properties(apriltag::apriltag PROPERTIES IMPORTED_LOCATION "${BHUMAN_PREFIX}/Util/apriltag/lib/${PLATFORM}/libapriltag.a")
+endif()
+
+if(BUILD_NAO)
   add_library(Nao::libjpeg::libjpeg STATIC IMPORTED)
   set_target_properties(Nao::libjpeg::libjpeg PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${BHUMAN_PREFIX}/Util/libjpeg/include")
   set_target_properties(Nao::libjpeg::libjpeg PROPERTIES IMPORTED_LOCATION "${BHUMAN_PREFIX}/Util/libjpeg/lib/V6/libjpeg.a")
