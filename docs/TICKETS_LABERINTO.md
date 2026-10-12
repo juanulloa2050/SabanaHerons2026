@@ -59,7 +59,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
 | [x] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
-| [ ] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
+| [x] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
 | [ ] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
 | [ ] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [ ] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
@@ -280,7 +280,7 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 2.5 h |
 | Depends on | MZ-001 |
@@ -305,9 +305,9 @@ git push -u origin Maze-Challenge
 - **Logger.** `logger.cfg` records `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `InertialData` (gyro drift, MZ-038), `FrameInfo`, and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
 
 **Acceptance criteria**
-- [ ] `Make/Linux/compile Develop Nao` and `Make/Linux/compile Develop SimRobot` pass.
-- [ ] In SimRobot (`gc playing`), a simulated `headFront` tap makes the robot say "start".
-- [ ] Deploy with `-s Maze` boots. Three chest taps reach *playing* (green chest LED).
+- [x] `Make/Linux/compile Develop Nao` and `Make/Linux/compile Develop SimRobot` pass.
+- [x] In SimRobot (`gc playing`), a simulated `headFront` tap makes the robot say "start". Simulated with `dr option:HandleMaze:headFront on`; sound needs `dr unmute on` in the simulator.
+- [ ] Deploy with `-s Maze` boots. Three chest taps reach *playing* (green chest LED). Checked on the robot in Lab 1 (MZ-017).
 
 ### MZ-008 — Vendor `apriltag` as a prebuilt static library
 
