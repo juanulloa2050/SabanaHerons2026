@@ -60,7 +60,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
 | [x] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
-| [ ] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
+| [x] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
 | [ ] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [ ] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
@@ -313,7 +313,7 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 3 h |
 | Depends on | MZ-001 |
@@ -329,9 +329,9 @@ git push -u origin Maze-Challenge
 - In `Make/CMake/CMakeLists.txt`, add imported targets `Nao::apriltag::apriltag` and `apriltag::apriltag`. In `B-Human.cmake`, link them in both branches.
 
 **Acceptance criteria**
-- [ ] Both builds link a translation unit that calls `tag36h11_create()` / `tag36h11_destroy()`.
-- [ ] `Util/apriltag/build.sh` rebuilds both `.a` files from a clean checkout.
-- [ ] The upstream version and commit are recorded in `Util/apriltag/README.md`.
+- [x] Both builds link a translation unit that calls `tag36h11_create()` / `tag36h11_destroy()`.
+- [x] `Util/apriltag/build.sh` rebuilds both `.a` files from a clean checkout.
+- [x] The upstream version and commit are recorded in `Util/apriltag/README.md`.
 
 ### MZ-009 — Maze file format and generator
 
