@@ -15,6 +15,14 @@
  *
  * Pressing any head button during a walk or turn of the motion test aborts it.
  * A step that does not finish within its time limit aborts the test as well.
+ *
+ * In SimRobot, the head buttons cannot be pressed. Each gesture can be simulated
+ * once with a debug request instead (the robot must be in the playing state):
+ *
+ *   dr option:HandleMaze:headFront on        same as headFront x1
+ *   dr option:HandleMaze:headRear on         same as headRear x1
+ *   dr option:HandleMaze:headMiddleTwice on  same as headMiddle x2
+ *   dr option:HandleMaze:abortMotionTest on  same as pressing a head button during the motion test
  */
 
 /** The edge length of one maze cell in mm (the maze consists of 50 cm x 50 cm cells). */
@@ -106,6 +114,12 @@ option(HandleMazeButtons)
   {
     transition
     {
+      DEBUG_RESPONSE_ONCE("option:HandleMaze:headFront")
+        goto announceStart;
+      DEBUG_RESPONSE_ONCE("option:HandleMaze:headRear")
+        goto announceMazeReady;
+      DEBUG_RESPONSE_ONCE("option:HandleMaze:headMiddleTwice")
+        goto announceMotionTest;
       if(theEnhancedKeyStates.hitStreak[KeyStates::headFront] == 1)
         goto announceStart;
       else if(theEnhancedKeyStates.hitStreak[KeyStates::headRear] == 1)
@@ -174,6 +188,8 @@ option(HandleMazeButtons)
   {
     transition
     {
+      DEBUG_RESPONSE_ONCE("option:HandleMaze:abortMotionTest")
+        goto motionTestAborted;
       if(anyHeadButtonPressed() || state_time > motionTestWalkTimeout)
         goto motionTestAborted;
       if(state_time > 500 && theWalkToPointSkill.isDone())
@@ -194,6 +210,8 @@ option(HandleMazeButtons)
   {
     transition
     {
+      DEBUG_RESPONSE_ONCE("option:HandleMaze:abortMotionTest")
+        goto motionTestAborted;
       if(anyHeadButtonPressed() || state_time > motionTestTurnTimeout)
         goto motionTestAborted;
       if(state_time > 500 && theTurnAngleSkill.isDone())
