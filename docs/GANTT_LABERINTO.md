@@ -21,8 +21,6 @@ gantt
 
     section Sprint 0 - Foundations
     MZ-001 Create Maze-Challenge branch (Bryam)       :t01, 2026-10-06, 1d
-    MZ-002 Branch protection request (Wilson)         :t02, 2026-10-06, 1d
-    MZ-005 Registration confirmation (Wilson)         :t05, 2026-10-06, 1d
     MZ-003 Roadmap tickets Gantt (Bryam)              :t03, 2026-10-06, 2d
     MZ-004 PR template (Wilson)                       :t04, 2026-10-07, 1d
     MZ-006 Organiser questions (Wilson)               :t06, 2026-10-07, 2d
@@ -35,7 +33,7 @@ gantt
     section Sprint 1 - Core logic in simulation
     MZ-011 Maze library and planner (Bryam)           :t11, 2026-10-10, 3d
     MZ-012 Test mazes and expected results (Wilson)   :t12, 2026-10-10, 1d
-    MZ-014 Build partial bench (Wilson)               :t14, 2026-10-10, 2d
+    MZ-014 Build partial bench, optional (Wilson)             :t14, 2026-10-10, 2d
     MZ-015 Print and mount tags (Wilson)              :t15, 2026-10-12, 1d
     LAB 1 - MZ-017 Log capture (Wilson)               :crit, t17, 2026-10-13, 1d
     MZ-013 Oracle percepts for simulation (Bryam)     :t13, 2026-10-13, 2d
@@ -84,9 +82,9 @@ gantt
 
 **At a glance**
 
-- 5 of 34 tickets need the lab.
+- 7 scheduled tickets need the lab or the physical robot (MZ-014 optional, MZ-015, MZ-017, MZ-023, MZ-027, MZ-031, MZ-033). They are grouped in their own section of TICKETS_LABERINTO.md because we are not sure how hardware testing will be possible.
 - MZ-038 to MZ-044 (proposed and backlog, from the corrections review) are not on the chart. MZ-040 and MZ-044 reuse time already booked in Lab 2 and Lab 3.
-- 11 hours of lab time out of 95 hours of total effort (Bryam 50 h, Wilson 45 h).
+- 11 hours of lab time out of 86 hours of total effort (Bryam 46.25 h, Wilson 39.75 h; review time not tracked).
 
 | Sprint | Dates | Milestone |
 |---|---|---|
@@ -149,5 +147,5 @@ does not depend on it.
   - the real camera and real marker recognition under real lighting;
   - the precision of steps and turns on a real floor;
   - the robot's clearance when walking between real walls (corridors are about 48 cm wide for a 27.5 cm wide robot).
-- **A small partial bench.** A cheap bench of 6 panels covers every situation a maze can present: a corridor, a corner, a T-junction and a dead end.
+- **A small partial bench (optional, MZ-014).** A cheap bench of 6 panels covers every situation a maze can present: a corridor, a corner, a T-junction and a dead end.
 - **Short, focused sessions.** Five sessions of 2–2.5 hours (11 h in total) keep the use of the robot and the space to a minimum.

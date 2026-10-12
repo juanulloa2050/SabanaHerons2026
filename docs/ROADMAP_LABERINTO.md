@@ -16,14 +16,17 @@ Ciudad de México).
 ## 1. Quick path
 
 1. **Sprint 0 (6–9 Oct):** create `Maze-Challenge` and the PR flow, the `Maze`/`MazeSafe` scenarios, the apriltag library, the maze generator and the simulator scene.
-2. **Sprint 1 (10–15 Oct):** build the maze library, the time-weighted planner and the oracle percepts in simulation. Build the partial bench, print the tags, and record logs in Lab 1.
+2. **Sprint 1 (10–15 Oct):** build the maze library, the time-weighted planner and the oracle percepts in simulation. Optionally build the partial bench, print the tags, and record logs in Lab 1 (physical tickets, see TICKETS).
 3. **Sprint 2 (16–21 Oct):** add the AprilTag detector, the wall perceptor, the localizer and the mapper, validated offline. Calibrate turn and step costs in Lab 2.
 4. **Sprint 3 (22–25 Oct):** build the competition state machine, the watchdog and the safe mode. Run the simulation campaign, then the integrated bench run in Lab 3.
 5. **Sprint 4 (26–28 Oct):** harden the attempt flow, write the checklist and the 5-minute calibration procedure, rehearse in Lab 4, and **freeze the code**.
 6. **Buffer (29 Oct–2 Nov):** dress rehearsal in Lab 5 and logistics only. **No new development.**
 
-Budget: **Bryam 50 h**, **Wilson 45 h**, including lab sessions and cross-review. Only 5 short lab
-sessions (11 h of room time) are needed. Everything else runs in simulation or on recorded logs.
+Plan: **Bryam 46.25 h**, **Wilson 39.75 h** (36.25 h without the optional bench), including lab sessions.
+Review time is not tracked. Up to 5 short lab sessions (11 h of room time) are planned, but **we are
+not sure how the physical robot can be tested**, so every physical ticket sits in its own section of
+[TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) and the software must be finishable without them.
+Everything else runs in simulation or on recorded logs.
 
 ---
 
@@ -115,13 +118,13 @@ keeps logging active and avoids every conflicting gesture.
 
 | Gesture | Meaning | Ticket |
 |---|---|---|
-| `headMiddle` ×1 | *Positioned at start* → start-scan (if enabled), then wait | MZ-041 |
+| `headMiddle` ×1 | *Positioned at start* → start-scan (if enabled), then wait. Says "positioned". | MZ-041 |
 | `headFront` ×1 | *Start* (the referee's whistle) | MZ-007 |
 | `headRear` ×1 | Self-test: say the last seen tag id | MZ-007, MZ-018 |
 | `headMiddle` ×2 | Motion test sequence (Lab 2), including the 2×4 route (MZ-040) | MZ-007, MZ-040 |
 | 3 head buttons held 1 s | Sit and **reset the maze memory** | MZ-042 |
 
-Triple taps stay reserved for B-Human diagnostics (`SkillBehaviorControl.cpp` ≈ lines 178–203).
+Every gesture is answered by a spoken phrase (see *State announcements* in section 4.7). Triple taps stay reserved for B-Human diagnostics (`SkillBehaviorControl.cpp` ≈ lines 178–203).
 
 ### 3.5 Localization and sensing
 
@@ -300,7 +303,7 @@ stateDiagram-v2
 
 | State | Behaviour |
 |---|---|
-| `Sitting` | `playerState == unstiff`, set by `GameStateProvider`, so it lives outside `HandleMaze`. **The mapper collects nothing.** Entering it clears `MazeMap`, the pose and the attempt counter. It says "map cleared" when the robot is next active. Chest taps bring the robot back to *playing*, which enters `Unpositioned`. |
+| `Sitting` | `playerState == unstiff`, set by `GameStateProvider`, so it lives outside `HandleMaze`. **The mapper collects nothing.** Entering it clears `MazeMap`, the pose and the attempt counter. It says "map cleared". Chest taps bring the robot back to *playing*, which enters `Unpositioned`. |
 | `Unpositioned` | Stand, head forward. The map starts collecting only after the operator has placed the robot and tapped `headMiddle` (*positioned at start*). |
 | `StartScan` | Optional (switch `startScan.enabled`, MZ-041). Pan the head left and right for `startScan.durationMs` (default 5 s) to read the tags and walls already visible from the start cell, then look ahead. A `headFront` tap during the scan starts the run at once. |
 | `WaitingForStart` | Stand and look ahead. Identify the start corner from the tag (0/7/56/63) and the open side. A single `headRear` tap says the last seen tag id (self-test). |
@@ -309,6 +312,32 @@ stateDiagram-v2
 | `Standby` | Entered when ground contact is lost (picked up). Keep the map, reset the pose to the stored start cell, wait for the tap. |
 | `SpeedRun` | Execute the known-only plan. No wall scans. |
 | `Finished` | Stand, say "goal". |
+
+**State announcements.** Every button gesture and state change is spoken, so the operator knows
+what the robot understood without a laptop. The robot uses the existing `Say` skill
+(`Skills/Output/Talking/Talk.cpp`). Phrases are one or two words, in English.
+
+| Event | Phrase |
+|---|---|
+| 3 head buttons held 1 s (sit, map reset) | "map cleared" |
+| Chest taps reach *playing* (`Unpositioned`) | "waiting for position" |
+| `headMiddle` ×1, *positioned at start* | "positioned" |
+| Start-scan begins (if enabled) | "scanning" |
+| Scan over, or no scan: waiting for the whistle | "ready" |
+| `headFront` ×1, start of attempt 1 | "exploring" |
+| `headFront` ×1, start of attempt 2 | "speed run" |
+| Goal detected | "goal" |
+| `ReturnToStart` begins | "returning" |
+| Picked up (`Standby`) | "standby" |
+| `Finished` | "finished" |
+| Watchdog: safe mode / wall-follower | "safe mode" / "wall follower" |
+| `headRear` ×1 (self-test) | "tag <id>" or "no tag" |
+| `headMiddle` ×2 | "motion test" |
+
+Rules: speech never blocks a motion command; `Say` ignores the same text twice in a row, so the
+phrases of consecutive states must differ (they do) and the ticket checks that "exploring" is
+spoken again on a second run; `announce.enabled` in `handleMaze.cfg` switches all of it off
+(for example if the venue is too loud or the judges object).
 
 **Watchdog (always on):** if no motion command has made progress for 3 s, replan. If the pose is
 lost, switch to safe mode (cell-by-cell with tag re-fix, reduced speed). If that also fails, use
@@ -339,7 +368,7 @@ maze → simulator pipeline.
 Tickets: MZ-001 to MZ-010.
 
 **DoD**
-- [ ] `Maze-Challenge` exists on origin. Branch protection has been requested from the repo owner.
+- [ ] `Maze-Challenge` exists on origin.
 - [ ] `Make/Linux/compile Develop Nao` and `Make/Linux/compile Develop SimRobot` succeed with apriltag linked (a symbol from `libapriltag` is referenced by a module).
 - [ ] The robot boots with `-s Maze`, reaches *playing* with 3 chest taps, and says "start" on a single `headFront` tap.
 - [ ] `Config/Scenes/Maze.ros2` loads a generated maze in SimRobot with one NAO in the start corner.
@@ -363,7 +392,7 @@ Tickets: MZ-011 to MZ-017. **Lab 1: 13 Oct.**
 - [ ] `Make/Linux/compile Develop Tests` builds, and the maze tests pass: optimality vs brute force on ≥10 fixtures, admissible heuristic, turn costs respected.
 - [ ] The planner runs in <5 ms per replan on the desktop (budget on the Atom: <5 ms, checked in Sprint 2).
 - [ ] In SimRobot, `OracledMazePerceptsProvider` publishes the correct tag ids and walls for 3 generated mazes (checked in the representation view), including the configured noise and dropouts.
-- [ ] The bench is built and measured (`docs/maze/BENCH.md`). Tags are printed at 150 mm ± 1 mm.
+- [ ] *Physical, optional:* the bench is built and measured (`docs/maze/BENCH.md`). Tags are printed at 150 mm ± 1 mm.
 - [ ] Lab 1 logs are recorded and listed in `docs/maze/LAB_LOG.md`: tags at 0.25–2 m and 0–60°, plus a corridor walk.
 
 ### Sprint 2 — Perception and localization (Fri 16 – Wed 21 Oct) · milestone M2
@@ -407,7 +436,7 @@ Tickets: MZ-024 to MZ-028. **Lab 3: 23 Oct.**
 
 **DoD**
 - [ ] In SimRobot, at least 18 of 20 generated mazes are solved in both attempts. T2 ≤ 1.15 × the plan estimate. Zero stalls longer than 3 s.
-- [ ] On the bench (corridor, corner, T, dead end), 5 runs have 0 wall contacts and a minimum lateral clearance ≥5 cm.
+- [ ] *Physical, if the lab is available:* on the bench (corridor, corner, T, dead end), 5 runs have 0 wall contacts and a minimum lateral clearance ≥5 cm.
 - [ ] Safe mode and wall-follower trigger correctly when tags are hidden (tested in simulation with the oracle dropout at 100 %).
 
 ### Sprint 4 — Hardening and code freeze (Mon 26 – Wed 28 Oct) · milestone: code freeze
@@ -444,7 +473,7 @@ the cheapest level that can prove it.
 |---|---|---|
 | **Simulation** | SimRobot (`Config/Scenes/Maze.ros2`), headless runs via `pybh`, oracle percepts with noise | Planner optimality, map updates, CABSL flow, attempt memory, Standby/pick-up, watchdog, odometry noise, wall perceptor on rendered images, end-to-end exploration on many generated mazes |
 | **Recorded logs** | `Config/Scenes/ReplayRobot.ros2` with Lab 1/2 logs | Tag detector accuracy and speed on real images, wall perceptor on real images, localizer behaviour on real odometry |
-| **Partial bench** | 6 panels (50×60 cm) + printed tags on the lab floor | Camera calibration, real tag detection under real light, turn and step precision on a real floor, lateral clearance in a ~48 cm corridor, gait and arm envelope near walls |
+| **Partial bench** (optional, MZ-014) | 6 panels (50×60 cm) + printed tags on the lab floor | Camera calibration, real tag detection under real light, turn and step precision on a real floor, lateral clearance in a ~48 cm corridor, gait and arm envelope near walls |
 | **Competition only** | — | Drift over a full 64-cell run, the real tag layout and height, venue floor friction and lighting, goal floor colour, real attempt timeout |
 
 ### 2×4 route test (0 → 3 → 11 → 8)
@@ -499,7 +528,7 @@ here is required: the defaults must already work.
 
 ---
 
-## 8. Scope decisions (fitted to 50 h / 45 h)
+## 8. Scope decisions (fitted to 46.25 h / 39.75 h)
 
 | Category | Items |
 |---|---|
@@ -507,10 +536,10 @@ here is required: the defaults must already work.
 | **Already cut** | Sonar driver, robot-written crash snapshot of the map, full EKF (replaced by tag fix + odometry), lower-camera tag detection |
 | **Stretch, only if ahead** | Return-to-start exploration (≤2 min), EKF, sonar front-wall check |
 | **Cut next if late (in order)** | 1. Time-weighted turn costs → plain BFS. 2. WallPerceptor head scan → wall inference from tag distance. |
-| **Backlog, to review** | MZ-035: research and compare alternative strategies (left/right wall-follower, Pledge, Trémaux, plain BFS) against the chosen one in simulation. Not scheduled and outside the hour budget. |
+| **Backlog, to review** | MZ-035: research and compare alternative strategies (left/right wall-follower, Pledge, Trémaux, plain BFS) against the chosen one in simulation. Not scheduled and outside the hour plan. |
 | **Backlog, after 3 Nov** | MZ-036: RL skills for fast in-place turns and corridor centring, built on the existing RL stack (`Src/Libs/RL`, `pybh`). Route planning stays classical because A\* is already optimal for a known map; RL targets the motion time instead. |
 | **Backlog, to review** | MZ-037: active perception. Use the head's range (yaw ±119.5°) and the camera field of view (54.7° × 42.5°) to see side walls without body turns and to map several cells down a corridor. Compare a fixed head with stop-and-scan, scanning while walking, and information-driven gaze. |
-| **Proposed (from the corrections review), not in the hour budget** | MZ-038 gyro maze-north (2 h) · MZ-039 decision log (2 h) · MZ-040 2×4 route test (1.5 h) · MZ-041 positioned-at-start button and start scan (2 h) · MZ-042 map reset by sitting (1 h). About 8.5 h in total. Pull in by swapping hours (see the MZ-038…MZ-042 notes). |
+| **Proposed (from the corrections review), not in the hour plan** | MZ-038 gyro maze-north (2 h) · MZ-039 decision log (2 h) · MZ-040 2×4 route test (1.5 h) · MZ-041 positioned-at-start button and start scan (2 h) · MZ-042 map reset by sitting (1 h). About 8.5 h in total. Pull in by swapping hours (see the MZ-038…MZ-042 notes). |
 | **Backlog, after the first lab data** | MZ-043: rolling turns (turning while walking) and diagonals in open areas, for attempt 2 only. MZ-044: sonar feasibility spike (log only). |
 
 ### 8.1 Sonar assessment (decision: log only, no control)
@@ -546,8 +575,9 @@ influence), so the data decides whether the front-wall cross-check is worth buil
    Make/Linux/compile Develop Tests && Build/Linux/Tests/Develop/Tests
    ```
    Docs-only PRs are exempt.
-6. Review and merge time is included in each ticket's estimate.
-7. Branch protection on `Maze-Challenge` (PR required, 1 approval, no direct push) has been requested from the repository owner (MZ-002). We have write access, not admin.
+6. Review and merge time is not tracked in the ticket estimates.
+7. Branch protection on `Maze-Challenge` is **not requested** (the former MZ-002 was removed). Rules 1–4 are enforced by convention.
+8. **Tick off finished work.** When a scheduled software ticket is done, check its **Done** box in the *Software tickets (scheduled)* table of `TICKETS_LABERINTO.md` **and** the checkboxes of the ticket itself (its *Done* row and every acceptance criterion), in the same PR. The table is the team's progress view, so it must match the tickets.
 
 ### Branch names
 
@@ -659,4 +689,4 @@ Q2 and Q4 keep their numbers so older references stay valid. Q8–Q11 come from 
 | Corridor too tight for the gait or arms | Medium | High | Wilson | Walk profile MZ-016, bench measurements, `MazeSafe` |
 | Logger silent in Initial state | Certain | Low | Bryam | Start flow uses *playing* (section 3.4) |
 | Operator holds the 3 head buttons by accident and clears the map between attempts | Low | High | Both | Checklist item; the robot says "map cleared" so it is noticed; attempt 2 then restarts as exploration (MZ-042) |
-| 50 h / 45 h budget overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |
+| 46.25 h / 39.75 h plan overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |

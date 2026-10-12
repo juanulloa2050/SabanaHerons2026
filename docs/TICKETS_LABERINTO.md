@@ -13,20 +13,29 @@ strategy) · [GANTT_LABERINTO.md](GANTT_LABERINTO.md) (schedule, lab access requ
 
 ### Hours per person
 
-| | Authoring | Lab sessions | Reviewing the other's PRs | **Total** |
-|---|---|---|---|---|
-| **Bryam** | 39.25 h | 7 h (Lab 3, 4, 5) | 3.75 h | **50.0 h** |
-| **Wilson** | 29.25 h | 11 h (Lab 1–5) | 4.75 h | **45.0 h** |
+| | Authoring | Lab sessions | **Total** |
+|---|---|---|---|
+| **Bryam** | 39.25 h | 7 h (Lab 3, 4, 5) | **46.25 h** |
+| **Wilson** | 28.75 h (includes 3.5 h of the optional bench, MZ-014) | 11 h (Lab 1–5) | **39.75 h** |
 
 Notes:
 - **Authoring** means the owner's own work, including opening the PR, answering review comments and merging. Lab tickets are counted under *Lab sessions*, not under authoring.
-- **Reviewing** means reviewing the other person's PRs. It appears in each ticket as "Review".
+- **Review time is not tracked.** Cross review still happens (roadmap section 9), but it has no hours in any ticket.
 - Bryam's 39.25 h authoring = 38.75 h of own tickets + 0.5 h pairing on MZ-010.
+- Without the optional bench (MZ-014), Wilson's total is 36.25 h.
+- MZ-002 (branch protection) and MZ-005 (registration check) were removed as unnecessary. Their numbers are not reused.
 
-### Tickets needing the lab or the physical robot
+### Physical-robot tickets are in their own section
 
-**5 of 34 scheduled tickets** need the lab: MZ-017, MZ-023, MZ-027, MZ-031, MZ-033 (11 h of room time in
-total). Everything else is done at a desk, in simulation, or on recorded logs.
+The team is not sure how, or how much, the physical robot and the lab can be used. Every
+ticket that needs them is therefore grouped in
+**[Physical robot tickets](#physical-robot-tickets-testing-method-not-settled)** and listed in its
+own table below. The software tickets must be finishable **without** them.
+
+A `*` in a *Depends on* cell marks a **soft** dependency on a physical ticket: the ticket uses
+the lab data when it exists, and falls back to simulation (rendered images, noisy odometry) when
+it does not. A ticket whose acceptance criteria name real logs (for example MZ-022) can only be
+closed when those logs exist.
 
 ### TAG-DEP marker
 
@@ -36,59 +45,80 @@ MZ-020, MZ-022. Until the answer arrives, they assume **one tag centred on every
 every cell, tag centre at 30 cm above the floor**. If the answer differs, only the tag model in
 `Src/Tools/Maze/` and the tag mounts change.
 
-### All tickets
+### Software tickets (scheduled)
 
-| ID | Title | Owner | Sprint | Author h | Review h | Lab | Depends on |
+Tick the **Done** box of a ticket (`[ ]` → `[x]`) in this table **and** in the ticket's own
+checklist (its *Done* row and every acceptance criterion) in the same PR that closes it. A ticket is
+done only when the PR is merged and all its boxes are checked. Only the scheduled software tickets
+have a Done column here; physical, proposed and backlog tickets use their own acceptance criteria.
+
+| Done | ID | Title | Owner | Sprint | Author h | Lab | Depends on |
 |---|---|---|---|---|---|---|---|
-| MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | – | no | – |
-| MZ-002 | Request branch protection from repo owner | Wilson | 0 | 0.25 | – | no | MZ-001 |
-| MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | W 0.25 | no | MZ-001 |
-| MZ-004 | PR template | Wilson | 0 | 0.5 | B 0.25 | no | MZ-001 |
-| MZ-005 | Registration confirmation | Wilson | 0 | 0.25 | – | no | – |
-| MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | B 0.25 | no | MZ-003 |
-| MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | W 0.5 | no | MZ-001 |
-| MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | W 0.5 | no | MZ-001 |
-| MZ-009 | Maze format + generator | Wilson | 0 | 2 | B 0.5 | no | MZ-004 |
-| MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | B 0.5 | no | MZ-007, MZ-009 |
-| MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | W 0.5 | no | MZ-009 |
-| MZ-012 | Test mazes + expected results | Wilson | 1 | 1.5 | B 0.25 | no | MZ-009 |
-| MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | W 0.5 | no | MZ-010, MZ-011 |
-| MZ-014 | Build the partial bench | Wilson | 1 | 3.5 | – | no | – |
-| MZ-015 | Print and mount tags ⚠️ | Wilson | 1 | 1 | – | no | MZ-014 |
-| MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | B 0.25 | no | MZ-007, MZ-010 |
-| MZ-017 | Lab 1: log capture ⚠️ | Wilson | 1 | 2 | – | **yes** | MZ-007, MZ-014, MZ-015 |
-| MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | W 0.5 | no | MZ-008, MZ-017 |
-| MZ-019 | Wall perceptor | Bryam | 2 | 4 | W 0.5 | no | MZ-010, MZ-017 |
-| MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5 | W 0.5 | no | MZ-011, MZ-013 |
-| MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | B 0.5 | no | MZ-010 |
-| MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | B 0.25 | no | MZ-017, MZ-018 |
-| MZ-023 | Lab 2: calibration of motion costs | Wilson | 2 | 2 | – | **yes** | MZ-016, MZ-018 |
-| MZ-024 | HandleMaze state machine + skills | Bryam | 3 | 5 | W 0.5 | no | MZ-011, MZ-020 |
-| MZ-025 | Watchdog, safe mode, wall-follower | Bryam | 3 | 2.5 | W 0.25 | no | MZ-024 |
-| MZ-026 | Simulation campaign + report | Wilson | 3 | 3 | B 0.25 | no | MZ-021, MZ-024 |
-| MZ-027 | Lab 3: integrated bench run (pairing) | Bryam + Wilson | 3 | 2.5 + 2.5 | – | **yes** | MZ-024 |
-| MZ-028 | Configuration tuning from lab data | Wilson | 3 | 1.5 | B 0.25 | no | MZ-023, MZ-027 |
-| MZ-029 | Attempt-flow hardening | Bryam | 4 | 2.5 | W 0.25 | no | MZ-024, MZ-027 |
-| MZ-030 | Competition checklist + 5-min calibration | Wilson | 4 | 2.5 | B 0.25 | no | MZ-027 |
-| MZ-031 | Lab 4: competition rehearsal (pairing) | Bryam + Wilson | 4 | 2.5 + 2.5 | – | **yes** | MZ-029, MZ-030 |
-| MZ-032 | Code freeze tag + deploy procedure | Wilson | 4 | 1 | B 0.25 | no | MZ-031 |
-| MZ-033 | Lab 5: dress rehearsal (pairing) | Bryam + Wilson | Buffer | 2 + 2 | – | **yes** | MZ-032 |
-| MZ-034 | Logistics and packing list | Wilson | Buffer | 0.5 | – | no | – |
-| MZ-035 | Research and compare alternative maze-solving strategies (backlog, to review) | TBD | Backlog | not estimated | – | no | MZ-021, MZ-025 |
-| MZ-036 | RL skills for in-place turns and corridor centring (backlog, after 3 Nov) | TBD | Backlog | not estimated | – | yes (validation) | MZ-016, MZ-024, MZ-026 |
-| MZ-037 | Active perception: head and camera geometry, moving vs fixed head (backlog, to review) | TBD | Backlog | ~3 h (first guess) | – | yes (validation) | MZ-019, MZ-021, MZ-024 |
+| [ ] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
+| [ ] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
+| [ ] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
+| [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
+| [ ] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
+| [ ] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
+| [ ] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
+| [ ] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
+| [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
+| [ ] | MZ-012 | Test mazes + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
+| [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
+| [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
+| [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
+| [ ] | MZ-019 | Wall perceptor | Bryam | 2 | 4 | no | MZ-010, MZ-017* |
+| [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5 | no | MZ-011, MZ-013 |
+| [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
+| [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
+| [ ] | MZ-024 | HandleMaze state machine + skills | Bryam | 3 | 5 | no | MZ-011, MZ-020 |
+| [ ] | MZ-025 | Watchdog, safe mode, wall-follower | Bryam | 3 | 2.5 | no | MZ-024 |
+| [ ] | MZ-026 | Simulation campaign + report | Wilson | 3 | 3 | no | MZ-021, MZ-024 |
+| [ ] | MZ-028 | Configuration tuning from lab data | Wilson | 3 | 1.5 | no | MZ-023*, MZ-027* |
+| [ ] | MZ-029 | Attempt-flow hardening | Bryam | 4 | 2.5 | no | MZ-024, MZ-027* |
+| [ ] | MZ-030 | Competition checklist + 5-min calibration | Wilson | 4 | 2.5 | no | MZ-027* |
+| [ ] | MZ-032 | Code freeze tag + deploy procedure | Wilson | 4 | 1 | no | MZ-031* |
+| [ ] | MZ-034 | Logistics and packing list | Wilson | Buffer | 0.5 | no | – |
 
-| MZ-038 | Gyro heading as the maze-north reference (proposed) | Bryam | Proposed | 2 | W 0.25 | no (uses Lab 1 logs) | MZ-017, MZ-020 |
-| MZ-039 | Decision log and run metrics (proposed) | Wilson | Proposed | 2 | B 0.25 | no | MZ-024 |
-| MZ-040 | 2×4 route test: 0 → 3 → 11 → 8 (proposed) | Wilson | Proposed | 1.5 | B 0.25 | yes (Lab 2/3) | MZ-009, MZ-016 |
-| MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | W 0.25 | no (checked in Lab 3) | MZ-018, MZ-024 |
-| MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | W 0.25 | no | MZ-020, MZ-024 |
-| MZ-043 | Rolling turns and open-area diagonals for attempt 2 (backlog) | TBD | Backlog | ~4 h (first guess) | – | yes (validation) | MZ-011, MZ-023, MZ-028 |
-| MZ-044 | Sonar feasibility spike, log only (backlog) | TBD | Backlog | ~1.5 h (first guess) | – | yes (Lab 2/3) | MZ-023 |
+### Proposed software tickets (not in the hours above)
 
-**Proposed** tickets (MZ-038 to MZ-042) come from the corrections review. They are small, but the 50 h / 45 h budget is already full, so they are **not counted** until the team decides what to swap out. If all five are pulled in: Bryam +5.5 h (5.0 authoring + 0.5 reviewing), Wilson +4.25 h (3.5 authoring + 0.75 reviewing), 8.5 h of authoring in total. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039 → MZ-040.
+| ID | Title | Owner | Sprint | Author h | Lab | Depends on |
+|---|---|---|---|---|---|---|
+| MZ-038 | Gyro heading as the maze-north reference (proposed) | Bryam | Proposed | 2 | no (uses Lab 1 logs) | MZ-017*, MZ-020 |
+| MZ-039 | Decision log and run metrics (proposed) | Wilson | Proposed | 2 | no | MZ-024 |
+| MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
+| MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 
-MZ-035, MZ-036, MZ-037, MZ-043 and MZ-044 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 and MZ-037 are reviewed at the end of each sprint and pulled in only if there is slack (or by swapping hours with another ticket). MZ-036 is planned for after the competition (3 Nov).
+These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 5.0 h (46.25 → 51.25 h) and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039.
+
+### Physical robot tickets
+
+Bodies are in the section *Physical robot tickets* at the end of the sprints. Lab hours are counted in the table of hours above.
+
+| ID | Title | Owner | Sprint | Author h | Lab | Depends on |
+|---|---|---|---|---|---|---|
+| MZ-014 | Build the partial bench (**optional**) | Wilson | 1 | 3.5 (optional) | no | – |
+| MZ-015 | Print and mount tags ⚠️ | Wilson | 1 | 1 | no | MZ-014 |
+| MZ-017 | Lab 1: log capture ⚠️ | Wilson | 1 | 2 | **yes** | MZ-007, MZ-014, MZ-015 |
+| MZ-023 | Lab 2: calibration of motion costs | Wilson | 2 | 2 | **yes** | MZ-016, MZ-018 |
+| MZ-027 | Lab 3: integrated bench run (pairing) | Bryam + Wilson | 3 | 2.5 + 2.5 | **yes** | MZ-024 |
+| MZ-031 | Lab 4: competition rehearsal (pairing) | Bryam + Wilson | 4 | 2.5 + 2.5 | **yes** | MZ-029, MZ-030 |
+| MZ-033 | Lab 5: dress rehearsal (pairing) | Bryam + Wilson | Buffer | 2 + 2 | **yes** | MZ-032 |
+| MZ-040 | 2×4 route test: 0 → 3 → 11 → 8 (proposed) | Wilson | Proposed | 1.5 | yes (Lab 2/3) | MZ-009, MZ-016 |
+| MZ-044 | Sonar feasibility spike, log only (backlog) | TBD | Backlog | ~1.5 h (first guess) | yes (Lab 2/3) | MZ-023 |
+
+MZ-014 is **optional**: it depends on whether a physical maze can be built at all. MZ-040 and MZ-044 are proposed/backlog and not in the hours above.
+
+### Backlog (not scheduled, not counted)
+
+| ID | Title | Owner | Sprint | Author h | Lab | Depends on |
+|---|---|---|---|---|---|---|
+| MZ-035 | Research and compare alternative maze-solving strategies (backlog, to review) | TBD | Backlog | not estimated | no | MZ-021, MZ-025 |
+| MZ-036 | RL skills for in-place turns and corridor centring (backlog, after 3 Nov) | TBD | Backlog | not estimated | yes (validation) | MZ-016, MZ-024, MZ-026 |
+| MZ-037 | Active perception: head and camera geometry, moving vs fixed head (backlog, to review) | TBD | Backlog | ~3 h (first guess) | yes (validation) | MZ-019, MZ-021, MZ-024 |
+| MZ-043 | Rolling turns and open-area diagonals for attempt 2 (backlog) | TBD | Backlog | ~4 h (first guess) | yes (validation) | MZ-011, MZ-023*, MZ-028 |
+
+MZ-035, MZ-036, MZ-037 and MZ-043 are **backlog** items. MZ-035 and MZ-037 are reviewed at the end of each sprint and pulled in only if there is slack. MZ-036 is planned for after the competition (3 Nov). MZ-036, MZ-037 and MZ-043 need the physical robot only for their final validation step.
 
 ---
 
@@ -129,12 +159,15 @@ each lab ticket.
 
 ---
 
+---
+
 ## Sprint 0 — Foundations (Tue 6 – Fri 9 Oct)
 
 ### MZ-001 — Create and publish `Maze-Challenge`
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
 | Estimate | 0.25 h |
 | Depends on | – |
@@ -154,38 +187,13 @@ git push -u origin Maze-Challenge
 - [ ] `git ls-remote --heads origin Maze-Challenge` prints one line.
 - [ ] `Maze-Challenge` points to the same commit as `master` at creation time.
 
-### MZ-002 — Request branch protection from the repository owner
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 0.25 h |
-| Depends on | MZ-001 |
-| Lab / robot | no |
-| Branch | none (settings change, done by the owner) |
-| Files | – |
-
-**Description.** Our GitHub permission is *write*, not *admin*, so only the owner
-(`juanulloa2050`) can protect the branch. Send the request and verify the result.
-
-**Steps**
-1. Send this message to the repository owner:
-   > Hi! For the Maze challenge we work on the branch `Maze-Challenge`. Could you add a branch protection rule in *Settings → Branches → Add branch ruleset* (or *Add rule*) for `Maze-Challenge`, with: require a pull request before merging, require 1 approval, block force pushes, and restrict deletions? Thank you!
-2. When the owner confirms, check:
-   ```bash
-   gh api repos/juanulloa2050/SabanaHerons2026/branches/Maze-Challenge --jq .protected
-   ```
-
-**Acceptance criteria**
-- [ ] The request was sent (date written in the PR of MZ-006).
-- [ ] The command prints `true`, **or** the owner declined and the PR rules in the roadmap apply by agreement.
-
 ### MZ-003 — Planning documents (roadmap, tickets, Gantt)
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 1 h · Review: Wilson 0.25 h |
+| Estimate | 1 h |
 | Depends on | MZ-001 |
 | Lab / robot | no |
 | Branch | `docs/MZ-003-roadmap` |
@@ -201,8 +209,9 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 0.5 h · Review: Bryam 0.25 h |
+| Estimate | 0.5 h |
 | Depends on | MZ-001 |
 | Lab / robot | no |
 | Branch | `docs/MZ-004-pr-template` |
@@ -230,30 +239,13 @@ gh pr create --base Maze-Challenge --title "MZ-004: Pull request template" --bod
 - [ ] Opening a new PR on GitHub pre-fills the description with the template.
 - [ ] The content matches section 9 of the roadmap.
 
-### MZ-005 — Registration confirmation
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 0.25 h |
-| Depends on | – |
-| Lab / robot | no |
-| Branch | none (administrative) |
-| Files | – (result written in the PR of MZ-006) |
-
-**Description.** The registration deadline was 1 Oct. Confirm with the faculty advisor that the
-team's registration was recorded and that the confirmation e-mail arrived.
-
-**Acceptance criteria**
-- [ ] The advisor confirmed the registration in writing (e-mail or chat), and the date is recorded in `docs/maze/ORGANIZER_ANSWERS.md` (MZ-006).
-- [ ] If it is **not** confirmed, Bryam and the advisor are alerted the same day.
-
 ### MZ-006 — Organiser questions and answers
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 0.75 h · Review: Bryam 0.25 h |
+| Estimate | 0.75 h |
 | Depends on | MZ-003 |
 | Lab / robot | no |
 | Branch | `docs/MZ-006-organizer-answers` |
@@ -272,7 +264,7 @@ git pull
 git switch -c docs/MZ-006-organizer-answers
 mkdir -p docs/maze
 ```
-3. `docs/maze/ORGANIZER_ANSWERS.md` has a table with the columns `# | Question | Date asked | Answer | Date answered | Source`. Below it, add a line for the registration check (MZ-005) and one for the branch-protection request (MZ-002).
+3. `docs/maze/ORGANIZER_ANSWERS.md` has a table with the columns `# | Question | Date asked | Answer | Date answered | Source`.
 ```bash
 git add docs/maze/ORGANIZER_ANSWERS.md
 git commit -m "docs(MZ-006): record organizer questions and answers"
@@ -289,8 +281,9 @@ gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answ
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 2.5 h · Review: Wilson 0.5 h |
+| Estimate | 2.5 h |
 | Depends on | MZ-001 |
 | Lab / robot | no (boot checked in Lab 1) |
 | Branch | `feat/MZ-007-maze-scenario` |
@@ -299,7 +292,7 @@ gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answ
 **Description.**
 - Create both scenarios with only the modules the maze needs. Drop the ball, YOLO, team-communication and soccer-strategy providers. Keep `RobotPose` in `defaultRepresentations` until MZ-020.
 - `skillBehaviorControl.cfg`: `options = [HandlePhysicalRobot, HandlePlayerState, HandleMaze];`.
-- `HandleMaze` stub: in *playing*, stand. A single `headFront` tap (`hitStreak == 1`) says "start". A single `headRear` tap says "maze ready" (later: the last seen tag id, MZ-018). A **double** `headMiddle` tap (`hitStreak == 2`) runs the **motion test sequence** used in Lab 2: 4 cells forward, stop, turn 90° left, 90° right, 180°, each separated by a 2 s pause and a beep. A single `headMiddle` tap is reserved for *positioned at start* (MZ-041). The full button map is in roadmap 3.4.
+- `HandleMaze` stub: in *playing*, stand. A single `headFront` tap (`hitStreak == 1`) says "start" (replaced by the phrases of the *State announcements* table in MZ-024). A single `headRear` tap says "maze ready" (later: the last seen tag id, MZ-018). A **double** `headMiddle` tap (`hitStreak == 2`) runs the **motion test sequence** used in Lab 2: 4 cells forward, stop, turn 90° left, 90° right, 180°, each separated by a 2 s pause and a beep. A single `headMiddle` tap is reserved for *positioned at start* (MZ-041). The full button map is in roadmap 3.4.
 - `logger.cfg`: log `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `InertialData` (gyro drift, MZ-038), `FrameInfo` and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
 
 **Acceptance criteria**
@@ -311,8 +304,9 @@ gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answ
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 3 h · Review: Wilson 0.5 h |
+| Estimate | 3 h |
 | Depends on | MZ-001 |
 | Lab / robot | no |
 | Branch | `feat/MZ-008-apriltag-lib` |
@@ -331,8 +325,9 @@ gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answ
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 2 h · Review: Bryam 0.5 h |
+| Estimate | 2 h |
 | Depends on | MZ-004 |
 | Lab / robot | no |
 | Branch | `feat/MZ-009-maze-generator` |
@@ -397,8 +392,9 @@ a text format that both people and programs can read.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson (Bryam 0.5 h pairing for the scene template) |
-| Estimate | 2.5 h (+ Bryam 0.5 h) · Review: Bryam 0.5 h |
+| Estimate | 2.5 h (+ Bryam 0.5 h pairing) |
 | Depends on | MZ-007, MZ-009 |
 | Lab / robot | no |
 | Branch | `feat/MZ-010-maze-scene` |
@@ -437,16 +433,20 @@ gh pr create --base Maze-Challenge --title "MZ-010: Maze to SimRobot scene conve
 - [ ] The top view matches the `.maze` drawing for 3 different mazes (screenshots in the PR).
 - [ ] The robot stands in the start cell without touching walls.
 
+
 ---
 
 ## Sprint 1 — Core logic in simulation (Sat 10 – Thu 15 Oct)
+
+> Physical-robot tickets of this sprint: MZ-014 (optional bench), MZ-015, MZ-017 (Lab 1). See *Physical robot tickets* below.
 
 ### MZ-011 — Maze library and time-weighted planner with unit tests
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 6 h · Review: Wilson 0.5 h |
+| Estimate | 6 h |
 | Depends on | MZ-009 |
 | Lab / robot | no |
 | Branch | `feat/MZ-011-maze-planner` |
@@ -467,8 +467,9 @@ gh pr create --base Maze-Challenge --title "MZ-010: Maze to SimRobot scene conve
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 1.5 h · Review: Bryam 0.25 h |
+| Estimate | 1.5 h |
 | Depends on | MZ-009 |
 | Lab / robot | no |
 | Branch | `test/MZ-012-maze-fixtures` |
@@ -517,8 +518,9 @@ independent Python solver. This gives the C++ planner something to be checked ag
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 2 h · Review: Wilson 0.5 h |
+| Estimate | 2 h |
 | Depends on | MZ-010, MZ-011 |
 | Lab / robot | no |
 | Branch | `feat/MZ-013-oracle-percepts` |
@@ -532,59 +534,13 @@ placement follows the TAG-DEP assumption.
 - [ ] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
 - [ ] Dropout = 1.0 produces empty percepts, which is used later by the safe-mode tests.
 
-### MZ-014 — Build the partial bench
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 3.5 h |
-| Depends on | – |
-| Lab / robot | no (built in a workshop, assembled in Lab 1) |
-| Branch | none (results committed in the PR of MZ-022) |
-| Files | `docs/maze/BENCH.md` (created in MZ-022) |
-
-**Description.** Six free-standing panels that can be arranged as a corridor, a corner, a
-T-junction and a dead end.
-
-**Steps**
-1. Cut 6 panels of **50 cm wide × 60 cm high** from 10 mm foam board (or 12–15 mm MDF). The 1–2 cm thickness matches the rules. Use a light, matte colour (white).
-2. Give each panel two feet: L-brackets or wooden blocks, so it stands without leaning. Join panels at corners with clamps or strong tape.
-3. Make a floor tape grid of 50 cm cells (2×3 cells) and a 1 m straight line for the calibration drill.
-4. Draw the 4 layouts in `docs/maze/BENCH.md` (ASCII is fine) and record how many panels each uses: corridor 2 cells (4 panels), dead end (5), corner (4), T (5).
-5. Measure and record: each panel's width, height and thickness (±1 mm); the corridor inner width when assembled (target 48–49 cm); the floor type; and the light level (phone lux app).
-
-**Acceptance criteria**
-- [ ] 6 panels stand alone, and a light push does not tip them.
-- [ ] The measured corridor width is 48–49 cm.
-- [ ] `docs/maze/BENCH.md` is written (committed later with MZ-022).
-
-### MZ-015 — Print and mount tags ⚠️ TAG-DEP
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 1 h |
-| Depends on | MZ-014 |
-| Lab / robot | no |
-| Branch | none (documented in `docs/maze/BENCH.md`) |
-| Files | – |
-
-**Steps**
-1. Download the `tag36h11` images for ids 0, 1, 7, 8, 9, 56, 63 from the AprilRobotics `apriltag-imgs` repository (folder `tag36h11`).
-2. Scale each so that the **black outer square measures exactly 150 mm**, and print on matte paper (no glossy finish).
-3. Measure the printed square with a ruler. Reject anything outside 150 ± 1 mm.
-4. Glue each tag to a panel, **centred horizontally, with the tag centre 30 cm above the floor** (the TAG-DEP assumption, to be changed if Q1 says otherwise).
-
-**Acceptance criteria**
-- [ ] 7 tags are printed and measured at 150 ± 1 mm, with the measurements recorded.
-- [ ] The tags are flat (no bubbles), and the mounting height is recorded.
-
 ### MZ-016 — Corridor walk profile in simulation
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 3 h · Review: Bryam 0.25 h |
+| Estimate | 3 h |
 | Depends on | MZ-007, MZ-010 |
 | Lab / robot | no |
 | Branch | `config/MZ-016-walk-profile` |
@@ -623,49 +579,20 @@ copied, not only the changed lines.
 - [ ] 0 wall touches in 5 runs, and the times are recorded in the PR.
 - [ ] Only the parameters listed above differ from `Config/Robots/Default/` (check with `diff`).
 
-### MZ-017 — Lab 1 (Tue 13 Oct, 2 h): log capture ⚠️ TAG-DEP
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 2 h (lab) |
-| Depends on | MZ-007, MZ-014, MZ-015 |
-| Lab / robot | **yes** |
-| Branch | none (results committed in the PR of MZ-022) |
-| Files | `docs/maze/LAB_LOG.md` (created in MZ-022); logs in `Config/Logs/` and the shared drive |
-
-**Description.** Record real camera and odometry logs, so the detector and the perceptor can be
-developed offline. Bryam is on call by phone.
-
-**Steps**
-1. Deploy by Ethernet and start the robot:
-   ```bash
-   Make/Common/deploy Develop <robot-ip> -s Maze -l Default -w NONE -b
-   ```
-   Then tap the chest 3 times (green chest LED = *playing*). The logger is now recording.
-2. **Tag sweep:** place one tag panel in front of the robot at 0.25, 0.5, 1.0, 1.5 and 2.0 m (tape measure), each at 0°, 30° and 60° to the panel. Stay 5 s at each position, and write each position and the time in a notebook.
-3. **Corridor walk:** build the 2-cell corridor and let the robot stand at both ends and in the middle for 5 s each, moving it by hand.
-4. Stop the robot by holding all three head buttons for 1 s (unstiff), then download:
-   ```bash
-   Make/Common/downloadLogs <robot-ip>
-   ```
-5. Copy `Config/Logs/<date>/` to the shared drive.
-
-**Acceptance criteria**
-- [ ] At least 15 tag positions are recorded (5 distances × 3 angles) with their timestamps.
-- [ ] The logs open in SimRobot with `Config/Scenes/ReplayRobot.ros2` (check one before leaving the lab).
-- [ ] The robot booted with `-s Maze` and the chest flow worked (this confirms MZ-007 on the real robot).
 
 ---
 
 ## Sprint 2 — Perception and localization (Fri 16 – Wed 21 Oct)
 
+> Physical-robot tickets of this sprint: MZ-023 (Lab 2). See *Physical robot tickets* below.
+
 ### MZ-018 — AprilTag detector ⚠️ TAG-DEP
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 5 h · Review: Wilson 0.5 h |
+| Estimate | 5 h |
 | Depends on | MZ-008, MZ-017 |
 | Lab / robot | no (validated on Lab 1 logs) |
 | Branch | `feat/MZ-018-apriltag-detector` |
@@ -684,8 +611,9 @@ with `CameraMatrix`. A decision-margin threshold is set in the config.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 4 h · Review: Wilson 0.5 h |
+| Estimate | 4 h |
 | Depends on | MZ-010, MZ-017 |
 | Lab / robot | no (simulation + Lab 1 logs) |
 | Branch | `feat/MZ-019-wall-perceptor` |
@@ -703,8 +631,9 @@ the head points that way.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 5 h · Review: Wilson 0.5 h |
+| Estimate | 5 h |
 | Depends on | MZ-011, MZ-013 |
 | Lab / robot | no |
 | Branch | `feat/MZ-020-localizer-mapper` |
@@ -723,8 +652,9 @@ the head points that way.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 3 h · Review: Bryam 0.5 h |
+| Estimate | 3 h |
 | Depends on | MZ-010 |
 | Lab / robot | no |
 | Branch | `feat/MZ-021-sim-runner` |
@@ -771,8 +701,9 @@ maze with a timeout.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 2.5 h · Review: Bryam 0.25 h |
+| Estimate | 2.5 h |
 | Depends on | MZ-017, MZ-018 |
 | Lab / robot | no (recorded logs) |
 | Branch | `docs/MZ-022-tag-accuracy` |
@@ -811,47 +742,20 @@ tape measurements. This PR also commits the bench sheet (MZ-014, MZ-015) and the
 - [ ] All 15 positions are in the table.
 - [ ] The summary states whether the MZ-018 targets are met (≥95 % detection, ≤5 % distance error up to 1.5 m).
 
-### MZ-023 — Lab 2 (Tue 20 Oct, 2 h): calibration of motion costs
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 2 h (lab) |
-| Depends on | MZ-016, MZ-018 |
-| Lab / robot | **yes** |
-| Branch | none (numbers committed in the PR of MZ-028) |
-| Files | `docs/maze/LAB_LOG.md` (updated in MZ-028) |
-
-**Description.** Measure, on the real lab floor, how long the robot needs for each motion and how
-precise it is. These numbers replace the planner's default costs. Bryam is on call by phone.
-
-**Steps**
-1. Deploy and start (3 chest taps):
-   ```bash
-   Make/Common/deploy Develop <robot-ip> -s Maze -l Default -w NONE -b
-   ```
-2. With a stopwatch, measure 10 times each, using the motion test sequence (single `headMiddle` tap, MZ-007):
-   - `t_fwd`: time per 50 cm while already walking (measure 4 cells and divide by 4);
-   - `t_start`: extra time for the first cell from standstill;
-   - `t_turn90` and `t_turn180`: in place.
-3. For each straight run, measure the lateral drift over 1 m. For each turn, measure the heading error with floor tape marks.
-4. With the panel tags, check live detection under the lab lighting: the robot says the id on a `headRear` tap. Do it at 0.5, 1.0 and 1.5 m.
-5. Download the logs: `Make/Common/downloadLogs <robot-ip>`.
-
-**Acceptance criteria**
-- [ ] 10 measurements per motion, with mean and standard deviation in `LAB_LOG.md`.
-- [ ] The live tag check passes at 0.5 m and 1.0 m.
 
 ---
 
 ## Sprint 3 — Behaviour and integration (Thu 22 – Sun 25 Oct)
 
+> Physical-robot tickets of this sprint: MZ-027 (Lab 3). See *Physical robot tickets* below.
+
 ### MZ-024 — `HandleMaze` state machine and maze skills
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 5 h · Review: Wilson 0.5 h |
+| Estimate | 5 h |
 | Depends on | MZ-011, MZ-020 |
 | Lab / robot | no |
 | Branch | `feat/MZ-024-handle-maze` |
@@ -860,7 +764,11 @@ precise it is. These numbers replace the planner's default costs. Bryam is on ca
 **Description.** The states and transitions in roadmap 4.7. Skills are built on `WalkToPose`
 (empty obstacle avoidance) and `LookAtAngles`. Turns happen only at cell centres.
 
+**Description (addition).** Implement the *State announcements* table (roadmap 4.7): every state change and button gesture is spoken with the `Say` skill, behind `announce.enabled` in `handleMaze.cfg`.
+
 **Acceptance criteria**
+- [ ] Each row of the *State announcements* table is spoken (check the console `Say` output in SimRobot, and on the robot in Lab 3). "exploring" is spoken again on a second run.
+- [ ] With `announce.enabled = false`, nothing is spoken.
 - [ ] In simulation, the full flow works on 3 mazes: WaitingForStart → Exploration → goal → pick-up → Standby → SpeedRun → Finished.
 - [ ] In attempt 2, the plan uses known-open edges only (unit-tested in MZ-011, checked in a log).
 
@@ -868,8 +776,9 @@ precise it is. These numbers replace the planner's default costs. Bryam is on ca
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 2.5 h · Review: Wilson 0.25 h |
+| Estimate | 2.5 h |
 | Depends on | MZ-024 |
 | Lab / robot | no |
 | Branch | `feat/MZ-025-watchdog` |
@@ -883,8 +792,9 @@ precise it is. These numbers replace the planner's default costs. Bryam is on ca
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 3 h · Review: Bryam 0.25 h |
+| Estimate | 3 h |
 | Depends on | MZ-021, MZ-024 |
 | Lab / robot | no |
 | Branch | `docs/MZ-026-sim-results` |
@@ -914,35 +824,13 @@ precise it is. These numbers replace the planner's default costs. Bryam is on ca
 - [ ] 20 mazes × 2 attempts × 3 noise levels were run, or the report says which runs failed to start and why.
 - [ ] The report says whether the Sprint 3 target is met (≥18/20 solved at noise "mid").
 
-### MZ-027 — Lab 3 (Fri 23 Oct, 2.5 h): integrated bench run · pairing
-
-| Field | Value |
-|---|---|
-| Owner | Bryam + Wilson |
-| Estimate | 2.5 h each (lab) |
-| Depends on | MZ-024 |
-| Lab / robot | **yes** |
-| Branch | none (results committed in the PR of MZ-028) |
-| Files | `docs/maze/LAB_LOG.md` |
-
-**Description.** First time the full software runs on the real robot between real walls.
-
-**Steps**
-1. Run on the 4 bench layouts (corridor, corner, T, dead end), 5 runs each where time allows.
-2. Wilson measures the minimum lateral clearance (ruler at the closest point, video if possible) and counts wall contacts. Bryam watches the representations live over Ethernet.
-3. Record each run in `LAB_LOG.md` with: layout, result, contacts, clearance, notes.
-
-**Acceptance criteria**
-- [ ] Corridor and corner: 5 runs each with 0 contacts and clearance ≥5 cm.
-- [ ] T and dead end: the correct branch is chosen (dead end detected, robot turns around).
-- [ ] Every failure has a log name and a note.
-
 ### MZ-028 — Configuration tuning from lab data
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 1.5 h · Review: Bryam 0.25 h |
+| Estimate | 1.5 h |
 | Depends on | MZ-023, MZ-027 |
 | Lab / robot | no |
 | Branch | `config/MZ-028-lab-tuning` |
@@ -976,16 +864,20 @@ precise it is. These numbers replace the planner's default costs. Bryam is on ca
 - [ ] The config values equal the measured means (rounded to 0.1 s).
 - [ ] Every changed value is justified in the PR with a reference to `LAB_LOG.md`.
 
+
 ---
 
 ## Sprint 4 — Hardening and code freeze (Mon 26 – Wed 28 Oct)
+
+> Physical-robot tickets of this sprint: MZ-031 (Lab 4). See *Physical robot tickets* below.
 
 ### MZ-029 — Attempt-flow hardening
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Bryam |
-| Estimate | 2.5 h · Review: Wilson 0.25 h |
+| Estimate | 2.5 h |
 | Depends on | MZ-024, MZ-027 |
 | Lab / robot | no (checked in Lab 4) |
 | Branch | `fix/MZ-029-attempt-flow` |
@@ -1002,8 +894,9 @@ tag. The map persists across both attempts. Fixes for any Lab 3 failure.
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 2.5 h · Review: Bryam 0.25 h |
+| Estimate | 2.5 h |
 | Depends on | MZ-027 |
 | Lab / robot | no |
 | Branch | `docs/MZ-030-competition-checklist` |
@@ -1041,30 +934,13 @@ tag. The map persists across both attempts. Fixes for any Lab 3 failure.
 - [ ] It fits on 2 printed pages.
 - [ ] Every item has a checkbox and can be checked by one person.
 
-### MZ-031 — Lab 4 (Tue 27 Oct, 2.5 h): competition-mode rehearsal · pairing
-
-| Field | Value |
-|---|---|
-| Owner | Bryam + Wilson |
-| Estimate | 2.5 h each (lab) |
-| Depends on | MZ-029, MZ-030 |
-| Lab / robot | **yes** |
-| Branch | none (notes appended to `docs/maze/LAB_LOG.md` in the PR of MZ-032) |
-| Files | `docs/maze/LAB_LOG.md` |
-
-**Description.** Run exactly as on competition day, following the printed checklist.
-
-**Acceptance criteria**
-- [ ] The 5-minute calibration drill is completed in ≤5 min (timed).
-- [ ] 3 full attempt-1 → Standby → attempt-2 cycles on the bench, with no human touch except the pick-up.
-- [ ] Every checklist item that was unclear is corrected in the checklist.
-
 ### MZ-032 — Code freeze and deploy procedure
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
-| Estimate | 1 h · Review: Bryam 0.25 h |
+| Estimate | 1 h |
 | Depends on | MZ-031 |
 | Lab / robot | no |
 | Branch | `docs/MZ-032-code-freeze` |
@@ -1105,32 +981,18 @@ tag. The map persists across both attempts. Fixes for any Lab 3 failure.
 - [ ] `git ls-remote --tags origin maze-freeze-2026-10-28` prints one line.
 - [ ] `Make/Linux/compile Release Nao` passes on the tagged commit.
 
+
 ---
 
 ## Buffer — 29 Oct – 2 Nov (no new development)
 
-### MZ-033 — Lab 5 (Fri 30 Oct, 2 h): dress rehearsal · pairing
-
-| Field | Value |
-|---|---|
-| Owner | Bryam + Wilson |
-| Estimate | 2 h each (lab) |
-| Depends on | MZ-032 |
-| Lab / robot | **yes** |
-| Branch | none, unless a blocking fix is needed (`fix/MZ-033-<slug>`, reviewed by both) |
-| Files | – |
-
-**Description.** The full competition procedure with the frozen tag, from deploy to "after our
-turn". Only blocking problems may be fixed, through a PR reviewed by both people.
-
-**Acceptance criteria**
-- [ ] The full checklist is done once, timed, with no improvisation.
-- [ ] The decision about `Maze` or `MazeSafe` defaults is written down.
+> Physical-robot tickets of this sprint: MZ-033 (Lab 5). See *Physical robot tickets* below.
 
 ### MZ-034 — Logistics and packing list
 
 | Field | Value |
 |---|---|
+| Done | [ ] Check when the PR is merged and every acceptance criterion below is checked. |
 | Owner | Wilson |
 | Estimate | 0.5 h |
 | Depends on | – |
@@ -1151,6 +1013,7 @@ turn". Only blocking problems may be fixed, through a PR reviewed by both people
 **Acceptance criteria**
 - [ ] The list is shared with the team by 1 Nov, and every item is checked off on 2 Nov.
 
+
 ---
 
 ## Backlog (to review, not scheduled)
@@ -1159,7 +1022,7 @@ turn". Only blocking problems may be fixed, through a PR reviewed by both people
 
 | Field | Value |
 |---|---|
-| Status | **Backlog — to review.** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Status | **Backlog — to review.** Not scheduled, not counted in the hour plan. |
 | Owner | TBD (decided when it is pulled into a sprint) |
 | Estimate | Not estimated (first step of the ticket) |
 | Depends on | MZ-021 (simulation runner), MZ-025 (wall-follower) |
@@ -1196,7 +1059,7 @@ strategy misbehaves on the real robot.
 
 | Field | Value |
 |---|---|
-| Status | **Backlog — after the competition (3 Nov 2026).** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Status | **Backlog — after the competition (3 Nov 2026).** Not scheduled, not counted in the hour plan. |
 | Owner | TBD |
 | Estimate | Not estimated (first step of the ticket) |
 | Depends on | MZ-016 (walk profile, baseline), MZ-024 (maze skills, baseline), MZ-026 (simulation campaign, baseline numbers) |
@@ -1232,7 +1095,7 @@ integration path described in `docs/RL/Integration.md`.
 
 | Field | Value |
 |---|---|
-| Status | **Backlog — to review.** Not scheduled, not counted in the 50 h / 45 h budget. Can be pulled into Sprint 3 by swapping hours with another ticket. |
+| Status | **Backlog — to review.** Not scheduled, not counted in the hour plan. Can be pulled into Sprint 3 by swapping hours with another ticket. |
 | Owner | TBD (suggested split: geometry study and simulation runs for Wilson, skill changes for Bryam) |
 | Estimate | ~3 h first guess (≈1.5 h study and runs, ≈1.5 h skill changes); confirm in step 1 |
 | Depends on | MZ-019 (wall perceptor), MZ-021 (simulation runner), MZ-024 (maze skills) |
@@ -1277,7 +1140,7 @@ Facts this ticket builds on:
 
 | Field | Value |
 |---|---|
-| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the hour plan. |
 | Owner | TBD |
 | Estimate | ~4 h first guess; confirm in step 1 |
 | Depends on | MZ-011 (planner), MZ-023 (turn and step costs), MZ-028 (tuning) |
@@ -1302,34 +1165,10 @@ of the score, so it may use faster motions **if they keep the wall clearance**.
 - [ ] If implemented: 0 wall contacts and 0 falls in 10 bench repetitions, and T2 is lower in the campaign.
 - [ ] The defaults stay `false` unless both checks pass.
 
-### MZ-044 — Sonar feasibility spike (log only)
-
-| Field | Value |
-|---|---|
-| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the 50 h / 45 h budget. |
-| Owner | TBD |
-| Estimate | ~1.5 h first guess |
-| Depends on | MZ-023 (Lab 2 gives the slot for the log) |
-| Lab / robot | **yes** (Lab 2 or Lab 3, 10 extra minutes) |
-| Branch | `feat/MZ-044-sonar-log` |
-| Files | `Src/Modules/Infrastructure/NaoProvider/NaoProvider.cpp` (read the LoLA `Sonar` keys, enable the emitters); `Src/Representations/Infrastructure/SensorData/SonarSensorData.h` (create); `Config/Scenarios/Maze/logger.cfg`; `docs/maze/SONAR.md` (create) |
-
-**Description.** The assessment in roadmap 8.1 says the sonar is not useful against side walls
-and for collision avoidance, and marginal as a front-wall cross-check. This spike replaces the
-documentation numbers with real ones. The sonar has **no influence on control**: it is only logged.
-
-**Steps**
-1. Read the left and right sonar values in `NaoProvider`, publish them in a representation, and add it to the logger.
-2. In the bench corridor, record the readings at 10, 20, 25, 50 and 75 cm in front of a panel, 10 samples each, with the robot standing and walking.
-3. Write `docs/maze/SONAR.md`: the table of readings, the observed minimum range, the update rate and the noise while walking, and a decision (drop, or build the front-wall cross-check after 3 Nov).
-
-**Acceptance criteria**
-- [ ] The readings table exists, with the minimum reliable range and the update rate.
-- [ ] The decision is written down, and no control module reads the sonar.
 
 ---
 
-## Proposed (from the corrections review, not in the hour budget)
+## Proposed (from the corrections review, not in the hour plan)
 
 These tickets turn the notes in `docs/CORRECCIONES.md` into work. They are small and mostly
 touch `HandleMaze` and the localizer, so they should be built after MZ-024. See the summary
@@ -1340,7 +1179,7 @@ for the swap-out note.
 | Field | Value |
 |---|---|
 | Owner | Bryam |
-| Estimate | 2 h · Review: Wilson 0.25 h |
+| Estimate | 2 h |
 | Depends on | MZ-017 (the Lab 1 log must include `InertialData`), MZ-020 |
 | Lab / robot | no (drift measured on the Lab 1 logs) |
 | Branch | `feat/MZ-038-gyro-heading` |
@@ -1368,7 +1207,7 @@ for the swap-out note.
 | Field | Value |
 |---|---|
 | Owner | Wilson |
-| Estimate | 2 h · Review: Bryam 0.25 h |
+| Estimate | 2 h |
 | Depends on | MZ-024 |
 | Lab / robot | no (used in every lab afterwards) |
 | Branch | `feat/MZ-039-decision-log` |
@@ -1392,37 +1231,12 @@ Each event holds: time, state, cell pose and heading, the plan action, a reason 
 - [ ] Every watchdog trigger and every replan in the run has an event with a reason code.
 - [ ] The log adds <1 ms per frame on average (`STOPWATCH`).
 
-### MZ-040 — 2×4 route test: 0 → 3 → 11 → 8
-
-| Field | Value |
-|---|---|
-| Owner | Wilson |
-| Estimate | 1.5 h · Review: Bryam 0.25 h |
-| Depends on | MZ-009 (generator), MZ-016 (walk profile) |
-| Lab / robot | **yes**, runs inside Lab 2 and Lab 3 (no extra room time) |
-| Branch | `test/MZ-040-route-2x4` |
-| Files | `Config/Mazes/fixtures/route_2x4.maze` (create); `docs/maze/BENCH.md` (add the floor layout); the motion test of MZ-007 (add the route) |
-
-**Description.** The lab cannot hold an 8×8, but a 2×4 block holds the motions that matter. It
-keeps the real tag ids (`id = row·8 + col`): cells 0–3 in row 0 and cells 8–11 in row 1.
-Route: straight 3 cells (0 → 3), turn right, 1 cell (3 → 11), turn right, straight 3 cells (11 → 8). See roadmap section 6.
-
-**Steps**
-1. Write the fixture for the simulation: 2×4 with the start at cell 0, open cells 0–3 and 8–11, and an open edge between 3 and 11 only.
-2. Add the route to the motion test (double `headMiddle` tap): the sequence of actions is `forward 3`, `turnRight`, `forward 1`, `turnRight`, `forward 3`.
-3. Lay a 2×4 grid of floor tape (50 cm cells) for Lab 2, with a mark at each cell centre. The 6 panels are not enough for walls on all 15 edges, so the walled version runs in simulation, and on the bench only with the panels around the two turns.
-4. Record the final position error against the cell-8 centre, and the heading error, over 10 runs.
-
-**Acceptance criteria**
-- [ ] In simulation the route ends in cell 8 facing west, with a position error ≤8 cm.
-- [ ] On the floor grid, 10 runs are measured and written in `docs/maze/LAB_LOG.md`.
-
 ### MZ-041 — "Positioned at start" button and start head-scan
 
 | Field | Value |
 |---|---|
 | Owner | Bryam |
-| Estimate | 2 h · Review: Wilson 0.25 h |
+| Estimate | 2 h |
 | Depends on | MZ-018 (tag detector), MZ-024 |
 | Lab / robot | no (checked in Lab 3) |
 | Branch | `feat/MZ-041-start-scan` |
@@ -1453,13 +1267,14 @@ The scan is a parameter, because whether it is allowed depends on when the clock
 - [ ] With `startScan.enabled = false`, *positioned* goes straight to `WaitingForStart`.
 - [ ] With it enabled, the head pans for the configured time, then looks ahead and waits.
 - [ ] In simulation, the start corner id is read during the scan on at least 3 generated mazes.
+- [ ] The robot says "positioned", then "scanning" (if enabled), then "ready" (roadmap 4.7).
 
 ### MZ-042 — Maze memory reset by the sit gesture
 
 | Field | Value |
 |---|---|
 | Owner | Bryam |
-| Estimate | 1 h · Review: Wilson 0.25 h |
+| Estimate | 1 h |
 | Depends on | MZ-020, MZ-024 |
 | Lab / robot | no |
 | Branch | `feat/MZ-042-map-reset` |
@@ -1478,4 +1293,235 @@ hold the head buttons between attempts.
 **Acceptance criteria**
 - [ ] In simulation, `playerState = unstiff` clears the map and the counter. Standby (pick-up) does **not**.
 - [ ] After the reset, the robot explores as attempt 1.
+- [ ] The robot says "map cleared" when it sits. Check in step 1 that speech works while the robot is unstiff, and note the result in the PR.
 - [ ] The checklist item is in `docs/maze/COMPETITION_CHECKLIST.md` (MZ-030).
+
+---
+
+## Physical robot tickets (testing method not settled)
+
+These tickets need the NAO, the lab or a physical maze. We are **not sure how we will test on hardware** (lab access, a physical maze and robot time are not guaranteed), so no software ticket may depend on them in a hard way. Their dates and hours are the plan if everything is available.
+
+If a lab session is lost, the fallback is: keep the code frozen on simulation results, use the `Maze` conservative defaults, and treat the competition's 5-minute calibration zone (roadmap section 7) as the first real test.
+
+### MZ-014 — Build the partial bench (optional)
+
+| Field | Value |
+|---|---|
+| Status | **Optional.** We do not know yet whether a physical maze can be built. Without it, MZ-015, MZ-017 and MZ-027 lose their walls and run on floor tape only (corridor width and wall clearance are then checked in simulation). |
+| Owner | Wilson |
+| Estimate | 3.5 h |
+| Depends on | – |
+| Lab / robot | no (built in a workshop, assembled in Lab 1) |
+| Branch | none (results committed in the PR of MZ-022) |
+| Files | `docs/maze/BENCH.md` (created in MZ-022) |
+
+**Description.** Six free-standing panels that can be arranged as a corridor, a corner, a
+T-junction and a dead end.
+
+**Steps**
+1. Cut 6 panels of **50 cm wide × 60 cm high** from 10 mm foam board (or 12–15 mm MDF). The 1–2 cm thickness matches the rules. Use a light, matte colour (white).
+2. Give each panel two feet: L-brackets or wooden blocks, so it stands without leaning. Join panels at corners with clamps or strong tape.
+3. Make a floor tape grid of 50 cm cells (2×3 cells) and a 1 m straight line for the calibration drill.
+4. Draw the 4 layouts in `docs/maze/BENCH.md` (ASCII is fine) and record how many panels each uses: corridor 2 cells (4 panels), dead end (5), corner (4), T (5).
+5. Measure and record: each panel's width, height and thickness (±1 mm); the corridor inner width when assembled (target 48–49 cm); the floor type; and the light level (phone lux app).
+
+**Acceptance criteria**
+- [ ] 6 panels stand alone, and a light push does not tip them.
+- [ ] The measured corridor width is 48–49 cm.
+- [ ] `docs/maze/BENCH.md` is written (committed later with MZ-022).
+
+### MZ-015 — Print and mount tags ⚠️ TAG-DEP
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 1 h |
+| Depends on | MZ-014 |
+| Lab / robot | no |
+| Branch | none (documented in `docs/maze/BENCH.md`) |
+| Files | – |
+
+**Steps**
+1. Download the `tag36h11` images for ids 0, 1, 7, 8, 9, 56, 63 from the AprilRobotics `apriltag-imgs` repository (folder `tag36h11`).
+2. Scale each so that the **black outer square measures exactly 150 mm**, and print on matte paper (no glossy finish).
+3. Measure the printed square with a ruler. Reject anything outside 150 ± 1 mm.
+4. Glue each tag to a panel, **centred horizontally, with the tag centre 30 cm above the floor** (the TAG-DEP assumption, to be changed if Q1 says otherwise).
+
+**Acceptance criteria**
+- [ ] 7 tags are printed and measured at 150 ± 1 mm, with the measurements recorded.
+- [ ] The tags are flat (no bubbles), and the mounting height is recorded.
+
+### MZ-017 — Lab 1 (Tue 13 Oct, 2 h): log capture ⚠️ TAG-DEP
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 2 h (lab) |
+| Depends on | MZ-007, MZ-014, MZ-015 |
+| Lab / robot | **yes** |
+| Branch | none (results committed in the PR of MZ-022) |
+| Files | `docs/maze/LAB_LOG.md` (created in MZ-022); logs in `Config/Logs/` and the shared drive |
+
+**Description.** Record real camera and odometry logs, so the detector and the perceptor can be
+developed offline. Bryam is on call by phone.
+
+**Steps**
+1. Deploy by Ethernet and start the robot:
+   ```bash
+   Make/Common/deploy Develop <robot-ip> -s Maze -l Default -w NONE -b
+   ```
+   Then tap the chest 3 times (green chest LED = *playing*). The logger is now recording.
+2. **Tag sweep:** place one tag panel in front of the robot at 0.25, 0.5, 1.0, 1.5 and 2.0 m (tape measure), each at 0°, 30° and 60° to the panel. Stay 5 s at each position, and write each position and the time in a notebook.
+3. **Corridor walk:** build the 2-cell corridor and let the robot stand at both ends and in the middle for 5 s each, moving it by hand.
+4. Stop the robot by holding all three head buttons for 1 s (unstiff), then download:
+   ```bash
+   Make/Common/downloadLogs <robot-ip>
+   ```
+5. Copy `Config/Logs/<date>/` to the shared drive.
+
+**Acceptance criteria**
+- [ ] At least 15 tag positions are recorded (5 distances × 3 angles) with their timestamps.
+- [ ] The logs open in SimRobot with `Config/Scenes/ReplayRobot.ros2` (check one before leaving the lab).
+- [ ] The robot booted with `-s Maze` and the chest flow worked (this confirms MZ-007 on the real robot).
+
+### MZ-023 — Lab 2 (Tue 20 Oct, 2 h): calibration of motion costs
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 2 h (lab) |
+| Depends on | MZ-016, MZ-018 |
+| Lab / robot | **yes** |
+| Branch | none (numbers committed in the PR of MZ-028) |
+| Files | `docs/maze/LAB_LOG.md` (updated in MZ-028) |
+
+**Description.** Measure, on the real lab floor, how long the robot needs for each motion and how
+precise it is. These numbers replace the planner's default costs. Bryam is on call by phone.
+
+**Steps**
+1. Deploy and start (3 chest taps):
+   ```bash
+   Make/Common/deploy Develop <robot-ip> -s Maze -l Default -w NONE -b
+   ```
+2. With a stopwatch, measure 10 times each, using the motion test sequence (single `headMiddle` tap, MZ-007):
+   - `t_fwd`: time per 50 cm while already walking (measure 4 cells and divide by 4);
+   - `t_start`: extra time for the first cell from standstill;
+   - `t_turn90` and `t_turn180`: in place.
+3. For each straight run, measure the lateral drift over 1 m. For each turn, measure the heading error with floor tape marks.
+4. With the panel tags, check live detection under the lab lighting: the robot says the id on a `headRear` tap. Do it at 0.5, 1.0 and 1.5 m.
+5. Download the logs: `Make/Common/downloadLogs <robot-ip>`.
+
+**Acceptance criteria**
+- [ ] 10 measurements per motion, with mean and standard deviation in `LAB_LOG.md`.
+- [ ] The live tag check passes at 0.5 m and 1.0 m.
+
+### MZ-027 — Lab 3 (Fri 23 Oct, 2.5 h): integrated bench run · pairing
+
+| Field | Value |
+|---|---|
+| Owner | Bryam + Wilson |
+| Estimate | 2.5 h each (lab) |
+| Depends on | MZ-024 |
+| Lab / robot | **yes** |
+| Branch | none (results committed in the PR of MZ-028) |
+| Files | `docs/maze/LAB_LOG.md` |
+
+**Description.** First time the full software runs on the real robot between real walls.
+
+**Steps**
+1. Run on the 4 bench layouts (corridor, corner, T, dead end), 5 runs each where time allows.
+2. Wilson measures the minimum lateral clearance (ruler at the closest point, video if possible) and counts wall contacts. Bryam watches the representations live over Ethernet.
+3. Record each run in `LAB_LOG.md` with: layout, result, contacts, clearance, notes.
+
+**Acceptance criteria**
+- [ ] Corridor and corner: 5 runs each with 0 contacts and clearance ≥5 cm.
+- [ ] T and dead end: the correct branch is chosen (dead end detected, robot turns around).
+- [ ] Every failure has a log name and a note.
+
+### MZ-031 — Lab 4 (Tue 27 Oct, 2.5 h): competition-mode rehearsal · pairing
+
+| Field | Value |
+|---|---|
+| Owner | Bryam + Wilson |
+| Estimate | 2.5 h each (lab) |
+| Depends on | MZ-029, MZ-030 |
+| Lab / robot | **yes** |
+| Branch | none (notes appended to `docs/maze/LAB_LOG.md` in the PR of MZ-032) |
+| Files | `docs/maze/LAB_LOG.md` |
+
+**Description.** Run exactly as on competition day, following the printed checklist.
+
+**Acceptance criteria**
+- [ ] The 5-minute calibration drill is completed in ≤5 min (timed).
+- [ ] 3 full attempt-1 → Standby → attempt-2 cycles on the bench, with no human touch except the pick-up.
+- [ ] Every checklist item that was unclear is corrected in the checklist.
+
+### MZ-033 — Lab 5 (Fri 30 Oct, 2 h): dress rehearsal · pairing
+
+| Field | Value |
+|---|---|
+| Owner | Bryam + Wilson |
+| Estimate | 2 h each (lab) |
+| Depends on | MZ-032 |
+| Lab / robot | **yes** |
+| Branch | none, unless a blocking fix is needed (`fix/MZ-033-<slug>`, reviewed by both) |
+| Files | – |
+
+**Description.** The full competition procedure with the frozen tag, from deploy to "after our
+turn". Only blocking problems may be fixed, through a PR reviewed by both people.
+
+**Acceptance criteria**
+- [ ] The full checklist is done once, timed, with no improvisation.
+- [ ] The decision about `Maze` or `MazeSafe` defaults is written down.
+
+### MZ-040 — 2×4 route test: 0 → 3 → 11 → 8
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 1.5 h |
+| Depends on | MZ-009 (generator), MZ-016 (walk profile) |
+| Lab / robot | **yes**, runs inside Lab 2 and Lab 3 (no extra room time) |
+| Branch | `test/MZ-040-route-2x4` |
+| Files | `Config/Mazes/fixtures/route_2x4.maze` (create); `docs/maze/BENCH.md` (add the floor layout); the motion test of MZ-007 (add the route) |
+
+**Description.** The lab cannot hold an 8×8, but a 2×4 block holds the motions that matter. It
+keeps the real tag ids (`id = row·8 + col`): cells 0–3 in row 0 and cells 8–11 in row 1.
+Route: straight 3 cells (0 → 3), turn right, 1 cell (3 → 11), turn right, straight 3 cells (11 → 8). See roadmap section 6.
+
+**Steps**
+1. Write the fixture for the simulation: 2×4 with the start at cell 0, open cells 0–3 and 8–11, and an open edge between 3 and 11 only.
+2. Add the route to the motion test (double `headMiddle` tap): the sequence of actions is `forward 3`, `turnRight`, `forward 1`, `turnRight`, `forward 3`.
+3. Lay a 2×4 grid of floor tape (50 cm cells) for Lab 2, with a mark at each cell centre. The 6 panels are not enough for walls on all 15 edges, so the walled version runs in simulation, and on the bench only with the panels around the two turns.
+4. Record the final position error against the cell-8 centre, and the heading error, over 10 runs.
+
+**Acceptance criteria**
+- [ ] In simulation the route ends in cell 8 facing west, with a position error ≤8 cm.
+- [ ] On the floor grid, 10 runs are measured and written in `docs/maze/LAB_LOG.md`.
+
+### MZ-044 — Sonar feasibility spike (log only)
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the hour plan. |
+| Owner | TBD |
+| Estimate | ~1.5 h first guess |
+| Depends on | MZ-023 (Lab 2 gives the slot for the log) |
+| Lab / robot | **yes** (Lab 2 or Lab 3, 10 extra minutes) |
+| Branch | `feat/MZ-044-sonar-log` |
+| Files | `Src/Modules/Infrastructure/NaoProvider/NaoProvider.cpp` (read the LoLA `Sonar` keys, enable the emitters); `Src/Representations/Infrastructure/SensorData/SonarSensorData.h` (create); `Config/Scenarios/Maze/logger.cfg`; `docs/maze/SONAR.md` (create) |
+
+**Description.** The assessment in roadmap 8.1 says the sonar is not useful against side walls
+and for collision avoidance, and marginal as a front-wall cross-check. This spike replaces the
+documentation numbers with real ones. The sonar has **no influence on control**: it is only logged.
+
+**Steps**
+1. Read the left and right sonar values in `NaoProvider`, publish them in a representation, and add it to the logger.
+2. In the bench corridor, record the readings at 10, 20, 25, 50 and 75 cm in front of a panel, 10 samples each, with the robot standing and walking.
+3. Write `docs/maze/SONAR.md`: the table of readings, the observed minimum range, the update rate and the noise while walking, and a decision (drop, or build the front-wall cross-check after 3 Nov).
+
+**Acceptance criteria**
+- [ ] The readings table exists, with the minimum reliable range and the update rate.
+- [ ] The decision is written down, and no control module reads the sonar.
+
