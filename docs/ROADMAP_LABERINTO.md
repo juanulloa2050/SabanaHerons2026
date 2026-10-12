@@ -39,7 +39,7 @@ Source: *Reglamento Copa NAO CCM MX 2026 V1.0*, §2.7, §2.10 and §3.1.
 | Grid | 64 cells, 8×8, each 50×50 cm | The map is 8×8 cells with 4 edges per cell (`MazeMap`) |
 | Walls | ≥60 cm high, **1–2 cm thick**, light colour; matte uniform floor | Corridor is ≈48–49 cm wide. With a 275 mm NAO, the **clearance is ≈10.3–10.8 cm per side** (the often-quoted 11.25 cm ignores wall thickness). Arm swing and turning sweep reduce it further. |
 | Start | Corner cell, walls on 3 sides | Start cell ∈ {0, 7, 56, 63}. The heading is the only open side. |
-| Goal | Distinct floor colour, no internal walls in its cell | Goal detection is floor colour plus map position |
+| Goal | The fixed central 2×2 block (cells 27, 28, 35, 36), distinct floor colour, no internal walls inside the block | Goal detection is floor colour plus map position (the block is known) |
 | AprilTags | `tag36h11`, 15×15 cm, "at the centre of the walls" of every cell | `id = row * 8 + col`, with 0 at top-left, row-major. **Which walls carry tags, and at what height, is not specified** (open question Q1). |
 | Score | `Tfinal = 0.3·T1 + 0.7·T2` (seconds) | Attempt 2 dominates. Spend attempt-1 time on map quality. |
 | Wall knocked or moved | +10 s per event, cumulative, added before the formula | +10 s is about 4 cells of walking. **Slow and clean beats fast and touching.** |
@@ -219,7 +219,7 @@ flowchart LR
 |---|---|---|
 | `AprilTagPercept` | List of detections: `id`, image corners, `Pose3f` tag-in-robot, decision margin, timestamp | `Src/Representations/Perception/MazePercepts/AprilTagPercept.h` |
 | `WallPercept` | Wall segments robot-relative (mm), plus a per-direction (front/left/right) wall distance estimate | `Src/Representations/Perception/MazePercepts/WallPercept.h` |
-| `MazeMap` | 8×8 cells. Edge state `unknown/open/wall` with evidence counters for 9×8 horizontal and 8×9 vertical edges. Visited flags, start and goal cell, attempt counter. | `Src/Representations/Modeling/MazeMap.h` |
+| `MazeMap` | 8×8 cells. Edge state `unknown/open/wall` with evidence counters for 9×8 horizontal and 8×9 vertical edges. Visited flags, start cell and the fixed goal block (27, 28, 35, 36), attempt counter. | `Src/Representations/Modeling/MazeMap.h` |
 | `MazeCellPose` | Current cell `(row, col)`, heading `N/E/S/W`, confidence | `Src/Representations/Modeling/MazeCellPose.h` |
 | `MazePlan` | Cell path, action list (`forward k` / `turnLeft` / `turnRight` / `turnAround`), estimated time | `Src/Representations/BehaviorControl/MazePlan.h` |
 
@@ -664,7 +664,7 @@ MZ-0XX — <title> (see docs/TICKETS_LABERINTO.md)
 
 ## 11. Open questions for the organisers (MZ-006)
 
-Q2 and Q4 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review.
+Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review and Q12 from the goal-block rule.
 
 | # | Question | Impact |
 |---|---|---|
@@ -672,13 +672,14 @@ Q2 and Q4 keep their numbers so older references stay valid. Q8–Q11 come from 
 | Q2 | ~~§2.4 says 1 minute to present; §2.7 says 5 minutes.~~ **Resolved by reading the rules:** the 1 minute is the time a team has to reach the maze after being called; the 5 minutes are the time to complete the maze. Confirm only if the organisers say otherwise. | Setup procedure and checklist timing |
 | Q3 | Does the ≤2 min return to start (after attempt 1) count inside the 5 min of the attempt? Example: attempt 1 takes 4 min to reach the goal. Does the robot still get the full 2 min to return, or only the remaining 1 min? | Exploration budget and `ReturnToStart` |
 | Q4 | ~~Will there be a visual reconnaissance of the maze before the first run?~~ **Withdrawn.** A human seeing the maze does not change what the robot sees, and the map cannot be entered manually anyway. | – |
-| Q5 | Is the goal a single cell? How large is the coloured area? | Goal detection |
+| Q5 | ~~Is the goal a single cell? How large is the coloured area?~~ **Resolved:** the goal is the central 2×2 block, cells 27, 28, 35, 36. | Goal detection |
 | Q6 | Is the robot placed facing the open side of the start cell? | Initial heading |
 | Q7 | In plain words: if the robot program crashes or restarts between attempt 1 and attempt 2, the map in RAM is lost. May the robot save **its own learned map** to its own storage during attempt 1 and read it back itself afterwards? (This is not entering a map by hand, which is forbidden.) | Whether the cut "crash snapshot" could come back. Low priority. |
 | Q8 | Is the maze orientation fixed (tag id 0 always in the same physical corner, with the rows and columns aligned to the arena), or can the maze be rotated or mirrored between teams? The NAO has no compass, so we define "maze-north" from the start corner (section 4.5). | Heading model (MZ-038) |
 | Q9 | Must the robot detect the goal by itself and start the return, or may a team member trigger the return with a robot button once the judge stops the clock? | `ReturnToStart` trigger |
 | Q10 | What happens if the robot does not return to the start (or cannot within the time)? Is it picked up by a team member, and is there a penalty before attempt 2? | `Standby` flow and the pick-up procedure (MZ-029) |
 | Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | The start-scan switch (MZ-041): scan only if the clock does not run during it |
+| Q12 | Does the goal block (cells 27, 28, 35, 36) always have a single entrance, or can it have several? | Planner goal target and exploration (which block cell to aim for); test mazes and the generator (MZ-009, MZ-012) |
 
 ---
 
