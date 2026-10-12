@@ -85,6 +85,7 @@ gantt
 **At a glance**
 
 - 5 of 34 tickets need the lab.
+- MZ-038 to MZ-044 (proposed and backlog, from the corrections review) are not on the chart. MZ-040 and MZ-044 reuse time already booked in Lab 2 and Lab 3.
 - 11 hours of lab time out of 95 hours of total effort (Bryam 50 h, Wilson 45 h).
 
 | Sprint | Dates | Milestone |

@@ -8,7 +8,7 @@ Ciudad de México).
 
 | Companion document | Content |
 |---|---|
-| [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) | Every ticket (MZ-001 … MZ-034, plus backlog MZ-035 to MZ-037), owners, estimates, branches and acceptance criteria |
+| [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) | Every ticket (MZ-001 … MZ-034, plus backlog and proposed MZ-035 to MZ-044), owners, estimates, branches and acceptance criteria |
 | [GANTT_LABERINTO.md](GANTT_LABERINTO.md) | Gantt chart and the lab access request for the university |
 
 ---
@@ -40,11 +40,13 @@ Source: *Reglamento Copa NAO CCM MX 2026 V1.0*, §2.7, §2.10 and §3.1.
 | AprilTags | `tag36h11`, 15×15 cm, "at the centre of the walls" of every cell | `id = row * 8 + col`, with 0 at top-left, row-major. **Which walls carry tags, and at what height, is not specified** (open question Q1). |
 | Score | `Tfinal = 0.3·T1 + 0.7·T2` (seconds) | Attempt 2 dominates. Spend attempt-1 time on map quality. |
 | Wall knocked or moved | +10 s per event, cumulative, added before the formula | +10 s is about 4 cells of walking. **Slow and clean beats fast and touching.** |
-| Attempt timeout | Set by organisers (normally 3–5 min) | If not finished: T = Tmax, and the team is ranked by shortest-path distance to the goal |
+| Time to present | 1 min (§2.4): the time a team has to reach the maze after it is called. It is **not** part of the attempt. | Setup procedure and checklist timing only |
+| Attempt timeout | 5 min per attempt (§2.7). Whether the return-to-start time counts inside it is open (Q3). | If not finished: T = Tmax, and the team is ranked by shortest-path distance to the goal |
+| Clock start | Open (Q11): when the robot leaves the first cell, or when it starts moving? | Start-scan switch (MZ-041) |
 | Robot stops >5 s "without apparent reason" | The judge *may* end the attempt | Hard watchdog: never let the robot stand still for more than 3 s |
 | Memory between attempts | Robot may stay on and keep the map. Manual changes are forbidden. | The map lives in process memory (`MazeMapper` member state) |
 | Manual map entry before run 1 | Disqualification | No map files are deployed, and there is no USB or network input |
-| Return to start after an attempt | Allowed, ≤2 min, may be used to keep exploring | Stretch goal: explore promising unknown cells on the way back |
+| Return to start after an attempt | Allowed, ≤2 min, may be used to keep exploring. Whether the 2 min are inside the 5 min of the attempt is open (Q3). | Stretch goal: explore promising unknown cells on the way back |
 | Activation | On-robot sensor only, ≤10 s after the whistle | Single `headFront` tap |
 | Communication | No Wi-Fi at any time. Upload by Ethernet before participating. | Deploy with `-w NONE`. Checklist verifies Wi-Fi is off. |
 | Calibration zone (§2.10) | ≤5 min per test, track may differ, no guaranteed slot | Defaults must work **without** on-site calibration |
@@ -107,6 +109,20 @@ All paths are relative to the repo root and were verified on `master` (commit `2
 taps (it stands still in `WaitingForStart`). The run then starts with one `headFront` tap. This
 keeps logging active and avoids every conflicting gesture.
 
+**The sit gesture.** Holding the 3 head buttons for 1 s sets `playerState = unstiff` (the robot sits and goes limp, `GameStateProvider.cpp`); one chest tap wakes it again. This is the existing B-Human gesture, and the maze uses it as the **map reset** (MZ-042): see section 4.7.
+
+**Button map in `Maze` (single taps).**
+
+| Gesture | Meaning | Ticket |
+|---|---|---|
+| `headMiddle` ×1 | *Positioned at start* → start-scan (if enabled), then wait | MZ-041 |
+| `headFront` ×1 | *Start* (the referee's whistle) | MZ-007 |
+| `headRear` ×1 | Self-test: say the last seen tag id | MZ-007, MZ-018 |
+| `headMiddle` ×2 | Motion test sequence (Lab 2), including the 2×4 route (MZ-040) | MZ-007, MZ-040 |
+| 3 head buttons held 1 s | Sit and **reset the maze memory** | MZ-042 |
+
+Triple taps stay reserved for B-Human diagnostics (`SkillBehaviorControl.cpp` ≈ lines 178–203).
+
 ### 3.5 Localization and sensing
 
 | Topic | Finding | Path |
@@ -115,7 +131,8 @@ keeps logging active and avoids every conflicting gesture.
 | Pose representation | `RobotPose : Pose2f` (mm, rad) with `quality` and `covariance` | `Src/Representations/Modeling/RobotPose.h` |
 | Odometry | `OdometryData : Pose2f`, provided in Motion | `Src/Representations/MotionControl/OdometryData.h` |
 | Oracle pose in simulation | `OracledWorldModelProvider` (ground truth) | `Src/Modules/Modeling/OracledWorldModelProvider/` |
-| Sonar | **Not implemented.** LoLA "Sonar" is ignored. | `Src/Modules/Infrastructure/NaoProvider/NaoProvider.cpp:408` |
+| Heading from the gyro | `InertialData.orientation3D` is the torso orientation **including the z-rotation** (gyro-integrated yaw). The NAO has no magnetometer, so there is no geographic north: the yaw is relative to the value at start and drifts slowly. See section 4.5 (maze-north). | `Src/Representations/Sensing/InertialData.h` |
+| Sonar | **Not implemented.** LoLA "Sonar" is ignored (no driver, no representation). Assessment in section 8.1. | `Src/Modules/Infrastructure/NaoProvider/NaoProvider.cpp:408` |
 
 ### 3.6 Walking
 
@@ -210,8 +227,8 @@ flowchart LR
 | `AprilTagDetector` | Upper | `AprilTagPercept` | Wraps `ECImage.grayscaled` as `image_u8` without copying. `tag36h11`, `quad_decimate = 2`, `nthreads = 1`. `estimate_tag_pose` uses `CameraInfo` intrinsics, and the result goes to the robot frame through `CameraMatrix`. |
 | `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on `ECImage` (light walls, matte floor), projected with `Transformation::imageToRobot` |
 | `PerceptionAprilTagPerceptProvider`, `PerceptionWallPerceptProvider` | Cognition | aliases | `ALIAS(AprilTagPercept)`, `ALIAS(WallPercept)` in `PerceptionProviders.cpp` |
-| `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). EKF is a stretch goal. |
-| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis. State is a module member, so it **persists for the life of the process** across both attempts. |
+| `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). The heading comes from the gyro (maze-north, section 4.5). EKF is a stretch goal. |
+| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis. State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
 | `MazePlannerProvider` | Cognition | `MazePlan` | Thin wrapper around the pure library `Src/Tools/Maze/` |
 | `OracledMazePerceptsProvider` | Cognition (sim only) | `AprilTagPercept`, `WallPercept` | Built from `GroundTruthRobotPose` and the maze file, with configurable noise and dropouts. They let behaviour and planning be tested before perception exists. |
 
@@ -228,6 +245,13 @@ flowchart LR
 
   A tag seen roughly square-on also corrects the heading, because walls are axis-aligned.
 - If the organisers' answer to Q1 changes the tag layout, only the side-inference step changes (tickets marked **TAG-DEP**).
+
+**Maze-north from the gyro (MZ-038).** The robot always knows which way it faces:
+
+- *Maze-north* is the maze's own "up" (the direction of decreasing `row`), **not** geographic north. The NAO has no magnetometer, so geographic north is not measurable and does not matter: the grid is defined by the tags.
+- At start, the robot looks at the open side of the start corner (the tag id gives the corner: 0/7/56/63), and the yaw of `InertialData.orientation3D` at that instant is stored as the offset for maze-north. From then on `heading = snap90(yaw − offset)` → N/E/S/W.
+- The gyro yaw drifts slowly, so every square-on tag re-aligns the offset (the walls are axis-aligned). The drift rate is measured in Lab 1 (the log includes `InertialData`).
+- Consequence for tags: with the heading known, a tag's wall face is inferred from the heading alone, so the side-inference step needs no image geometry. A bench experiment in MZ-038 puts tags **only on the north face** of every cell to prove it. Caveat: a north-face tag is visible only when the robot looks north and that wall exists, so on other headings (and in corridors that are open to the north) the robot relies on odometry and the gyro until the next fix. The competition layout is set by the organisers (Q1), so this stays an experiment.
 
 ### 4.6 Planning algorithm (time-weighted)
 
@@ -254,7 +278,12 @@ The planner works on the state `(cell, heading ∈ {N,E,S,W}, moving ∈ {0,1})`
 
 ```mermaid
 stateDiagram-v2
-  [*] --> WaitingForStart
+  [*] --> Sitting
+  Sitting --> Unpositioned: chest taps until playing
+  Unpositioned --> StartScan: headMiddle tap (scan enabled)
+  Unpositioned --> WaitingForStart: headMiddle tap (scan disabled)
+  StartScan --> WaitingForStart: scan time over
+  StartScan --> MazeExploration: headFront tap (attempt 1)
   WaitingForStart --> MazeExploration: headFront tap (attempt 1)
   WaitingForStart --> SpeedRun: headFront tap (map exists)
   MazeExploration --> ReturnToStart: goal reached
@@ -264,10 +293,16 @@ stateDiagram-v2
   SpeedRun --> Finished: goal reached
   SpeedRun --> Standby: picked up
   Finished --> Standby: picked up
+  Unpositioned --> Sitting: 3 head buttons held 1 s (map reset)
+  WaitingForStart --> Sitting: 3 head buttons held 1 s (map reset)
+  Standby --> Sitting: 3 head buttons held 1 s (map reset)
 ```
 
 | State | Behaviour |
 |---|---|
+| `Sitting` | `playerState == unstiff`, set by `GameStateProvider`, so it lives outside `HandleMaze`. **The mapper collects nothing.** Entering it clears `MazeMap`, the pose and the attempt counter. It says "map cleared" when the robot is next active. Chest taps bring the robot back to *playing*, which enters `Unpositioned`. |
+| `Unpositioned` | Stand, head forward. The map starts collecting only after the operator has placed the robot and tapped `headMiddle` (*positioned at start*). |
+| `StartScan` | Optional (switch `startScan.enabled`, MZ-041). Pan the head left and right for `startScan.durationMs` (default 5 s) to read the tags and walls already visible from the start cell, then look ahead. A `headFront` tap during the scan starts the run at once. |
 | `WaitingForStart` | Stand and look ahead. Identify the start corner from the tag (0/7/56/63) and the open side. A single `headRear` tap says the last seen tag id (self-test). |
 | `MazeExploration` | Execute `MazePlan` actions with skills `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centre) and `MazeScanWalls` (head pan ≤2 s, only on unknown edges) |
 | `ReturnToStart` | Stretch goal. Otherwise stand at the goal (Finished). |
@@ -412,6 +447,22 @@ the cheapest level that can prove it.
 | **Partial bench** | 6 panels (50×60 cm) + printed tags on the lab floor | Camera calibration, real tag detection under real light, turn and step precision on a real floor, lateral clearance in a ~48 cm corridor, gait and arm envelope near walls |
 | **Competition only** | — | Drift over a full 64-cell run, the real tag layout and height, venue floor friction and lighting, goal floor colour, real attempt timeout |
 
+### 2×4 route test (0 → 3 → 11 → 8)
+
+A full 8×8 never fits in the lab, but a 2×4 block does, and it exercises exactly the motions
+that matter. It keeps the real tag ids (`id = row·8 + col`), so it is a sub-block of the 8×8.
+
+| Leg | Motion | Cells |
+|---|---|---|
+| 1 | Straight, 3 cells east | 0 → 1 → 2 → 3 |
+| 2 | Turn right (to south), 1 cell | 3 → 11 |
+| 3 | Turn right (to west), 3 cells | 11 → 10 → 9 → 8 |
+
+It checks straight walking, two right turns at cell centres, the heading from the gyro and the
+odometry drift over 7 cells. In the lab it is a floor-tape grid (the 6 panels are not enough
+for a walled 2×4: 15 are needed), run by the Lab 2 motion test. In simulation it is a walled
+fixture. See MZ-040.
+
 ### Mitigations for what we first see at the event
 
 | Risk | Mitigation |
@@ -459,6 +510,24 @@ here is required: the defaults must already work.
 | **Backlog, to review** | MZ-035: research and compare alternative strategies (left/right wall-follower, Pledge, Trémaux, plain BFS) against the chosen one in simulation. Not scheduled and outside the hour budget. |
 | **Backlog, after 3 Nov** | MZ-036: RL skills for fast in-place turns and corridor centring, built on the existing RL stack (`Src/Libs/RL`, `pybh`). Route planning stays classical because A\* is already optimal for a known map; RL targets the motion time instead. |
 | **Backlog, to review** | MZ-037: active perception. Use the head's range (yaw ±119.5°) and the camera field of view (54.7° × 42.5°) to see side walls without body turns and to map several cells down a corridor. Compare a fixed head with stop-and-scan, scanning while walking, and information-driven gaze. |
+| **Proposed (from the corrections review), not in the hour budget** | MZ-038 gyro maze-north (2 h) · MZ-039 decision log (2 h) · MZ-040 2×4 route test (1.5 h) · MZ-041 positioned-at-start button and start scan (2 h) · MZ-042 map reset by sitting (1 h). About 8.5 h in total. Pull in by swapping hours (see the MZ-038…MZ-042 notes). |
+| **Backlog, after the first lab data** | MZ-043: rolling turns (turning while walking) and diagonals in open areas, for attempt 2 only. MZ-044: sonar feasibility spike (log only). |
+
+### 8.1 Sonar assessment (decision: log only, no control)
+
+Not implemented in this fork: LoLA sends `Sonar` values, `NaoProvider` ignores them, and there
+is no representation. The driver would also have to enable the emitters.
+
+| Question | Assessment |
+|---|---|
+| Useful against side walls? | **No.** The side clearance is ≈10 cm. The sonar looks forward and has a minimum range of about 25 cm (NAO documentation: closer objects are not resolved). |
+| Useful as a front-wall check? | **Marginal.** A wall at the end of a cell is 25 cm from the cell centre, right at the minimum range. At one cell back (75 cm) it works, as a cross-check of `WallPerceptor`. |
+| Useful for collision avoidance? | **No.** Low update rate, a wide cone, and the gait moves the torso. A wall touch happens at centimetres, below the minimum range. |
+| Cost | A driver, a representation, an actuator request and tests: roughly 3–4 h, plus lab time. |
+
+**Decision.** Do not use it to stop the robot. MZ-044 only logs the values in Lab 2/3 (no control
+influence), so the data decides whether the front-wall cross-check is worth building after
+3 Nov. The numbers above come from the NAO documentation and must be confirmed by that log.
 
 ---
 
@@ -553,6 +622,8 @@ MZ-0XX — <title> (see docs/TICKETS_LABERINTO.md)
 - [ ] **Wi-Fi off** (profile `NONE`), verified over Ethernet before the turn.
 - [ ] Activation by **head button** (`headFront` single tap) within 10 s of the whistle.
 - [ ] Between attempts: do **not** hold the chest button (3 s = shutdown, map lost). Pick the robot up only when the judge allows it.
+- [ ] Do **not** hold the 3 head buttons for 1 s between attempts: the robot sits and **clears the map** (MZ-042). Use that gesture only before attempt 1 to start clean.
+- [ ] `startScan.enabled` matches the organisers' answer on when the clock starts (Q11).
 - [ ] **After finishing: verify again that the robot is not connected to any wireless network** (judges may check).
 - [ ] `MazeSafe` build ready on the laptop as a fallback.
 
@@ -560,15 +631,21 @@ MZ-0XX — <title> (see docs/TICKETS_LABERINTO.md)
 
 ## 11. Open questions for the organisers (MZ-006)
 
+Q2 and Q4 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review.
+
 | # | Question | Impact |
 |---|---|---|
 | Q1 | Which walls carry tags (every face of every cell? only some?) and at what height is the tag centre? | Tag pose model and side inference (TAG-DEP tickets) |
-| Q2 | §2.4 says 1 minute to present; §2.7 says 5 minutes. Which applies? | Setup procedure and checklist timing |
-| Q3 | What is the maximum time per attempt (3–5 min)? | Exploration budget and ReturnToStart |
-| Q4 | Will there be a visual reconnaissance of the maze before the first run? | Strategy only (the map still cannot be entered manually) |
+| Q2 | ~~§2.4 says 1 minute to present; §2.7 says 5 minutes.~~ **Resolved by reading the rules:** the 1 minute is the time a team has to reach the maze after being called; the 5 minutes are the time to complete the maze. Confirm only if the organisers say otherwise. | Setup procedure and checklist timing |
+| Q3 | Does the ≤2 min return to start (after attempt 1) count inside the 5 min of the attempt? Example: attempt 1 takes 4 min to reach the goal. Does the robot still get the full 2 min to return, or only the remaining 1 min? | Exploration budget and `ReturnToStart` |
+| Q4 | ~~Will there be a visual reconnaissance of the maze before the first run?~~ **Withdrawn.** A human seeing the maze does not change what the robot sees, and the map cannot be entered manually anyway. | – |
 | Q5 | Is the goal a single cell? How large is the coloured area? | Goal detection |
 | Q6 | Is the robot placed facing the open side of the start cell? | Initial heading |
-| Q7 | May the robot write its own map to its storage and reload it after a crash? | Whether the cut "crash snapshot" could come back |
+| Q7 | In plain words: if the robot program crashes or restarts between attempt 1 and attempt 2, the map in RAM is lost. May the robot save **its own learned map** to its own storage during attempt 1 and read it back itself afterwards? (This is not entering a map by hand, which is forbidden.) | Whether the cut "crash snapshot" could come back. Low priority. |
+| Q8 | Is the maze orientation fixed (tag id 0 always in the same physical corner, with the rows and columns aligned to the arena), or can the maze be rotated or mirrored between teams? The NAO has no compass, so we define "maze-north" from the start corner (section 4.5). | Heading model (MZ-038) |
+| Q9 | Must the robot detect the goal by itself and start the return, or may a team member trigger the return with a robot button once the judge stops the clock? | `ReturnToStart` trigger |
+| Q10 | What happens if the robot does not return to the start (or cannot within the time)? Is it picked up by a team member, and is there a penalty before attempt 2? | `Standby` flow and the pick-up procedure (MZ-029) |
+| Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | The start-scan switch (MZ-041): scan only if the clock does not run during it |
 
 ---
 
@@ -581,4 +658,5 @@ MZ-0XX — <title> (see docs/TICKETS_LABERINTO.md)
 | No full maze to test | Certain | Medium | Both | Simulation-first strategy (section 6) |
 | Corridor too tight for the gait or arms | Medium | High | Wilson | Walk profile MZ-016, bench measurements, `MazeSafe` |
 | Logger silent in Initial state | Certain | Low | Bryam | Start flow uses *playing* (section 3.4) |
+| Operator holds the 3 head buttons by accident and clears the map between attempts | Low | High | Both | Checklist item; the robot says "map cleared" so it is noticed; attempt 2 then restarts as exploration (MZ-042) |
 | 50 h / 45 h budget overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |

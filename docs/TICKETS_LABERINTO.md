@@ -1,6 +1,6 @@
 # Maze Challenge Tickets — Copa NAO CCM MX 2026
 
-This file lists every ticket (MZ-001 … MZ-037) for the Maze challenge, grouped by sprint. Each
+This file lists every ticket (MZ-001 … MZ-044) for the Maze challenge, grouped by sprint. Each
 ticket says who owns it, how long it should take, what it depends on, which branch to use, and
 how to tell that it is done. Start with the summary table, then open your sprint.
 
@@ -78,7 +78,17 @@ every cell, tag centre at 30 cm above the floor**. If the answer differs, only t
 | MZ-036 | RL skills for in-place turns and corridor centring (backlog, after 3 Nov) | TBD | Backlog | not estimated | – | yes (validation) | MZ-016, MZ-024, MZ-026 |
 | MZ-037 | Active perception: head and camera geometry, moving vs fixed head (backlog, to review) | TBD | Backlog | ~3 h (first guess) | – | yes (validation) | MZ-019, MZ-021, MZ-024 |
 
-MZ-035, MZ-036 and MZ-037 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 and MZ-037 are reviewed at the end of each sprint and pulled in only if there is slack (or by swapping hours with another ticket). MZ-036 is planned for after the competition (3 Nov).
+| MZ-038 | Gyro heading as the maze-north reference (proposed) | Bryam | Proposed | 2 | W 0.25 | no (uses Lab 1 logs) | MZ-017, MZ-020 |
+| MZ-039 | Decision log and run metrics (proposed) | Wilson | Proposed | 2 | B 0.25 | no | MZ-024 |
+| MZ-040 | 2×4 route test: 0 → 3 → 11 → 8 (proposed) | Wilson | Proposed | 1.5 | B 0.25 | yes (Lab 2/3) | MZ-009, MZ-016 |
+| MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | W 0.25 | no (checked in Lab 3) | MZ-018, MZ-024 |
+| MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | W 0.25 | no | MZ-020, MZ-024 |
+| MZ-043 | Rolling turns and open-area diagonals for attempt 2 (backlog) | TBD | Backlog | ~4 h (first guess) | – | yes (validation) | MZ-011, MZ-023, MZ-028 |
+| MZ-044 | Sonar feasibility spike, log only (backlog) | TBD | Backlog | ~1.5 h (first guess) | – | yes (Lab 2/3) | MZ-023 |
+
+**Proposed** tickets (MZ-038 to MZ-042) come from the corrections review. They are small, but the 50 h / 45 h budget is already full, so they are **not counted** until the team decides what to swap out. If all five are pulled in: Bryam +5.5 h (5.0 authoring + 0.5 reviewing), Wilson +4.25 h (3.5 authoring + 0.75 reviewing), 8.5 h of authoring in total. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039 → MZ-040.
+
+MZ-035, MZ-036, MZ-037, MZ-043 and MZ-044 are **backlog** items: they are not scheduled and not counted in the 50 h / 45 h budget. MZ-035 and MZ-037 are reviewed at the end of each sprint and pulled in only if there is slack (or by swapping hours with another ticket). MZ-036 is planned for after the competition (3 Nov).
 
 ---
 
@@ -249,12 +259,12 @@ team's registration was recorded and that the confirmation e-mail arrived.
 | Branch | `docs/MZ-006-organizer-answers` |
 | Files | `docs/maze/ORGANIZER_ANSWERS.md` (create) |
 
-**Description.** Send questions Q1–Q7 from section 11 of the roadmap to the organisers (through
+**Description.** Send questions Q1, Q3 and Q5–Q11 from section 11 of the roadmap (Q2 is resolved by the rules and Q4 is withdrawn; both stay in the table) to the organisers (through
 the advisor if required), and record the answers. Q1 (tag walls and height) is the most urgent
 because six tickets depend on it.
 
 **Steps**
-1. Send the e-mail with Q1–Q7, copied word for word from the roadmap. Note the date.
+1. Send the e-mail with Q1, Q3 and Q5–Q11, copied word for word from the roadmap. Note the date.
 2. Create the record file and open the PR. Update it through new commits on the same branch as answers arrive:
 ```bash
 git switch Maze-Challenge
@@ -267,12 +277,12 @@ mkdir -p docs/maze
 git add docs/maze/ORGANIZER_ANSWERS.md
 git commit -m "docs(MZ-006): record organizer questions and answers"
 git push -u origin docs/MZ-006-organizer-answers
-gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answers" --body "Questions Q1-Q7 sent on <date>. Answers recorded as they arrive. Docs only."
+gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answers" --body "Questions Q1, Q3 and Q5-Q11 sent on <date>. Answers recorded as they arrive. Docs only."
 ```
 
 **Acceptance criteria**
 - [ ] The e-mail was sent by 8 Oct.
-- [ ] The file lists all 7 questions with dates. Missing answers say "pending".
+- [ ] The file lists all 11 questions with dates. Q2 says "resolved by the rules", Q4 says "withdrawn", and missing answers say "pending".
 - [ ] When Q1 is answered, Bryam is told the same day (it affects the TAG-DEP tickets).
 
 ### MZ-007 — `Maze` and `MazeSafe` scenarios, `HandleMaze` stub, start flow
@@ -289,8 +299,8 @@ gh pr create --base Maze-Challenge --title "MZ-006: Organizer questions and answ
 **Description.**
 - Create both scenarios with only the modules the maze needs. Drop the ball, YOLO, team-communication and soccer-strategy providers. Keep `RobotPose` in `defaultRepresentations` until MZ-020.
 - `skillBehaviorControl.cfg`: `options = [HandlePhysicalRobot, HandlePlayerState, HandleMaze];`.
-- `HandleMaze` stub: in *playing*, stand. A single `headFront` tap (`hitStreak == 1`) says "start". A single `headRear` tap says "maze ready" (later: the last seen tag id, MZ-018). A single `headMiddle` tap runs the **motion test sequence** used in Lab 2: 4 cells forward, stop, turn 90° left, 90° right, 180°, each separated by a 2 s pause and a beep.
-- `logger.cfg`: log `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `FrameInfo` and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
+- `HandleMaze` stub: in *playing*, stand. A single `headFront` tap (`hitStreak == 1`) says "start". A single `headRear` tap says "maze ready" (later: the last seen tag id, MZ-018). A **double** `headMiddle` tap (`hitStreak == 2`) runs the **motion test sequence** used in Lab 2: 4 cells forward, stop, turn 90° left, 90° right, 180°, each separated by a 2 s pause and a beep. A single `headMiddle` tap is reserved for *positioned at start* (MZ-041). The full button map is in roadmap 3.4.
+- `logger.cfg`: log `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `InertialData` (gyro drift, MZ-038), `FrameInfo` and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
 
 **Acceptance criteria**
 - [ ] `Make/Linux/compile Develop Nao` and `Make/Linux/compile Develop SimRobot` pass.
@@ -1263,3 +1273,209 @@ Facts this ticket builds on:
 - [ ] H0–H3 are compared on the same mazes and noise levels, and the bench check reports detection with the head still and moving.
 - [ ] A strategy replaces H1 only if it lowers mean T1 **without** raising wall-classification errors or wall contacts.
 
+### MZ-043 — Rolling turns and open-area diagonals for attempt 2
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Owner | TBD |
+| Estimate | ~4 h first guess; confirm in step 1 |
+| Depends on | MZ-011 (planner), MZ-023 (turn and step costs), MZ-028 (tuning) |
+| Lab / robot | **yes**, for validation |
+| Branch | `feat/MZ-043-rolling-turns` |
+| Files | `Src/Tools/Maze/MazePlanner.{h,cpp}` (new action costs); `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/MazeTurn.cpp` (rolling variant); `Config/Scenarios/Maze/mazePlanner.cfg`; `docs/maze/ROLLING_TURNS.md` (create) |
+
+**Description.** Attempt 1 turns in place at cell centres (safe, precise). Attempt 2 carries 70 %
+of the score, so it may use faster motions **if they keep the wall clearance**.
+
+1. **Rolling turn** (turn while walking, along an arc through the corner). Attempt 1 stays in place; attempt 2 uses the rolling turn on corners the map marks as known-open. The planner already tracks `moving ∈ {0,1}`, so the change is a new action `turnRolling` with its own cost and a clearance check.
+2. **Diagonals.** Be careful with the geometry: a straight diagonal from the centre of cell (r, c) to the centre of (r+1, c+1) passes **exactly through the wall-end post** at the inner corner of an L-turn, so it is **not possible in a corridor** (the clearance is ≈10 cm per side and the wall is 1–2 cm thick). Diagonals are only valid across an **open 2×2 block** (no internal wall between the four cells). It saves about 0.4 cell per diagonal step (√2 vs 2 cells), but only if the maze has such blocks. Walk it as a sidestep plus forward with a fixed heading, so the tags stay in view.
+
+**Steps**
+1. Count open 2×2 blocks and L-turns in the generated mazes (MZ-009) to size the gain before building anything. If the mean saving is below ~3 s per run, stop and document it.
+2. Measure the rolling-turn time and the lateral overshoot on the bench (10 repetitions), in the Lab 2 or Lab 3 motion test.
+3. Add the actions and costs to the planner behind `rollingTurns.enabled` (default `false`) and `diagonals.enabled` (default `false`).
+4. Run the MZ-026 campaign with and without them, same mazes.
+
+**Acceptance criteria**
+- [ ] A saving estimate exists before any code is written.
+- [ ] If implemented: 0 wall contacts and 0 falls in 10 bench repetitions, and T2 is lower in the campaign.
+- [ ] The defaults stay `false` unless both checks pass.
+
+### MZ-044 — Sonar feasibility spike (log only)
+
+| Field | Value |
+|---|---|
+| Status | **Backlog — after the first lab data.** Not scheduled, not counted in the 50 h / 45 h budget. |
+| Owner | TBD |
+| Estimate | ~1.5 h first guess |
+| Depends on | MZ-023 (Lab 2 gives the slot for the log) |
+| Lab / robot | **yes** (Lab 2 or Lab 3, 10 extra minutes) |
+| Branch | `feat/MZ-044-sonar-log` |
+| Files | `Src/Modules/Infrastructure/NaoProvider/NaoProvider.cpp` (read the LoLA `Sonar` keys, enable the emitters); `Src/Representations/Infrastructure/SensorData/SonarSensorData.h` (create); `Config/Scenarios/Maze/logger.cfg`; `docs/maze/SONAR.md` (create) |
+
+**Description.** The assessment in roadmap 8.1 says the sonar is not useful against side walls
+and for collision avoidance, and marginal as a front-wall cross-check. This spike replaces the
+documentation numbers with real ones. The sonar has **no influence on control**: it is only logged.
+
+**Steps**
+1. Read the left and right sonar values in `NaoProvider`, publish them in a representation, and add it to the logger.
+2. In the bench corridor, record the readings at 10, 20, 25, 50 and 75 cm in front of a panel, 10 samples each, with the robot standing and walking.
+3. Write `docs/maze/SONAR.md`: the table of readings, the observed minimum range, the update rate and the noise while walking, and a decision (drop, or build the front-wall cross-check after 3 Nov).
+
+**Acceptance criteria**
+- [ ] The readings table exists, with the minimum reliable range and the update rate.
+- [ ] The decision is written down, and no control module reads the sonar.
+
+---
+
+## Proposed (from the corrections review, not in the hour budget)
+
+These tickets turn the notes in `docs/CORRECCIONES.md` into work. They are small and mostly
+touch `HandleMaze` and the localizer, so they should be built after MZ-024. See the summary
+for the swap-out note.
+
+### MZ-038 — Gyro heading as the maze-north reference
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | 2 h · Review: Wilson 0.25 h |
+| Depends on | MZ-017 (the Lab 1 log must include `InertialData`), MZ-020 |
+| Lab / robot | no (drift measured on the Lab 1 logs) |
+| Branch | `feat/MZ-038-gyro-heading` |
+| Files | `Src/Modules/Modeling/MazeLocalizer/` (modify); `Src/Representations/Modeling/MazeCellPose.h` (modify: `headingSource`, `headingDrift`); `Config/Scenarios/Maze/logger.cfg` (add `InertialData`); `docs/maze/GYRO_HEADING.md` (create) |
+
+**Description.** Make the robot always know where it faces (roadmap 4.5):
+- Store the yaw of `InertialData.orientation3D` at the *positioned at start* moment as the maze-north offset. `heading = snap90(yaw − offset)`.
+- Re-align the offset on every square-on tag (walls are axis-aligned).
+- Use the heading to infer the wall face of a seen tag, and to reject a tag whose normal does not match the heading (a false positive filter).
+- The NAO has no magnetometer, so the yaw drifts. The drift rate decides how often a tag fix is needed.
+
+**Steps**
+1. Add `InertialData` to the logger list, so Lab 1 logs carry it (a one-line change, do it before 13 Oct).
+2. From the Lab 1 logs, plot the yaw drift over a 5 min stand and a corridor walk. Write the numbers in `GYRO_HEADING.md`.
+3. Implement the offset, the snap and the tag-based re-alignment. Unit-test the snap with ±44° and ±46° inputs.
+4. **Experiment:** in simulation and on the bench, put tags **only on the north face** and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
+
+**Acceptance criteria**
+- [ ] The drift rate (° per minute) is measured and recorded.
+- [ ] In simulation with noisy odometry and a drifting gyro, the heading error stays ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct.
+- [ ] The north-face-only experiment is documented, with the coverage consequence.
+
+### MZ-039 — Decision log and run metrics
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 2 h · Review: Bryam 0.25 h |
+| Depends on | MZ-024 |
+| Lab / robot | no (used in every lab afterwards) |
+| Branch | `feat/MZ-039-decision-log` |
+| Files | `Src/Representations/Modeling/MazeDecisionLog.h` (create, streamable); `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` (modify: emit events); `Config/Scenarios/Maze/logger.cfg`; `Util/MazeTools/summarize_run.py` (create) |
+
+**Description.** A log that says **why** the robot did what it did, not only where it was.
+The B-Human logger already records representations outside *Initial*. This ticket adds one
+small event representation and a script that turns a log into a table.
+
+Each event holds: time, state, cell pose and heading, the plan action, a reason code (`plan`, `replan`, `watchdog`, `tagFix`, `safeMode`, `wallFollower`), the map edges that changed, the tag ids used with the pose correction they caused (cm and °), the measured time for each cell against the plan estimate, stalls longer than 1 s, and suspected wall contacts.
+
+`summarize_run.py` prints per attempt: total time, cells walked, replans, turns, tag fixes (and the mean correction), watchdog triggers, and "planned vs real time per cell". The last column feeds the Lab 2 calibration of `t_fwd` and `t_turn` (MZ-023, MZ-028).
+
+**Steps**
+1. Define the event struct and the reason codes.
+2. Emit events from `HandleMaze`, `MazeLocalizer` and `MazeMapper` at each decision.
+3. Write `summarize_run.py` and test it on a simulation log. The same fields extend the MZ-021 CSV.
+
+**Acceptance criteria**
+- [ ] A simulation run produces a log, and `summarize_run.py` prints the per-attempt table.
+- [ ] Every watchdog trigger and every replan in the run has an event with a reason code.
+- [ ] The log adds <1 ms per frame on average (`STOPWATCH`).
+
+### MZ-040 — 2×4 route test: 0 → 3 → 11 → 8
+
+| Field | Value |
+|---|---|
+| Owner | Wilson |
+| Estimate | 1.5 h · Review: Bryam 0.25 h |
+| Depends on | MZ-009 (generator), MZ-016 (walk profile) |
+| Lab / robot | **yes**, runs inside Lab 2 and Lab 3 (no extra room time) |
+| Branch | `test/MZ-040-route-2x4` |
+| Files | `Config/Mazes/fixtures/route_2x4.maze` (create); `docs/maze/BENCH.md` (add the floor layout); the motion test of MZ-007 (add the route) |
+
+**Description.** The lab cannot hold an 8×8, but a 2×4 block holds the motions that matter. It
+keeps the real tag ids (`id = row·8 + col`): cells 0–3 in row 0 and cells 8–11 in row 1.
+Route: straight 3 cells (0 → 3), turn right, 1 cell (3 → 11), turn right, straight 3 cells (11 → 8). See roadmap section 6.
+
+**Steps**
+1. Write the fixture for the simulation: 2×4 with the start at cell 0, open cells 0–3 and 8–11, and an open edge between 3 and 11 only.
+2. Add the route to the motion test (double `headMiddle` tap): the sequence of actions is `forward 3`, `turnRight`, `forward 1`, `turnRight`, `forward 3`.
+3. Lay a 2×4 grid of floor tape (50 cm cells) for Lab 2, with a mark at each cell centre. The 6 panels are not enough for walls on all 15 edges, so the walled version runs in simulation, and on the bench only with the panels around the two turns.
+4. Record the final position error against the cell-8 centre, and the heading error, over 10 runs.
+
+**Acceptance criteria**
+- [ ] In simulation the route ends in cell 8 facing west, with a position error ≤8 cm.
+- [ ] On the floor grid, 10 runs are measured and written in `docs/maze/LAB_LOG.md`.
+
+### MZ-041 — "Positioned at start" button and start head-scan
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | 2 h · Review: Wilson 0.25 h |
+| Depends on | MZ-018 (tag detector), MZ-024 |
+| Lab / robot | no (checked in Lab 3) |
+| Branch | `feat/MZ-041-start-scan` |
+| Files | `HandleMaze.h` (modify); `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg` (add parameters) |
+
+**Description.** The robot starts in the centre of the start cell, facing the open side. From
+there it probably does not see any tag (the walls are at its back and sides). Two buttons
+fix that:
+- `headMiddle` ×1 = **positioned at start** (the operator has placed the robot). The robot starts collecting information.
+- `headFront` ×1 = **start** (the referee's whistle), as before.
+
+Between the two, an optional **start-scan** pans the head from side to side for
+`startScan.durationMs` (default 5000 ms), reading the tags and walls already visible. Then the
+head looks ahead and the robot waits. It identifies the start corner (0/7/56/63) and the
+maze-north offset (MZ-038) there.
+
+The scan is a parameter, because whether it is allowed depends on when the clock starts (Q11):
+- `startScan.enabled`, `startScan.durationMs`, `startScan.yawRangeDeg`, `startScan.pitchDeg` (the tag is low: ~30 cm up, ~25 cm away from the side walls, so the head must pitch down).
+- Deploy-time: the values live in `handleMaze.cfg`, so a redeploy changes them.
+- Simulation: the same `.cfg` is loaded by SimRobot; change it there and re-run. Check in step 1 that `set parameters:` works at run time for the module, and note the result in the PR.
+
+**Steps**
+1. Add the parameters and the `Unpositioned` and `StartScan` states (roadmap 4.7). A `headFront` tap during the scan starts the run immediately.
+2. Make the map collect nothing before *positioned*.
+3. Add the sequence to the simulation scene tests: positioned → scan → start.
+
+**Acceptance criteria**
+- [ ] With `startScan.enabled = false`, *positioned* goes straight to `WaitingForStart`.
+- [ ] With it enabled, the head pans for the configured time, then looks ahead and waits.
+- [ ] In simulation, the start corner id is read during the scan on at least 3 generated mazes.
+
+### MZ-042 — Maze memory reset by the sit gesture
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | 1 h · Review: Wilson 0.25 h |
+| Depends on | MZ-020, MZ-024 |
+| Lab / robot | no |
+| Branch | `feat/MZ-042-map-reset` |
+| Files | `Src/Modules/Modeling/MazeMapper/` and `Src/Modules/Modeling/MazeLocalizer/` (modify); `HandleMaze.h` (modify) |
+
+**Description.** Holding the 3 head buttons for 1 s is an existing B-Human gesture: it sets
+`playerState = unstiff` and the robot sits (`GameStateProvider.cpp`). The maze reuses it:
+- While `playerState == unstiff`, the mapper collects nothing.
+- Entering that state clears `MazeMap`, the pose and the attempt counter.
+- After the chest taps bring the robot back to *playing*, it says "map cleared", and collecting starts only after *positioned at start* (MZ-041).
+
+This is the only way to clear the map without a redeploy or a crash. The same gesture between
+attempts would destroy the map, so it is in the competition checklist (roadmap 10): do not
+hold the head buttons between attempts.
+
+**Acceptance criteria**
+- [ ] In simulation, `playerState = unstiff` clears the map and the counter. Standby (pick-up) does **not**.
+- [ ] After the reset, the robot explores as attempt 1.
+- [ ] The checklist item is in `docs/maze/COMPETITION_CHECKLIST.md` (MZ-030).
