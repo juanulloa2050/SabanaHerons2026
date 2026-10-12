@@ -57,7 +57,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 |---|---|---|---|---|---|---|---|
 | [x] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
 | [x] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
-| [ ] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
+| [x] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
 | [ ] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
 | [ ] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
@@ -232,7 +232,7 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 0.5 h |
 | Depends on | MZ-001 |
@@ -245,7 +245,7 @@ git push -u origin Maze-Challenge
 **Scope.** One file, `.github/pull_request_template.md`, with **exactly** the template in section 9 of `docs/ROADMAP_LABERINTO.md` ("PR description template"). Docs only, no build needed.
 
 **Acceptance criteria**
-- [ ] Opening a new PR on GitHub pre-fills the description with the template.
+- [x] Opening a new PR on GitHub pre-fills the description with the template.
 - [x] The content matches section 9 of the roadmap.
 
 ### MZ-006 — Organiser questions and answers
