@@ -642,6 +642,9 @@ MZ-0XX — <title> (see docs/TICKETS_LABERINTO.md)
 - [ ] No Wi-Fi profile or network change for competition deploys
 - [ ] Docs updated (roadmap, tickets or docs/maze/*) if behaviour changed
 - [ ] Reviewer assigned (Bryam ↔ Wilson)
+- [ ] Ticket ticked as done in `docs/TICKETS_LABERINTO.md` (summary table, *Done* row and acceptance criteria)
+- [ ] No AI attribution in commits or in this description (no AI `Co-Authored-By`, no "Generated with" footer)
+- [ ] Merge with **Squash and merge** (`gh pr merge <PR number> --squash --delete-branch`)
 ```
 
 ---
