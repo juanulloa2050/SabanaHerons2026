@@ -55,9 +55,9 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 
 | Done | ID | Title | Owner | Sprint | Author h | Lab | Depends on |
 |---|---|---|---|---|---|---|---|
-| [ ] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
-| [ ] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
-| [ ] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
+| [x] | MZ-001 | Create and publish `Maze-Challenge` | Bryam | 0 | 0.25 | no | – |
+| [x] | MZ-003 | Planning docs (roadmap, tickets, Gantt) | Bryam | 0 | 1 | no | MZ-001 |
+| [x] | MZ-004 | PR template | Wilson | 0 | 0.5 | no | MZ-001 |
 | [ ] | MZ-006 | Organiser questions and answers | Wilson | 0 | 0.75 | no | MZ-003 |
 | [ ] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
 | [ ] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
@@ -181,7 +181,7 @@ Goal of the sprint: a working PR flow, both scenarios booting, the apriltag libr
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 0.25 h |
 | Depends on | – |
@@ -201,14 +201,14 @@ git push -u origin Maze-Challenge
 ```
 
 **Acceptance criteria**
-- [ ] `git ls-remote --heads origin Maze-Challenge` prints one line.
-- [ ] `Maze-Challenge` points to the same commit as `master` at creation time.
+- [x] `git ls-remote --heads origin Maze-Challenge` prints one line.
+- [x] `Maze-Challenge` points to the same commit as `master` at creation time.
 
 ### MZ-003 — Planning documents (roadmap, tickets, Gantt)
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 1 h |
 | Depends on | MZ-001 |
@@ -225,14 +225,14 @@ git push -u origin Maze-Challenge
 - Corrections that arrive later (for example `docs/CORRECCIONES.md`) are applied to these three files through this branch.
 
 **Acceptance criteria**
-- [ ] The PR targets `Maze-Challenge` and is approved by Wilson.
-- [ ] The Mermaid Gantt renders on GitHub.
+- [x] The PR targets `Maze-Challenge` and is approved by Wilson.
+- [x] The Mermaid Gantt renders on GitHub.
 
 ### MZ-004 — Pull request template
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 0.5 h |
 | Depends on | MZ-001 |
@@ -245,8 +245,8 @@ git push -u origin Maze-Challenge
 **Scope.** One file, `.github/pull_request_template.md`, with **exactly** the template in section 9 of `docs/ROADMAP_LABERINTO.md` ("PR description template"). Docs only, no build needed.
 
 **Acceptance criteria**
-- [ ] Opening a new PR on GitHub pre-fills the description with the template.
-- [ ] The content matches section 9 of the roadmap.
+- [x] Opening a new PR on GitHub pre-fills the description with the template.
+- [x] The content matches section 9 of the roadmap.
 
 ### MZ-006 — Organiser questions and answers
 
