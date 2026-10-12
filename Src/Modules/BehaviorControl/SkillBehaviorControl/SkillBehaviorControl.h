@@ -206,6 +206,7 @@ private:
 #include "Options/HandleGameState.h"
 #include "Options/HandleGoalkeeperCatchBall.h"
 #include "Options/HandleIllegalAreas.h"
+#include "Options/HandleMaze.h"
 #include "Options/HandlePenaltyKick.h"
 #include "Options/HandlePenaltyShootout.h"
 #include "Options/HandlePhotoMode.h"

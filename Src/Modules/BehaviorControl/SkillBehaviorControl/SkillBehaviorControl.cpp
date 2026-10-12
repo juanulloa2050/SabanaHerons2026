@@ -126,6 +126,10 @@ std::vector<ModuleBase::Info> SkillBehaviorControl::getExtModuleInfo()
 void SkillBehaviorControl::update(ActivationGraph&)
 {
   DECLARE_DEBUG_RESPONSE("option:HandleRefereeSignal:now");
+  DECLARE_DEBUG_RESPONSE("option:HandleMaze:headFront");
+  DECLARE_DEBUG_RESPONSE("option:HandleMaze:headRear");
+  DECLARE_DEBUG_RESPONSE("option:HandleMaze:headMiddleTwice");
+  DECLARE_DEBUG_RESPONSE("option:HandleMaze:abortMotionTest");
 
   if(theMotionInfo.lastKickTimestamp > lastReportedKickTimestamp)
   {
