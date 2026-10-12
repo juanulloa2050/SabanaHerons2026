@@ -246,7 +246,7 @@ git push -u origin Maze-Challenge
 
 **Acceptance criteria**
 - [ ] Opening a new PR on GitHub pre-fills the description with the template.
-- [ ] The content matches section 9 of the roadmap.
+- [x] The content matches section 9 of the roadmap.
 
 ### MZ-006 — Organiser questions and answers
 
