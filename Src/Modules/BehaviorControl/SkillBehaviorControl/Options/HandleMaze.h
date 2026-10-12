@@ -10,7 +10,11 @@
  *   headMiddle x1  reserved for "positioned at start" (MZ-041)
  *
  * Triple taps stay reserved for the diagnostics in SkillBehaviorControl.cpp
- * and are not used here.
+ * and are not used here. Hit streaks are only reported after the streak has ended,
+ * so a triple tap never triggers the single or double tap actions.
+ *
+ * Pressing any head button during a walk or turn of the motion test aborts it.
+ * A step that does not finish within its time limit aborts the test as well.
  */
 
 /** The edge length of one maze cell in mm (the maze consists of 50 cm x 50 cm cells). */
@@ -24,6 +28,12 @@ static constexpr int motionTestPauseTime = 2000;
 
 /** The time the robot waits after announcing something until it accepts the next tap (in ms). */
 static constexpr int mazeAnnouncementTime = 1500;
+
+/** The maximum time the walking step of the motion test may take before the test is aborted (in ms). */
+static constexpr int motionTestWalkTimeout = 30000;
+
+/** The maximum time a turning step of the motion test may take before the test is aborted (in ms). */
+static constexpr int motionTestTurnTimeout = 15000;
 
 /** The number of steps of the motion test: walk forward, turn left, turn right, turn around. */
 static constexpr int motionTestNumOfSteps = 4;
@@ -49,6 +59,17 @@ Angle motionTestTurnAngle() const
     default:
       return 180_deg;
   }
+}
+
+/**
+ * Whether any head button is currently pressed, which aborts a running motion test.
+ * @return true if at least one head button is pressed.
+ */
+bool anyHeadButtonPressed() const
+{
+  return theEnhancedKeyStates.pressed[KeyStates::headFront] ||
+         theEnhancedKeyStates.pressed[KeyStates::headMiddle] ||
+         theEnhancedKeyStates.pressed[KeyStates::headRear];
 }
 
 option(HandleMaze)
@@ -153,6 +174,8 @@ option(HandleMazeButtons)
   {
     transition
     {
+      if(anyHeadButtonPressed() || state_time > motionTestWalkTimeout)
+        goto motionTestAborted;
       if(state_time > 500 && theWalkToPointSkill.isDone())
         goto motionTestPause;
     }
@@ -171,6 +194,8 @@ option(HandleMazeButtons)
   {
     transition
     {
+      if(anyHeadButtonPressed() || state_time > motionTestTurnTimeout)
+        goto motionTestAborted;
       if(state_time > 500 && theTurnAngleSkill.isDone())
         goto motionTestPause;
     }
@@ -198,6 +223,21 @@ option(HandleMazeButtons)
       theLookForwardSkill();
       theStandSkill();
       thePlaySoundSkill({.name = motionTestBeep});
+    }
+  }
+
+  state(motionTestAborted)
+  {
+    transition
+    {
+      if(state_time > mazeAnnouncementTime)
+        goto idle;
+    }
+    action
+    {
+      theLookForwardSkill();
+      theStandSkill();
+      theSaySkill({.text = "motion test aborted"});
     }
   }
 }
