@@ -263,7 +263,7 @@ git push -u origin Maze-Challenge
 **Goal.** Get official answers to the open rules questions, and keep one record of what was asked and answered. Q1 (which walls carry tags, and at what height) is the most urgent: six tickets depend on it (TAG-DEP).
 
 **Scope.**
-- An e-mail to the organisers (through the advisor if required) with Q1, Q3 and Q5–Q11 from section 11 of the roadmap, copied word for word. Q2 is resolved by the rules and Q4 is withdrawn; both stay in the table.
+- An e-mail to the organisers (through the advisor if required) with Q1, Q3 and Q6–Q12 from section 11 of the roadmap, copied word for word. Q2 and Q5 are resolved (by the rules and by the arena image: the goal is the central 2×2 block) and Q4 is withdrawn; all three stay in the table.
 - `docs/maze/ORGANIZER_ANSWERS.md`: a table with the columns `# | Question | Date asked | Answer | Date answered | Source`, updated through new commits on the same branch as answers arrive.
 
 **Steps**
@@ -273,7 +273,7 @@ git push -u origin Maze-Challenge
 
 **Acceptance criteria**
 - [ ] The e-mail was sent by 8 Oct.
-- [ ] The file lists all 11 questions with dates. Q2 says "resolved by the rules", Q4 says "withdrawn", and missing answers say "pending".
+- [ ] The file lists all 12 questions with dates. Q2 and Q5 say "resolved", Q4 says "withdrawn", and missing answers say "pending".
 - [ ] When Q1 is answered, Bryam is told the same day.
 
 ### MZ-007 — `Maze` and `MazeSafe` scenarios, `HandleMaze` stub, start flow
@@ -348,13 +348,13 @@ git push -u origin Maze-Challenge
 **Goal.** A text format for 8×8 mazes that people and programs can read, and a generator that produces valid random mazes for the simulator, the planner tests and the campaigns. Python 3, standard library only.
 
 **Scope.**
-- **Format (`.maze`)**: 17 lines of 17 characters. Even rows and even columns are corners `+`. Horizontal walls are `-`, vertical walls are `|`, and a space means no wall. The cell centre holds `S` (start), `G` (goal) or a space. Cell row 0 is the top row, matching tag id 0 at the top-left. Top-left corner example:
+- **Format (`.maze`)**: 17 lines of 17 characters. Even rows and even columns are corners `+`. Horizontal walls are `-`, vertical walls are `|`, and a space means no wall. The cell centre holds `S` (start), `G` (one of the 4 goal-block cells) or a space. Cell row 0 is the top row, matching tag id 0 at the top-left. Top-left corner example:
   ```
   +-+-+
   |S  |
   + +-+
   ```
-- **Generator** `generate_maze.py`: `--seed INT` (required), `--start {0,7,56,63}` (default 0), `--goal ROW,COL` (default: the cell farthest from the start), `--loops INT` (default 0: extra walls removed to create loops), `--out PATH`. Randomized depth-first search, then these rules: outer border always closed; start cell has walls on exactly 3 sides; goal cell keeps no extra internal wall; every cell is reachable (breadth-first check).
+- **Generator** `generate_maze.py`: `--seed INT` (required), `--start {0,7,56,63}` (default 0), `--loops INT` (default 0: extra walls removed to create loops), `--out PATH`. Randomized depth-first search, then these rules: outer border always closed; start cell has walls on exactly 3 sides; the goal is always the central 2×2 block (cells 27, 28, 35, 36), marked with four `G`, with no internal walls inside it; every cell is reachable (breadth-first check).
 - **Validator**: `--validate PATH` prints `OK` or the first broken rule.
 - **Tests** `test_generate_maze.py` (unittest): same seed → same file; border closed; start has 3 walls; all cells reachable.
 
@@ -461,7 +461,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 **Goal.** Ten hand-picked mazes plus their expected best route, computed by a solver that is independent of the C++ planner, so the planner (MZ-011) has something to be checked against.
 
 **Scope.**
-- **Fixtures** (`.maze`, by hand or edited from generated ones): a straight corridor; a spiral; a comb with many dead ends; two equal-length routes, one with fewer turns; a long straight route against a short zig-zag; goal in the centre; one start in each of the four corners; a maze with loops.
+- **Fixtures** (`.maze`, by hand or edited from generated ones): a straight corridor; a spiral; a comb with many dead ends; two equal-length routes, one with fewer turns; a long straight route against a short zig-zag; one start in each of the four corners; a maze with loops.
 - **`solve_maze.py`**: Dijkstra over `(cell, heading)` with `t_fwd = 2.5`, `t_start = 0.8`, `t_turn90 = 2.0`, `t_turn180 = 3.5`. It prints `cells,turns90,turns180,time_s`.
 - **`expected.csv`** with columns `file,cells,turns90,turns180,time_s`.
 
