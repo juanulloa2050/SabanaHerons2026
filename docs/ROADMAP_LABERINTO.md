@@ -398,7 +398,7 @@ Tickets: MZ-011 to MZ-017. **Lab 1: 13 Oct.**
 ### Sprint 2 — Perception and localization (Fri 16 – Wed 21 Oct) · milestone M2
 
 **Objective:** real tags and walls detected from logs, a pose that stays inside the cell, a map
-that persists, and real motion costs.
+that persists, and real motion costs measured in Lab 2 (applied to the config in Sprint 3, MZ-028).
 
 | Files | Action |
 |---|---|
@@ -406,7 +406,7 @@ that persists, and real motion costs.
 | `Src/Modules/Infrastructure/InterThreadProviders/PerceptionProviders.{h,cpp}` | modify (`ALIAS`) |
 | `Src/Modules/Modeling/MazeLocalizer/`, `Src/Modules/Modeling/MazeMapper/` | create |
 | `Src/Representations/Perception/MazePercepts/*`, `Src/Representations/Modeling/MazeMap.h`, `Src/Representations/Modeling/MazeCellPose.h` | create |
-| `Config/Scenarios/Maze/threads.cfg`, `Config/Scenarios/Maze/mazePlanner.cfg` | modify / create |
+| `Config/Scenarios/Maze/threads.cfg` | modify |
 | `Util/MazeTools/run_sim_campaign.py`, `docs/maze/TAG_ACCURACY.md` | create |
 
 Tickets: MZ-018 to MZ-023. **Lab 2: 20 Oct.**
@@ -417,7 +417,7 @@ Tickets: MZ-018 to MZ-023. **Lab 2: 20 Oct.**
 - [ ] In SimRobot with noisy odometry, the pose error is ≤8 cm and ≤10° after 10 cells, and the cell estimate is 100 % correct.
 - [ ] Wall classification in simulation is ≥98 % correct for the 4 sides of visited cells.
 - [ ] The map survives a simulated pick-up and Standby (attempt counter = 2, map unchanged).
-- [ ] Lab 2 measured `t_fwd`, `t_start`, `t_turn90`, `t_turn180` (10 repetitions each) and wrote them to `mazePlanner.cfg`.
+- [ ] *Physical, if the lab is available:* Lab 2 measured `t_fwd`, `t_start`, `t_turn90`, `t_turn180` (10 repetitions each) and the means are recorded in `docs/maze/LAB_LOG.md`. They reach `mazePlanner.cfg` in Sprint 3 (MZ-028); until then the planner uses its default costs.
 
 ### Sprint 3 — Behaviour and integration (Thu 22 – Sun 25 Oct) · milestone M3
 
@@ -428,7 +428,7 @@ and evidence from a simulation campaign and from the bench.
 |---|---|
 | `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` | modify (full) |
 | `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/*.cpp`, `Src/Representations/BehaviorControl/SkillInterfaces.h` | create / modify |
-| `Src/Modules/BehaviorControl/MazePlannerProvider/` | create |
+| `Src/Modules/BehaviorControl/MazePlannerProvider/`, `Config/Scenarios/Maze/mazePlanner.cfg` (the costs, with defaults) | create |
 | `Config/Scenarios/Maze/*.cfg`, `Config/Scenarios/MazeSafe/*.cfg` | modify (tuning) |
 | `docs/maze/SIM_RESULTS.md` | create |
 
@@ -437,6 +437,7 @@ Tickets: MZ-024 to MZ-028. **Lab 3: 23 Oct.**
 **DoD**
 - [ ] In SimRobot, at least 18 of 20 generated mazes are solved in both attempts. T2 ≤ 1.15 × the plan estimate. Zero stalls longer than 3 s.
 - [ ] *Physical, if the lab is available:* on the bench (corridor, corner, T, dead end), 5 runs have 0 wall contacts and a minimum lateral clearance ≥5 cm.
+- [ ] *Physical, if Lab 2 happened:* `mazePlanner.cfg` holds the Lab 2 means (MZ-028).
 - [ ] Safe mode and wall-follower trigger correctly when tags are hidden (tested in simulation with the oracle dropout at 100 %).
 
 ### Sprint 4 — Hardening and code freeze (Mon 26 – Wed 28 Oct) · milestone: code freeze

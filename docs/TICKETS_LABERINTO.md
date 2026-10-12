@@ -75,7 +75,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [ ] | MZ-024 | HandleMaze state machine + skills | Bryam | 3 | 5 | no | MZ-011, MZ-020 |
 | [ ] | MZ-025 | Watchdog, safe mode, wall-follower | Bryam | 3 | 2.5 | no | MZ-024 |
 | [ ] | MZ-026 | Simulation campaign + report | Wilson | 3 | 3 | no | MZ-021, MZ-024 |
-| [ ] | MZ-028 | Configuration tuning from lab data | Wilson | 3 | 1.5 | no | MZ-023*, MZ-027* |
+| [ ] | MZ-028 | Configuration tuning from lab data | Wilson | 3 | 1.5 | no | MZ-024, MZ-023*, MZ-027* |
 | [ ] | MZ-029 | Attempt-flow hardening | Bryam | 4 | 2.5 | no | MZ-024, MZ-027* |
 | [ ] | MZ-030 | Competition checklist + 5-min calibration | Wilson | 4 | 2.5 | no | MZ-027* |
 | [ ] | MZ-032 | Code freeze tag + deploy procedure | Wilson | 4 | 1 | no | MZ-031* |
@@ -684,13 +684,13 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 | Depends on | MZ-011, MZ-020 |
 | Lab / robot | no |
 | Branch | `feat/MZ-024-handle-maze` |
-| Files | `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` (modify); `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/{MazeFollowCorridor,MazeTurn,MazeScanWalls}.cpp` (create); `Src/Representations/BehaviorControl/SkillInterfaces.h` (modify); `Src/Modules/BehaviorControl/MazePlannerProvider/`, `Src/Representations/BehaviorControl/MazePlan.h` (create); `Config/Scenarios/Maze/handleMaze.cfg` (create) |
+| Files | `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` (modify); `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/{MazeFollowCorridor,MazeTurn,MazeScanWalls}.cpp` (create); `Src/Representations/BehaviorControl/SkillInterfaces.h` (modify); `Src/Modules/BehaviorControl/MazePlannerProvider/`, `Src/Representations/BehaviorControl/MazePlan.h` (create); `Config/Scenarios/Maze/handleMaze.cfg`, `Config/Scenarios/Maze/mazePlanner.cfg` (create) |
 
 **Goal.** Replace the MZ-007 stub with the real competition behaviour: the robot explores, reaches the goal, waits for the second attempt and runs the fastest known route, and it tells the operator out loud what it is doing.
 
 **Scope.**
 - **States and transitions** of roadmap 4.7: `WaitingForStart`, `MazeExploration`, `ReturnToStart` (stretch), `Standby`, `SpeedRun`, `Finished`. The states `Unpositioned`, `StartScan` and `Sitting` come with MZ-041 and MZ-042.
-- **`MazePlannerProvider`** wraps the MZ-011 library and provides `MazePlan` (cell path, action list, estimated time).
+- **`MazePlannerProvider`** wraps the MZ-011 library and provides `MazePlan` (cell path, action list, estimated time). It reads the motion costs from `mazePlanner.cfg`, created here with the `MazeCosts` defaults (`t_fwd` 2.5 s, `t_start` 0.8 s, `t_turn90` 2.0 s, `t_turn180` 3.5 s). MZ-028 replaces them with the Lab 2 means.
 - **Skills**, built on `WalkToPose` (empty obstacle avoidance) and `LookAtAngles`: `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centres only), `MazeScanWalls` (head pan ≤2 s, only on unknown edges).
 - **State announcements** (roadmap 4.7): every state change and button gesture is spoken with the `Say` skill, behind `announce.enabled` in `handleMaze.cfg`.
 
@@ -699,6 +699,7 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 - [ ] In attempt 2, the plan uses known-open edges only (unit-tested in MZ-011, checked in a log).
 - [ ] Each row of the *State announcements* table is spoken (check the console `Say` output in SimRobot, and on the robot in Lab 3). "exploring" is spoken again on a second run.
 - [ ] With `announce.enabled = false`, nothing is spoken.
+- [ ] Changing `t_turn90` in `mazePlanner.cfg` changes the plan on a maze where two routes differ only by their turns (check in simulation).
 
 ### MZ-025 — Watchdog, safe mode and wall-follower fallback
 
@@ -759,7 +760,7 @@ The thresholds live in `handleMaze.cfg`.
 | Done | [ ] |
 | Owner | Wilson |
 | Estimate | 1.5 h |
-| Depends on | MZ-023 (soft), MZ-027 (soft) |
+| Depends on | MZ-024 (creates `mazePlanner.cfg`), MZ-023 (soft), MZ-027 (soft) |
 | Lab / robot | no (needs the numbers from Labs 2 and 3; if there are none, the defaults stay) |
 | Branch | `config/MZ-028-lab-tuning` |
 | Files | `Config/Scenarios/Maze/mazePlanner.cfg`, `Config/Scenarios/Maze/walkingEngine*.cfg`, `Config/Scenarios/MazeSafe/walkingEngine*.cfg` (modify); `docs/maze/LAB_LOG.md` (modify) |
