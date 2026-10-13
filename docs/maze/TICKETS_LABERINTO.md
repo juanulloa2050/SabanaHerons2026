@@ -487,9 +487,9 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 3. Check 2 mazes by hand (count cells and turns on the `--draw` output) and write the result in the PR.
 
 **Acceptance criteria**
-- [ ] `expected.csv` has 20 rows, one per generated maze, and 2 of them were checked by hand.
-- [ ] Running `--update` twice on the same maze leaves one row for it (tested).
-- [ ] Editing a maze changes its `maze_sha` (tested).
+- [x] `expected.csv` has 20 rows, one per generated maze, and 2 of them were checked by hand.
+- [x] Running `--update` twice on the same maze leaves one row for it (tested).
+- [x] Editing a maze changes its `maze_sha` (tested).
 - [ ] `--draw` output for 1 maze is pasted in the PR.
 
 ### MZ-013 — Oracle maze percepts for simulation ⚠️ TAG-DEP
