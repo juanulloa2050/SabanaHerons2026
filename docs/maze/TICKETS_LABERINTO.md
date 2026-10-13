@@ -64,7 +64,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [x] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
-| [ ] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
+| [x] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
@@ -456,7 +456,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 1.5 h |
 | Depends on | MZ-009 |
@@ -490,7 +490,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 - [x] `expected.csv` has 20 rows, one per generated maze, and 2 of them were checked by hand.
 - [x] Running `--update` twice on the same maze leaves one row for it (tested).
 - [x] Editing a maze changes its `maze_sha` (tested).
-- [ ] `--draw` output for 1 maze is pasted in the PR.
+- [x] `--draw` output for 1 maze is pasted in the PR.
 
 ### MZ-013 — Oracle maze percepts for simulation ⚠️ TAG-DEP
 
