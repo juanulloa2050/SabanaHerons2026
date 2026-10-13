@@ -22,7 +22,7 @@ Ciudad de México).
 5. **Sprint 4 (26–28 Oct):** harden the attempt flow, write the checklist and the 5-minute calibration procedure, rehearse in Lab 4, and **freeze the code**.
 6. **Buffer (29 Oct–2 Nov):** dress rehearsal in Lab 5 and logistics only. **No new development.**
 
-Plan: **Bryam 46.25 h**, **Wilson 39.75 h** (36.25 h without the optional bench), including lab sessions.
+Plan: **Bryam 47.75 h**, **Wilson 39.75 h** (36.25 h without the optional bench), including lab sessions.
 Review time is not tracked. Up to 5 short lab sessions (11 h of room time) are planned, but **we are
 not sure how the physical robot can be tested**, so every physical ticket sits in its own section of
 [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) and the software must be finishable without them.
@@ -228,10 +228,10 @@ flowchart LR
 | Module | Thread | Provides | Notes |
 |---|---|---|---|
 | `AprilTagDetector` | Upper | `AprilTagPercept` | Wraps `ECImage.grayscaled` as `image_u8` without copying. `tag36h11`, `quad_decimate = 2`, `nthreads = 1`. `estimate_tag_pose` uses `CameraInfo` intrinsics, and the result goes to the robot frame through `CameraMatrix`. |
-| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on `ECImage` (light walls, matte floor), projected with `Transformation::imageToRobot` |
+| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on `ECImage` (light walls, matte floor), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (up to 2 cells), snapped to the 500 mm grid (MZ-019). |
 | `PerceptionAprilTagPerceptProvider`, `PerceptionWallPerceptProvider` | Cognition | aliases | `ALIAS(AprilTagPercept)`, `ALIAS(WallPercept)` in `PerceptionProviders.cpp` |
 | `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). The heading comes from the gyro (maze-north, section 4.5). EKF is a stretch goal. |
-| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis. State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
+| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis, for any edge in view (not only the current cell), weighted by distance; a decoded tag names its cell, so it counts at any readable distance (MZ-020). State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
 | `MazePlannerProvider` | Cognition | `MazePlan` | Thin wrapper around the pure library `Src/Tools/Maze/` |
 | `OracledMazePerceptsProvider` | Cognition (sim only) | `AprilTagPercept`, `WallPercept` | Built from `GroundTruthRobotPose` and the maze file, with configurable noise and dropouts. They let behaviour and planning be tested before perception exists. |
 
@@ -531,7 +531,7 @@ here is required: the defaults must already work.
 
 ---
 
-## 8. Scope decisions (fitted to 46.25 h / 39.75 h)
+## 8. Scope decisions (fitted to 47.75 h / 39.75 h)
 
 | Category | Items |
 |---|---|
@@ -695,4 +695,4 @@ Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come f
 | Corridor too tight for the gait or arms | Medium | High | Wilson | Walk profile MZ-016, bench measurements, `MazeSafe` |
 | Logger silent in Initial state | Certain | Low | Bryam | Start flow uses *playing* (section 3.4) |
 | Operator holds the 3 head buttons by accident and clears the map between attempts | Low | High | Both | Checklist item; the robot says "map cleared" so it is noticed; attempt 2 then restarts as exploration (MZ-042) |
-| 46.25 h / 39.75 h plan overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |
+| 47.75 h / 39.75 h plan overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |

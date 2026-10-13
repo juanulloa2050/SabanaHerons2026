@@ -16,13 +16,14 @@ strategy) · [GANTT_LABERINTO.md](GANTT_LABERINTO.md) (schedule, lab access requ
 
 | | Authoring | Lab sessions | **Total** |
 |---|---|---|---|
-| **Bryam** | 39.25 h | 7 h (Lab 3, 4, 5) | **46.25 h** |
+| **Bryam** | 40.75 h | 7 h (Lab 3, 4, 5) | **47.75 h** |
 | **Wilson** | 28.75 h (includes 3.5 h of the optional bench, MZ-014) | 11 h (Lab 1–5) | **39.75 h** |
 
 Notes:
 - **Authoring** means the owner's own work, including opening the PR, answering review comments and merging. Lab tickets are counted under *Lab sessions*, not under authoring.
 - **Review time is not tracked.** Cross review still happens (roadmap section 9), but it has no hours in any ticket.
-- Bryam's 39.25 h authoring = 38.75 h of own tickets + 0.5 h pairing on MZ-010.
+- Bryam's 40.75 h authoring = 40.25 h of own tickets + 0.5 h pairing on MZ-010.
+- Corridor look-ahead (seeing and mapping walls of cells ahead) added 1.5 h on 13 Oct: MZ-019 4 → 5 h, MZ-020 5 → 5.5 h.
 - Without the optional bench (MZ-014), Wilson's total is 36.25 h.
 - MZ-002 (branch protection) and MZ-005 (registration check) were removed as unnecessary. Their numbers are not reused.
 
@@ -68,8 +69,8 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
-| [ ] | MZ-019 | Wall perceptor | Bryam | 2 | 4 | no | MZ-010, MZ-017* |
-| [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5 | no | MZ-011, MZ-013 |
+| [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
+| [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5.5 | no | MZ-011, MZ-013 |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
 | [ ] | MZ-024 | HandleMaze state machine + skills | Bryam | 3 | 5 | no | MZ-011, MZ-020 |
@@ -90,7 +91,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 
-These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 5.0 h (46.25 → 51.25 h) and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039.
+These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 5.0 h (47.75 → 52.75 h) and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039.
 
 ### Physical robot tickets
 
@@ -506,7 +507,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 
 **Goal.** Fake perception for simulation: publish the tags and walls the robot *would* see, computed from ground truth. Behaviour, planning and mapping can then be built and tested before the real detectors (MZ-018, MZ-019) exist.
 
-**Scope.** `OracledMazePerceptsProvider` (Cognition, simulation only) builds `AprilTagPercept` and `WallPercept` from `GroundTruthRobotPose` and the loaded `.maze` file. Parameters: Gaussian noise, dropout rate and maximum range. Tag placement follows the TAG-DEP assumption (one tag on every wall face, centre at 30 cm).
+**Scope.** `OracledMazePerceptsProvider` (Cognition, simulation only) builds `AprilTagPercept` and `WallPercept` from `GroundTruthRobotPose` and the loaded `.maze` file. Parameters: Gaussian noise, dropout rate and maximum range. Tag placement follows the TAG-DEP assumption (one tag on every wall face, centre at 30 cm). `WallPercept` also carries the walls of the cells ahead along the gaze, up to the maximum range, in the same format as MZ-019, so look-ahead mapping (MZ-020) can be tested before the real perceptor exists.
 
 **Acceptance criteria**
 - [ ] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
@@ -578,25 +579,31 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - [ ] No detections with a wrong id on the whole log (false-positive check).
 - [ ] On the robot, a single `headRear` tap says the last seen tag id (used in Lab 2 and in the 5-minute calibration).
 
-### MZ-019 — Wall perceptor
+### MZ-019 — Wall perceptor and corridor look-ahead
 
 | Field | Value |
 |---|---|
 | Done | [ ] |
 | Owner | Bryam |
-| Estimate | 4 h |
+| Estimate | 5 h (4 h perceptor + 1 h look-ahead) |
 | Depends on | MZ-010, MZ-017 (soft: Lab 1 logs) |
 | Lab / robot | no (simulation, plus Lab 1 logs when they exist) |
 | Branch | `feat/MZ-019-wall-perceptor` |
 | Files | `Src/Modules/Perception/WallPerceptor/` (create); `PerceptionProviders.{h,cpp}` (modify: `ALIAS(WallPercept)`); `Config/Scenarios/Maze/threads.cfg` |
 
-**Goal.** Tell, from the image alone, whether there is a wall in front, to the left and to the right of the robot, and how far away it is. This feeds the map with wall evidence for every cell the robot passes.
+**Goal.** Tell, from the image alone, which walls are around the robot **and along the corridor ahead**, and how far away they are. This feeds the map with wall evidence for the current cell and for cells the robot has not walked through yet, so it can avoid a dead end before entering it. The planner already replans whenever an edge changes (roadmap 4.6). Example: in `maze_1.maze`, at cell 10 facing east, seeing that cell 11 is closed to the south and east saves the 9.3 s detour into the dead end.
 
-**Scope.** Upper thread. Column scan for the floor-to-wall boundary on `ECImage` (light walls, matte floor), projected to the floor with `Transformation::imageToRobot`. Output: `WallPercept` with the distance to the wall in front, left and right when the head points that way.
+**Scope.** Upper thread.
+- **Near walls.** Column scan for the floor-to-wall boundary on `ECImage` (light walls, matte floor), projected to the floor with `Transformation::imageToRobot` (uses `CameraMatrix`). Output: `WallPercept` with the distance to the wall in front, left and right when the head points that way.
+- **Look-ahead.** Along the gaze line, the percept also reports, for each cell ahead up to `lookAheadRange` cells (default 2), whether its side walls are present or open. A front wall at distance *d* means the edges before *d* are open and the edge at *d* is a wall.
+- **Grid snap.** Walls can only sit on the 500 mm grid. Each measurement is snapped to the nearest edge and kept only if it lies within `snapToleranceMm` (default 150 mm) of that edge; otherwise it is dropped. Every observation carries its distance, so the mapper can weight it (MZ-020).
+- **Why the range is limited.** The floor projection gets worse with distance. With the camera about 0.5 m above the floor, a 1° pitch error moves a floor point by roughly 10 cm at 1.5 m and 35 cm at 3 m (first estimate, measured in this ticket). Far edges are confirmed by tags instead (MZ-018): the tag id names the cell, so a far tag cannot be put on the wrong edge.
 
 **Acceptance criteria**
 - [ ] In simulation, wall present or absent is ≥98 % correct for the 4 sides of visited cells (10 cells, 3 mazes).
 - [ ] On Lab 1 corridor logs, the side-wall distance is within ±3 cm of the tape measurement.
+- [ ] In simulation, the side walls of the next cell ahead are ≥95 % correct, and no edge beyond `lookAheadRange` is reported.
+- [ ] The distance error at 0.5, 1.0 and 1.5 m is measured (Lab 1 logs, or rendered images if the logs do not exist) and written in the PR; `lookAheadRange` and `snapToleranceMm` are set from it.
 
 ### MZ-020 — Maze localizer and mapper ⚠️ TAG-DEP
 
@@ -604,7 +611,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 |---|---|
 | Done | [ ] |
 | Owner | Bryam |
-| Estimate | 5 h |
+| Estimate | 5.5 h (5 h + 0.5 h look-ahead evidence) |
 | Depends on | MZ-011, MZ-013 |
 | Lab / robot | no |
 | Branch | `feat/MZ-020-localizer-mapper` |
@@ -614,12 +621,13 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 
 **Scope.**
 - **`MazeLocalizer`** replaces `SelfLocator` (useless in a maze). It provides `RobotPose` and `MazeCellPose`: odometry prediction, a tag fix (complementary filter, roadmap 4.5), and a heading snap on square-on tags. The gyro heading comes later in MZ-038.
-- **`MazeMapper`** provides `MazeMap`: fuses wall evidence per edge with hysteresis (3 consistent observations before `unknown → wall/open`). The map is a module member, so it **persists for the whole process**. The attempt counter increments on Standby → start.
+- **`MazeMapper`** provides `MazeMap`: fuses wall evidence per edge with hysteresis (3 consistent observations before `unknown → wall/open`). Evidence is accepted for **any edge in view**, not only the edges of the current cell: wall percepts already snapped to the grid (MZ-019) and tag detections (MZ-018), where the tag id names the cell and so the edge. The weight of a wall-percept observation drops with its distance (parameter); a decoded tag counts as full evidence at any distance it can be read. The map is a module member, so it **persists for the whole process**. The attempt counter increments on Standby → start.
 
 **Acceptance criteria**
 - [ ] In simulation with noisy odometry, the pose error is ≤8 cm and ≤10° after 10 cells, and the cell estimate is 100 % correct.
 - [ ] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2.
 - [ ] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025).
+- [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11.
 
 ### MZ-021 — Headless simulation campaign runner
 
@@ -1376,6 +1384,10 @@ integration path described in `docs/RL/Integration.md`.
 **Goal and scope.** Use the head's range of motion and the camera geometry to map the maze faster
 in attempt 1, and measure whether moving the head is worth it compared with keeping it still.
 
+Seeing and mapping the walls of cells ahead (corridor look-ahead) is no longer part of this ticket:
+it was moved into the scheduled tickets MZ-019 and MZ-020 on 13 Oct. This ticket keeps the gaze
+strategy: where and when to point the head.
+
 Facts this ticket builds on:
 - **Head range** (NAO v6 spec): yaw ±119.5°, pitch −38.5° to +29.5°. The robot can look at side walls, and partly behind, without turning its body. A head turn costs tenths of a second; a body turn costs ~2 s.
 - **Camera field of view:** 54.7° × 42.5° (`Config/Robots/Default/cameraIntrinsics.cfg`).
@@ -1389,7 +1401,7 @@ Facts this ticket builds on:
 | H0 | Fixed head | Head always forward. Side walls are only seen after turning the body. |
 | H1 | Stop and scan | Current MZ-024 behaviour: stop at cells with unknown walls and pan the head (≤2 s). |
 | H2 | Scan while walking | Sweep the head left and right during corridor walks, without stopping. |
-| H3 | Look-ahead and information-driven gaze | Look down corridors to map several cells at once, and point the head at the unknown wall that would change the plan the most. |
+| H3 | Look-ahead and information-driven gaze | Look down corridors to map several cells at once (the perception and mapping side is scheduled in MZ-019 and MZ-020), and point the head at the unknown wall that would change the plan the most. |
 
 **Steps**
 1. Write `visibility_table.py`. From the centre of a cell, with the head at yaw −120° … +120° in 15° steps, compute which walls of the current and neighbouring cells are visible, and at what distance tags fall below 20 px wide. Use it to choose the head angles for H1–H3.

@@ -84,7 +84,7 @@ gantt
 
 - 7 scheduled tickets need the lab or the physical robot (MZ-014 optional, MZ-015, MZ-017, MZ-023, MZ-027, MZ-031, MZ-033). They are grouped in their own section of TICKETS_LABERINTO.md because we are not sure how hardware testing will be possible.
 - MZ-038 to MZ-044 (proposed and backlog, from the corrections review) are not on the chart. MZ-040 and MZ-044 reuse time already booked in Lab 2 and Lab 3.
-- 11 hours of lab time out of 86 hours of total effort (Bryam 46.25 h, Wilson 39.75 h; review time not tracked).
+- 11 hours of lab time out of 87.5 hours of total effort (Bryam 47.75 h, Wilson 39.75 h; review time not tracked).
 
 | Sprint | Dates | Milestone |
 |---|---|---|
