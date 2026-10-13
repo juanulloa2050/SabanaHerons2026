@@ -102,7 +102,10 @@ namespace Maze
       table.fill(MazeCost::infinity());
     }
 
-    /** Index of `state` in 0..stateCount-1. */
+    /** Whether `state` is inside the 8x8 grid with a valid heading. Every query below treats an invalid state as unreachable. */
+    [[nodiscard]] static bool isValid(const MazeState& state);
+
+    /** Index of `state` in 0..stateCount-1. @pre isValid(state) */
     [[nodiscard]] static int stateIndex(const MazeState& state);
 
     /**
@@ -111,19 +114,19 @@ namespace Maze
      */
     void computeCostToGo(const MazeGraph& graph, UnknownPolicy policy);
 
-    /** Cost to reach a goal cell from `state` according to the last table; infinite if unreachable. */
+    /** Cost to reach a goal cell from `state` according to the last table; infinite if unreachable or invalid. */
     [[nodiscard]] MazeCost costToGo(const MazeState& state) const;
 
     /**
      * First strict minimum of action + cost-to-go(next) in the order forward, left, right, around.
-     * @return False in a goal state or if the goal is unreachable.
+     * @return False in a goal state, in an invalid state or if the goal is unreachable.
      */
     [[nodiscard]] bool nextAction(const MazeState& state, Action& action) const;
 
     /** Repeats `nextAction` from `start` until a goal cell is entered; the optimal route if the maze is known. */
     [[nodiscard]] MazePlan routeFromTable(const MazeState& start) const;
 
-    /** A* over edges that are known to be open (unknown counts as wall). */
+    /** A* over edges that are known to be open (unknown counts as wall). No route from an invalid start. */
     [[nodiscard]] MazePlan speedRun(const MazeGraph& graph, const MazeState& start) const;
 
     /**
@@ -132,7 +135,7 @@ namespace Maze
      */
     [[nodiscard]] int heuristic(const MazeState& state) const;
 
-    /** Result of `action` in `state`; false if it is a forward step through a blocked edge. */
+    /** Result of `action` in `state`; false if `state` is invalid or it is a forward step through a blocked edge. */
     [[nodiscard]] bool apply(const MazeGraph& graph, UnknownPolicy policy, const MazeState& state, Action action, MazeState& next, MazeCost& cost) const;
 
     [[nodiscard]] const MazeCosts& getCosts() const { return costs; }

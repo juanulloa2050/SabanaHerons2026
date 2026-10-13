@@ -12,6 +12,15 @@
 #include <sstream>
 #include <vector>
 
+// GCC defines __SANITIZE_*__; Clang reports sanitizers through __has_feature.
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#define MAZE_SANITIZED_BUILD 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#define MAZE_SANITIZED_BUILD 1
+#endif
+#endif
+
 namespace
 {
   using namespace Maze;
@@ -289,7 +298,7 @@ GTEST_TEST(MazePlanner, PlanningIsFastEnough)
 
   std::cout << "[ MazePlanner ] replan " << replanMs << " ms, speed run " << speedRunMs << " ms (sink " << sink << ")\n";
   // Even the unoptimized Develop build of Tests is ~10x below the limit; sanitizers are not.
-#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#ifdef MAZE_SANITIZED_BUILD
   static_cast<void>(limitMs);
   std::cout << "[ MazePlanner ] timing limit not checked: sanitized build\n";
 #else
@@ -305,6 +314,33 @@ GTEST_TEST(MazePlanner, FreshPlannerReachesNothing)
   Action action;
   EXPECT_TRUE(planner.costToGo(start).isInfinite());
   EXPECT_FALSE(planner.nextAction(start, action));
+}
+
+GTEST_TEST(MazePlanner, InvalidStatesAreUnreachable)
+{
+  const MazeDescription maze = loadMaze(1);
+  MazePlanner planner;
+  planner.computeCostToGo(maze.graph, UnknownPolicy::asOpen);
+  const std::array<MazeState, 5> invalid = {{
+    {-1, 0, Heading::south, false},
+    {0, -1, Heading::east, false},
+    {size, 0, Heading::north, false},
+    {0, size, Heading::west, true},
+    {0, 0, static_cast<Heading>(headingCount), false},
+  }};
+  for(const MazeState& state : invalid)
+  {
+    Action action;
+    MazeState next;
+    MazeCost cost;
+    EXPECT_FALSE(MazePlanner::isValid(state));
+    EXPECT_TRUE(planner.costToGo(state).isInfinite());
+    EXPECT_FALSE(planner.nextAction(state, action));
+    EXPECT_FALSE(planner.apply(maze.graph, UnknownPolicy::asOpen, state, Action::forward, next, cost));
+    EXPECT_FALSE(planner.routeFromTable(state).found);
+    EXPECT_FALSE(planner.speedRun(maze.graph, state).found);
+  }
+  EXPECT_TRUE(MazePlanner::isValid(startOf(maze)));
 }
 
 GTEST_TEST(MazePlanner, SecondsToMsAcceptsShortFractions)

@@ -1,5 +1,6 @@
 #include "MazePlanner.h"
 #include <algorithm>
+#include <cassert>
 #include <cstdlib>
 #include <queue>
 
@@ -36,14 +37,22 @@ namespace Maze
     };
   }
 
+  bool MazePlanner::isValid(const MazeState& state)
+  {
+    return inside(state.row, state.col) && static_cast<int>(state.heading) >= 0 && static_cast<int>(state.heading) < headingCount;
+  }
+
   int MazePlanner::stateIndex(const MazeState& state)
   {
+    assert(isValid(state));
     return ((cellId(state.row, state.col) * headingCount) + static_cast<int>(state.heading)) * 2 + (state.moving ? 1 : 0);
   }
 
   bool MazePlanner::apply(const MazeGraph& graph, UnknownPolicy policy, const MazeState& state, Action action, MazeState& next, MazeCost& cost) const
   {
     next = state;
+    if(!isValid(state))
+      return false;
     switch(action)
     {
       case Action::forward:
@@ -133,12 +142,14 @@ namespace Maze
 
   MazeCost MazePlanner::costToGo(const MazeState& state) const
   {
+    if(!isValid(state))
+      return MazeCost::infinity();
     return table[static_cast<std::size_t>(stateIndex(state))];
   }
 
   bool MazePlanner::nextAction(const MazeState& state, Action& action) const
   {
-    if(isGoal(state.row, state.col))
+    if(!isValid(state) || isGoal(state.row, state.col))
       return false;
     MazeCost best = MazeCost::infinity();
     bool found = false;
@@ -207,6 +218,8 @@ namespace Maze
 
   MazePlan MazePlanner::speedRun(const MazeGraph& knownGraph, const MazeState& start) const
   {
+    if(!isValid(start))
+      return MazePlan();
     constexpr UnknownPolicy speedPolicy = UnknownPolicy::asWall;
     std::array<MazeCost, stateCount> best;
     std::array<int, stateCount> parent;
