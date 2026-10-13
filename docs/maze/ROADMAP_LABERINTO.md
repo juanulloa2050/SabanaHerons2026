@@ -268,8 +268,10 @@ The planner works on the state `(cell, heading ∈ {N,E,S,W}, moving ∈ {0,1})`
 | Turn ±90° in place at a cell centre | `t_turn90` | 2.0 s |
 | Turn 180° | `t_turn180` | 3.5 s |
 
+- **`moving`:** the robot starts with `moving = 0`, a forward step sets `moving = 1`, and a turn sets `moving = 0` (turns are in place). So the first step after a turn pays `t_start` again.
+- **Tie-break (deterministic):** the cost-to-go of every state is a pair `(time, turns)`, compared in that order, where `turns` counts turn actions. From the current state the robot takes the action with the lowest `(action + cost-to-go)` pair. Remaining ties go by the order forward, turn left, turn right, turn around. A route is built by repeating this from the start state. The C++ planner (MZ-011) and the Python reference solver (MZ-012) follow the same rule, so their results can be compared exactly.
 - **Heuristic (admissible):** `manhattan · t_fwd + (dx ≠ 0 ∧ dy ≠ 0 ? t_turn90 : 0)`.
-- **Attempt 1, exploration:** weighted flood-fill toward the goal under the *optimistic* assumption (unknown = open). Replan whenever an edge changes state, and break ties by the fewest turns. Once at the goal, the attempt ends.
+- **Attempt 1, exploration:** weighted flood-fill toward the goal under the *optimistic* assumption (unknown = open). The weighted flood-fill is a Dijkstra over the states, run backwards from the goal block. Replan whenever an edge changes state, with the tie-break above. Once at the goal, the attempt ends.
 - **Return to start (stretch):** within the 2 min limit, visit unknown edges that lie on optimistic paths shorter than the best known path.
 - **Attempt 2, speed run:** A* on **known-open edges only** (unknown = wall). Robustness wins at weight 0.7. If the goal is not reachable through known edges, fall back to the optimistic plan with the safe-mode speed.
 - **Fallback when the map is unreliable:** wall-follower (left-hand rule), which guarantees progress in mazes without loops around the goal.
@@ -380,8 +382,8 @@ partial bench and printed tags, and real logs captured in Lab 1.
 
 | Files | Action |
 |---|---|
-| `Src/Tools/Maze/MazeGraph.h`, `Src/Tools/Maze/MazePlanner.{h,cpp}` | create |
-| `Src/Apps/Tests/Maze/*.cpp`, `Config/Mazes/fixtures/` | create |
+| `Src/Tools/Maze/MazeGraph.h`, `Src/Tools/Maze/MazePlanner.{h,cpp}`, `Src/Tools/Maze/MazeFile.{h,cpp}` | create |
+| `Src/Apps/Tests/Maze/*.cpp`, `Util/MazeTools/solve_maze.py`, `Config/Mazes/generated/expected.csv` | create |
 | `Src/Modules/Modeling/OracledMazePerceptsProvider/` | create (sim only) |
 | `Config/Scenarios/Maze/walkingEngine.cfg`, `Config/Scenarios/Maze/walkingEngineCommon.cfg` | create (overrides) |
 | `docs/maze/BENCH.md`, `docs/maze/LAB_LOG.md` | create |
@@ -389,7 +391,7 @@ partial bench and printed tags, and real logs captured in Lab 1.
 Tickets: MZ-011 to MZ-017. **Lab 1: 13 Oct.**
 
 **DoD**
-- [ ] `Make/Linux/compile Develop Tests` builds, and the maze tests pass: optimality vs brute force on ≥10 fixtures, admissible heuristic, turn costs respected.
+- [ ] `Make/Linux/compile Develop Tests` builds, and the maze tests pass: on the 20 generated mazes the optimal route and the simulated exploration match the independent reference solver exactly (cost and turn counts), the heuristic is admissible, and turn costs are respected.
 - [ ] The planner runs in <5 ms per replan on the desktop (budget on the Atom: <5 ms, checked in Sprint 2).
 - [ ] In SimRobot, `OracledMazePerceptsProvider` publishes the correct tag ids and walls for 3 generated mazes (checked in the representation view), including the configured noise and dropouts.
 - [ ] *Physical, optional:* the bench is built and measured (`docs/maze/BENCH.md`). Tags are printed at 150 mm ± 1 mm.
@@ -491,7 +493,7 @@ that matter. It keeps the real tag ids (`id = row·8 + col`), so it is a sub-blo
 It checks straight walking, two right turns at cell centres, the heading from the gyro and the
 odometry drift over 7 cells. In the lab it is a floor-tape grid (the 6 panels are not enough
 for a walled 2×4: 15 are needed), run by the Lab 2 motion test. In simulation it is a walled
-fixture. See MZ-040.
+maze file. See MZ-040.
 
 ### Mitigations for what we first see at the event
 
@@ -589,7 +591,7 @@ influence), so the data decides whether the front-wall cross-check is worth buil
 | `feat/MZ-018-apriltag-detector` | Detector module |
 | `fix/MZ-028-turn-calibration` | Tuning fix |
 | `docs/MZ-003-roadmap` | This document |
-| `test/MZ-012-maze-fixtures` | Test fixtures |
+| `test/MZ-012-maze-solver` | Reference solver |
 
 ### Commit messages
 

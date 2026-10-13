@@ -32,7 +32,7 @@ gantt
 
     section Sprint 1 - Core logic in simulation
     MZ-011 Maze library and planner (Bryam)           :t11, 2026-10-10, 3d
-    MZ-012 Test mazes and expected results (Wilson)   :t12, 2026-10-10, 1d
+    MZ-012 Reference solver and expected results (Wilson) :t12, 2026-10-10, 1d
     MZ-014 Build partial bench, optional (Wilson)             :t14, 2026-10-10, 2d
     MZ-015 Print and mount tags (Wilson)              :t15, 2026-10-12, 1d
     LAB 1 - MZ-017 Log capture (Wilson)               :crit, t17, 2026-10-13, 1d

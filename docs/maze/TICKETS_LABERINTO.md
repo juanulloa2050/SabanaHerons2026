@@ -64,7 +64,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [x] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
-| [ ] | MZ-012 | Test mazes + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
+| [ ] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
@@ -425,29 +425,34 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 | Depends on | MZ-009 |
 | Lab / robot | no |
 | Branch | `feat/MZ-011-maze-planner` |
-| Files | `Src/Tools/Maze/MazeGraph.h`, `Src/Tools/Maze/MazePlanner.{h,cpp}`, `Src/Tools/Maze/MazeFile.{h,cpp}` (create); `Src/Apps/Tests/Maze/*.cpp` (create); `Make/CMake/Tests.cmake` (modify if the Maze sources must be added to `Tests`) |
+| Files | `Src/Tools/Maze/MazeGraph.h`, `Src/Tools/Maze/MazePlanner.{h,cpp}`, `Src/Tools/Maze/MazeFile.{h,cpp}` (create); `Src/Apps/Tests/Maze/*.cpp` (create); `Make/CMake/Tests.cmake` (modify: `Src/Tools` is not compiled into `Tests`, so the Maze sources and the `Src` include path are added) |
 
 **Goal.** The brain of the maze, as a pure C++ library: it stores what is known about the maze and plans the cheapest route **in seconds**, not in cells (turning on a biped is expensive).
 
 **Scope.** No framework dependency.
 - **`MazeGraph`**: 8×8 grid, edge state `unknown/open/wall` (roadmap 4.3), tag id ↔ cell conversion and the maze frame (roadmap 4.5).
-- **`MazeFile`**: loader for `.maze` files, used by the tests and by the oracle provider (MZ-013).
-- **`MazePlanner`**, on the state `(cell, heading, moving)` (roadmap 4.6):
-  - *exploration*: weighted flood-fill toward the goal, unknown edges counted as **open**, ties broken by fewest turns;
+- **`MazeFile`**: loader and writer for `.maze` files, used by the tests and by the oracle provider (MZ-013).
+- **`MazePlanner`**, on the state `(cell, heading, moving)` with the cost model and tie-break rule of roadmap 4.6:
+  - *exploration*: weighted flood-fill from the goal (a Dijkstra over the states, run backwards), unknown edges counted as **open**;
   - *speed run*: A* over **known-open edges only**, unknown edges counted as **wall**.
 - **`MazeCosts`**: defaults `t_fwd` 2.5 s, `t_start` 0.8 s, `t_turn90` 2.0 s, `t_turn180` 3.5 s (replaced by Lab 2 data in MZ-028).
+- **Exploration simulator** (test code only): the same sensing model as `solve_maze.py --explore` (MZ-012), so the C++ exploration trace can be compared with the Python one.
 
 **Steps**
-1. `MazeGraph` and `MazeFile`, with a round-trip test (load, save, compare).
+1. `MazeGraph` and `MazeFile`, with a round-trip test (load, save, compare) on the 20 mazes of `Config/Mazes/generated/`.
 2. `MazePlanner` exploration and speed run.
-3. Tests against the MZ-012 fixtures and expected results.
+3. Tests against `Config/Mazes/generated/expected.csv` (MZ-012). The test finds the files with `File::getBHDir()`.
 
 **Acceptance criteria**
-- [ ] Tests compare against an exhaustive search on the MZ-012 fixtures: equal optimal cost, an admissible heuristic, and exact turn counts.
+- [ ] On the 20 generated mazes, the optimal route of the planner matches `expected.csv` exactly: `cells`, `turns90`, `turns180` and `time_s`.
+- [ ] On the 20 generated mazes, the simulated exploration matches `expected.csv` exactly: `explore_cells`, `explore_turns` and `explore_time_s`.
+- [ ] Before comparing, the test checks `maze_sha` against the maze file and fails with "expected.csv is stale, run solve_maze.py --update" when they differ.
+- [ ] The heuristic is admissible: never above the true cost-to-go, checked on every state of the 20 mazes.
+- [ ] Rotating each maze by 90°, 180° and 270° in memory (the start moves to the other corners) gives the same optimal time and turn counts.
 - [ ] Replanning on an 8×8 maze takes <5 ms on the desktop (measured in the tests).
 - [ ] An unknown edge counts as open for exploration and as wall for the speed run (tested).
 
-### MZ-012 — Test mazes and expected results
+### MZ-012 — Reference solver and expected results
 
 | Field | Value |
 |---|---|
@@ -456,28 +461,36 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 | Estimate | 1.5 h |
 | Depends on | MZ-009 |
 | Lab / robot | no |
-| Branch | `test/MZ-012-maze-fixtures` |
-| Files | `Config/Mazes/fixtures/*.maze`, `Config/Mazes/fixtures/expected.csv`, `Util/MazeTools/solve_maze.py` (create) |
+| Branch | `test/MZ-012-maze-solver` |
+| Files | `Util/MazeTools/solve_maze.py`, `Util/MazeTools/test_solve_maze.py`, `Config/Mazes/generated/expected.csv` (create); `Util/MazeTools/README.md` (modify) |
 
-**Goal.** Ten hand-picked mazes plus their expected best route, computed by a solver that is independent of the C++ planner, so the planner (MZ-011) has something to be checked against.
+**Goal.** The expected best route and the expected exploration run for the 20 mazes already in `Config/Mazes/generated/`, computed by a Python solver that is independent of the C++ planner. The planner (MZ-011) is checked against it, and anyone can draw the route on a maze. No new mazes are drawn.
 
-**Scope.**
-- **Fixtures** (`.maze`, by hand or edited from generated ones): a straight corridor; a spiral; a comb with many dead ends; two equal-length routes, one with fewer turns; a long straight route against a short zig-zag; one start in each of the four corners; a maze with loops.
-- **`solve_maze.py`**: Dijkstra over `(cell, heading)` with `t_fwd = 2.5`, `t_start = 0.8`, `t_turn90 = 2.0`, `t_turn180 = 3.5`. It prints `cells,turns90,turns180,time_s`.
-- **`expected.csv`** with columns `file,cells,turns90,turns180,time_s`.
+**Scope.** Cost model, `moving` rule and tie-break rule of roadmap 4.6, with `t_fwd = 2.5`, `t_start = 0.8`, `t_turn90 = 2.0`, `t_turn180 = 3.5`. Times are added in integer milliseconds, so ties are exact.
+- **Optimal route** (always computed): Dijkstra over `(cell, heading, moving)` with the whole maze known. This is the independent reference for the planner.
+- **Exploration run** (always computed): simulates attempt 1 with weighted flood-fill. The robot starts in its start state and knows only the outer border. On arriving in a cell (the start included) it learns the 4 edges of that cell. Before each action it replans from its current state with unknown edges counted as open, and takes the first action of the plan. The run ends when it enters any goal cell.
+- **`--draw`**: prints the maze with the optimal route as arrows (`^ > v <`, the heading in each cell of the route), then the maze with every cell visited in the exploration marked `*`.
+- **`--update CSV`**: writes the result into the CSV as an upsert keyed by `file`. Running the same maze again replaces its row instead of adding a new one. Rows stay sorted by `file`, so a diff shows only what changed.
+- **`expected.csv`** columns: `file,maze_sha,cells,turns90,turns180,time_s,explore_cells,explore_turns,explore_time_s`.
+  - `file` is the maze file name, the key of the row.
+  - `maze_sha` is the FNV-1a 32-bit hash of the file bytes, as 8 hex digits. It is chosen because the C++ test can compute it in a few lines. It detects a maze edited after its row was written.
+  - `cells` counts forward steps; `turns90` and `turns180` count turn actions; `explore_turns` is `turns90 + turns180` of the exploration run.
+  - Times are in seconds with 3 decimals.
+  - The values hold for the default costs. If the costs change (MZ-028), the CSV is regenerated.
 
 **Steps**
-1. Draw the 10 mazes (`mkdir -p Config/Mazes/fixtures`).
-2. Write `solve_maze.py`.
-3. Fill `expected.csv`:
+1. Write `solve_maze.py` and `test_solve_maze.py` (`python3 -m unittest discover -s Util/MazeTools -v`, as for the other tools).
+2. Fill `expected.csv`:
    ```bash
-   for f in Config/Mazes/fixtures/*.maze; do echo "$(basename $f),$(python3 Util/MazeTools/solve_maze.py $f)"; done > Config/Mazes/fixtures/expected.csv
+   python3 Util/MazeTools/solve_maze.py Config/Mazes/generated/maze_*.maze --update Config/Mazes/generated/expected.csv
    ```
-4. Check 2 mazes by hand (count cells and turns on the drawing) and write the result in the PR.
+3. Check 2 mazes by hand (count cells and turns on the `--draw` output) and write the result in the PR.
 
 **Acceptance criteria**
-- [ ] 10 fixtures, all `OK` with `generate_maze.py --validate`.
-- [ ] `expected.csv` has 10 rows, and 2 of them were checked by hand.
+- [ ] `expected.csv` has 20 rows, one per generated maze, and 2 of them were checked by hand.
+- [ ] Running `--update` twice on the same maze leaves one row for it (tested).
+- [ ] Editing a maze changes its `maze_sha` (tested).
+- [ ] `--draw` output for 1 maze is pasted in the PR.
 
 ### MZ-013 — Oracle maze percepts for simulation ⚠️ TAG-DEP
 
@@ -524,7 +537,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
    cp Config/Robots/Default/walkingEngine.cfg Config/Robots/Default/walkingEngineCommon.cfg Config/Scenarios/MazeSafe/
    ```
 2. Apply the values above.
-3. Run 5 times in SimRobot on the "straight corridor" fixture (MZ-012) and record in the PR: the time to cross 4 cells, whether any wall was touched (watch the arms in the 3D view), and the minimum arm-to-wall distance (visual estimate).
+3. Run 5 times in SimRobot on the 8-cell straight corridor of `Config/Mazes/generated/maze_2.maze` and record in the PR: the time to cross 4 cells, whether any wall was touched (watch the arms in the 3D view), and the minimum arm-to-wall distance (visual estimate).
 
 **Acceptance criteria**
 - [ ] Both scenarios build and the robot walks in simulation without falling (5/5 runs).
@@ -631,7 +644,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 2. Put the CSV in the PR description.
 
 **Acceptance criteria**
-- [ ] `python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/fixtures --attempts 1 --noise low --out /tmp/r.csv` runs 2 mazes without manual clicks.
+- [ ] `python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --attempts 1 --noise low --out /tmp/r.csv` runs 2 mazes without manual clicks.
 - [ ] The CSV has the 7 columns listed above.
 
 ### MZ-022 — Tag accuracy report ⚠️ TAG-DEP
@@ -1230,14 +1243,14 @@ For each straight run, the lateral drift over 1 m. For each turn, the heading er
 | Depends on | MZ-009 (generator), MZ-016 (walk profile) |
 | Lab / robot | **yes**, runs inside Lab 2 and Lab 3 (no extra room time) |
 | Branch | `test/MZ-040-route-2x4` |
-| Files | `Config/Mazes/fixtures/route_2x4.maze` (create); `docs/maze/BENCH.md` (add the floor layout); the motion test of MZ-007 (add the route) |
+| Files | `Config/Mazes/bench/route_2x4.maze` (create); `docs/maze/BENCH.md` (add the floor layout); the motion test of MZ-007 (add the route) |
 
 **Goal and scope.** The lab cannot hold an 8×8, but a 2×4 block holds the motions that matter. It
 keeps the real tag ids (`id = row·8 + col`): cells 0–3 in row 0 and cells 8–11 in row 1.
 Route: straight 3 cells (0 → 3), turn right, 1 cell (3 → 11), turn right, straight 3 cells (11 → 8). See roadmap section 6.
 
 **Steps**
-1. Write the fixture for the simulation: 2×4 with the start at cell 0, open cells 0–3 and 8–11, and an open edge between 3 and 11 only.
+1. Write the maze file for the simulation: 2×4 with the start at cell 0, open cells 0–3 and 8–11, and an open edge between 3 and 11 only.
 2. Add the route to the motion test (double `headMiddle` tap): the sequence of actions is `forward 3`, `turnRight`, `forward 1`, `turnRight`, `forward 3`.
 3. Lay a 2×4 grid of floor tape (50 cm cells) for Lab 2, with a mark at each cell centre. The 6 panels are not enough for walls on all 15 edges, so the walled version runs in simulation, and on the bench only with the panels around the two turns.
 4. Record the final position error against the cell-8 centre, and the heading error, over 10 runs.
