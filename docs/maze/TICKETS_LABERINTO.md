@@ -62,7 +62,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-007 | Maze/MazeSafe scenarios + start flow | Bryam | 0 | 2.5 | no | MZ-001 |
 | [x] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
 | [x] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
-| [ ] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
+| [x] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
 | [ ] | MZ-012 | Test mazes + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
@@ -377,7 +377,7 @@ git push -u origin Maze-Challenge
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson (+ Bryam 0.5 h pairing for the scene template) |
 | Estimate | 2.5 h (+ 0.5 h Bryam) |
 | Depends on | MZ-007, MZ-009 |
@@ -403,9 +403,9 @@ git push -u origin Maze-Challenge
 2. Take a screenshot from above for 3 different mazes. Attach each one to the PR together with the `.maze` file it came from.
 
 **Acceptance criteria**
-- [ ] SimRobot loads `Maze.ros2` without errors in the console.
-- [ ] The top view matches the `.maze` drawing for 3 different mazes (screenshots in the PR).
-- [ ] The robot stands in the start cell without touching walls.
+- [x] SimRobot loads `Maze.ros2` without errors in the console.
+- [x] The top view matches the `.maze` drawing for 3 different mazes (screenshots in the PR).
+- [x] The robot stands in the start cell without touching walls.
 
 ---
 
