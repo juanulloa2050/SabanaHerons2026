@@ -108,6 +108,65 @@ a comment naming the source file. Regenerate `current.rsi2` after changing the m
   at z = 320 mm, heading towards the single open side: +x = 0, +y = 90, -x = 180, -y = -90 degrees.
 - SimRobot shows the ground-truth pose in the team frame, which is the world frame rotated by 180 degrees.
 
+## Reference solver
+
+`solve_maze.py` is the reference for the C++ planner (MZ-011). It computes the optimal route on the
+full map and the simulated exploration run of attempt 1, and writes the results to
+`Config/Mazes/generated/expected.csv`. The planner must replicate the rules below exactly.
+
+### Rules
+
+- Headings 0..3 are N, E, S, W. N is row-1 (up in the file), E is col+1, S is row+1, W is col-1.
+  Left = (h+3)%4, right = (h+1)%4, around = (h+2)%4.
+- State is `(cell, heading, moving)` with `moving` in {0, 1}. Costs are integer milliseconds:
+  - forward 2500, plus 800 when `moving == 0`; after forward `moving = 1`.
+  - turn 90 degrees (left or right) 2000; turn 180 degrees 3500; after a turn `moving = 0`.
+  - forward is legal only when the edge in front is open in the map being planned on.
+- Start state: the `S` cell, `moving = 0`, heading = the single open side of the start corner.
+- Goal: any state whose cell is 27, 28, 35 or 36 (any heading, any `moving`). The run ends on entering one.
+- Cost-to-go `ctg(state)` is a pair `(time_ms, turns)` (turns = number of turn actions), compared
+  lexicographically, computed by a backward Dijkstra from all goal states with value `(0, 0)`.
+  Unreachable is infinity.
+- Action choice: for each legal action in the order forward, left, right, around, the value is
+  `(action_ms + ctg(next).time, action_turns + ctg(next).turns)`. Take the minimum pair with a strict `<`
+  comparison, so the earliest action in that order wins ties. Repeat from the start state until a goal
+  cell is entered.
+- Optimal route: plan on the full maze. `cells` = number of forward actions, `turns90` = left plus right
+  turns, `turns180` = around turns, `time` = total ms (always equal to `ctg(start).time`).
+- Exploration (attempt 1): only the outer border is known. Every internal edge is unknown until learned.
+  On arriving in a cell (the start cell too, before the first action) the robot learns the real state of
+  its 4 edges. Before every action it recomputes `ctg` on the optimistic map (unknown = open, known =
+  real) and takes the first action chosen by the rule above. Turns do not change the cell, so nothing is
+  learned. The run ends on entering any goal cell. `explore_cells` = forward steps (cells may repeat),
+  `explore_turns` = turns90 + turns180 of the run, `explore_time` = total ms.
+- `maze_sha`: FNV-1a 32-bit over the raw file bytes (offset `0x811c9dc5`, prime `0x01000193`, 32-bit
+  mask), as 8 lowercase hex digits.
+- Times are written in seconds with exactly 3 decimals, from integer ms (`21400` -> `21.400`).
+
+### expected.csv
+
+Header: `file,maze_sha,cells,turns90,turns180,time_s,explore_cells,explore_turns,explore_time_s`.
+One row per maze, keyed by the file basename, sorted by `file` with a plain string sort, `\n` line endings.
+
+### Usage
+
+```bash
+python3 Util/MazeTools/solve_maze.py Config/Mazes/generated/maze_3.maze
+# maze_3.maze: optimal 6 cells, 2 turns90, 0 turns180, 21.400 s; explore 6 cells, 3 turns, 24.200 s
+
+python3 Util/MazeTools/solve_maze.py Config/Mazes/generated/maze_3.maze --draw   # optimal route, then visited cells
+
+python3 Util/MazeTools/solve_maze.py Config/Mazes/generated/maze_*.maze --update Config/Mazes/generated/expected.csv
+```
+
+`--draw` prints the maze with the optimal route as arrows `^ > v <` (each route cell shows the heading
+with which the robot leaves it; the final goal cell shows the heading it was entered with), then the
+maze again with `*` in every cell visited during the exploration. `--update` inserts or replaces the row
+of each maze, so running it twice leaves one row per maze and a byte-identical file. An invalid or
+unreadable maze, or a solver error, prints `<path>: <message>` to stderr and exits with 1 without touching the CSV.
+The update is atomic (temp file plus replace) and rejects an existing CSV with malformed rows; a unit test
+pins `expected.csv` to the current mazes and solver and fails with "expected.csv is stale" on drift.
+
 ## Tests
 
 ```bash
