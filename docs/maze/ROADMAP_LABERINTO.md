@@ -22,7 +22,7 @@ Ciudad de México).
 5. **Sprint 4 (26–28 Oct):** harden the attempt flow, write the checklist and the 5-minute calibration procedure, rehearse in Lab 4, and **freeze the code**.
 6. **Buffer (29 Oct–2 Nov):** dress rehearsal in Lab 5 and logistics only. **No new development.**
 
-Plan: **Bryam 46.25 h**, **Wilson 39.75 h** (36.25 h without the optional bench), including lab sessions.
+Plan: **Bryam 47.75 h**, **Wilson 39.75 h** (36.25 h without the optional bench), including lab sessions.
 Review time is not tracked. Up to 5 short lab sessions (11 h of room time) are planned, but **we are
 not sure how the physical robot can be tested**, so every physical ticket sits in its own section of
 [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) and the software must be finishable without them.
@@ -228,10 +228,10 @@ flowchart LR
 | Module | Thread | Provides | Notes |
 |---|---|---|---|
 | `AprilTagDetector` | Upper | `AprilTagPercept` | Wraps `ECImage.grayscaled` as `image_u8` without copying. `tag36h11`, `quad_decimate = 2`, `nthreads = 1`. `estimate_tag_pose` uses `CameraInfo` intrinsics, and the result goes to the robot frame through `CameraMatrix`. |
-| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on `ECImage` (light walls, matte floor), projected with `Transformation::imageToRobot` |
+| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on the grey `ECImage`, found by brightness gradient rather than colour (the floor colour is not in the rules, Q13), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (2 cells while walking, 3 when standing, set from measurements), snapped to the 500 mm grid (MZ-019). |
 | `PerceptionAprilTagPerceptProvider`, `PerceptionWallPerceptProvider` | Cognition | aliases | `ALIAS(AprilTagPercept)`, `ALIAS(WallPercept)` in `PerceptionProviders.cpp` |
 | `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). The heading comes from the gyro (maze-north, section 4.5). EKF is a stretch goal. |
-| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis. State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
+| `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis, for any edge in view (not only the current cell), weighted by distance; a decoded tag names its cell, so it counts at any readable distance (MZ-020). State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
 | `MazePlannerProvider` | Cognition | `MazePlan` | Thin wrapper around the pure library `Src/Tools/Maze/` |
 | `OracledMazePerceptsProvider` | Cognition (sim only) | `AprilTagPercept`, `WallPercept` | Built from `GroundTruthRobotPose` and the maze file, with configurable noise and dropouts. They let behaviour and planning be tested before perception exists. |
 
@@ -531,7 +531,7 @@ here is required: the defaults must already work.
 
 ---
 
-## 8. Scope decisions (fitted to 46.25 h / 39.75 h)
+## 8. Scope decisions (fitted to 47.75 h / 39.75 h)
 
 | Category | Items |
 |---|---|
@@ -666,7 +666,7 @@ MZ-0XX — <title> (see docs/maze/TICKETS_LABERINTO.md)
 
 ## 11. Open questions for the organisers (MZ-006)
 
-Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review and Q12 from the goal-block rule.
+Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review, Q12 from the goal-block rule and Q13 from the wall-perceptor design (MZ-019).
 
 | # | Question | Impact |
 |---|---|---|
@@ -682,6 +682,7 @@ Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come f
 | Q10 | What happens if the robot does not return to the start (or cannot within the time)? Is it picked up by a team member, and is there a penalty before attempt 2? | `Standby` flow and the pick-up procedure (MZ-029) |
 | Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | The start-scan switch (MZ-041): scan only if the clock does not run during it |
 | Q12 | Does the goal block (cells 27, 28, 35, 36) always have a single entrance, or can it have several? | Planner goal target and exploration (which block cell to aim for); test mazes and the generator (MZ-009, MZ-012) |
+| Q13 | What colour and material is the maze floor (outside the goal block)? The rules say light walls and a matte uniform floor, but not the floor colour. If the floor is also light, the wall base is hard to see. | Wall perceptor (MZ-019): floor-to-wall contrast; simulation scene colours (MZ-010) |
 
 ---
 
@@ -695,4 +696,4 @@ Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come f
 | Corridor too tight for the gait or arms | Medium | High | Wilson | Walk profile MZ-016, bench measurements, `MazeSafe` |
 | Logger silent in Initial state | Certain | Low | Bryam | Start flow uses *playing* (section 3.4) |
 | Operator holds the 3 head buttons by accident and clears the map between attempts | Low | High | Both | Checklist item; the robot says "map cleared" so it is noticed; attempt 2 then restarts as exploration (MZ-042) |
-| 46.25 h / 39.75 h plan overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |
+| 47.75 h / 39.75 h plan overrun | Medium | High | Both | Scope cuts (section 8), buffer week holds no new work |
