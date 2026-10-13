@@ -54,6 +54,8 @@ Or, in SimRobot: *File → Open → `Config/Scenes/Maze.ros2`*.
 `Maze.con` runs automatically and:
 
 - loads the normal console setup and views,
+- hides the game clock and score board (`dr debugDrawing3d:representation:GameState off`): the
+  maze has no game time or goals, and with the referee off the clock reaching 0 changes nothing,
 - turns the automatic referee off (`ar off`), so the robot is not penalized for standing in the
   opponent half,
 - puts the robot in **playing** (`gc playing`), the only state in which `HandleMaze` reacts,
