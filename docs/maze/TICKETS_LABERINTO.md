@@ -444,13 +444,13 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 3. Tests against `Config/Mazes/generated/expected.csv` (MZ-012). The test finds the files with `File::getBHDir()`.
 
 **Acceptance criteria**
-- [ ] On the 20 generated mazes, the optimal route of the planner matches `expected.csv` exactly: `cells`, `turns90`, `turns180` and `time_s`.
-- [ ] On the 20 generated mazes, the simulated exploration matches `expected.csv` exactly: `explore_cells`, `explore_turns` and `explore_time_s`.
-- [ ] Before comparing, the test checks `maze_sha` against the maze file and fails with "expected.csv is stale, run solve_maze.py --update" when they differ.
-- [ ] The heuristic is admissible: never above the true cost-to-go, checked on every state of the 20 mazes.
-- [ ] Rotating each maze by 90°, 180° and 270° in memory (the start moves to the other corners) gives the same optimal time and turn counts.
-- [ ] Replanning on an 8×8 maze takes <5 ms on the desktop (measured in the tests).
-- [ ] An unknown edge counts as open for exploration and as wall for the speed run (tested).
+- [x] On the 20 generated mazes, the optimal route of the planner matches `expected.csv` exactly: `cells`, `turns90`, `turns180` and `time_s`.
+- [x] On the 20 generated mazes, the simulated exploration matches `expected.csv` exactly: `explore_cells`, `explore_turns` and `explore_time_s`.
+- [x] Before comparing, the test checks `maze_sha` against the maze file and fails with "expected.csv is stale, run solve_maze.py --update" when they differ.
+- [x] The heuristic is admissible: never above the true cost-to-go, checked on every state of the 20 mazes.
+- [x] Rotating each maze by 90°, 180° and 270° in memory (the start moves to the other corners) gives the same optimal time and turn counts.
+- [x] Replanning on an 8×8 maze takes <5 ms on the desktop (measured in the tests).
+- [x] An unknown edge counts as open for exploration and as wall for the speed run (tested).
 
 ### MZ-012 — Reference solver and expected results
 
