@@ -199,7 +199,8 @@ GTEST_TEST(MazePlanner, OptimalRouteMatchesReference)
     const MazePlan speedRun = MazePlanner().speedRun(maze.graph, startOf(maze));
     ASSERT_TRUE(speedRun.found);
     EXPECT_EQ(speedRun.timeMs, row.timeMs);
-    EXPECT_EQ(speedRun.turns90 + speedRun.turns180, row.turns90 + row.turns180);
+    EXPECT_EQ(speedRun.turns90, row.turns90);
+    EXPECT_EQ(speedRun.turns180, row.turns180);
     EXPECT_EQ(speedRun.cells, row.cells);
   }
 }
