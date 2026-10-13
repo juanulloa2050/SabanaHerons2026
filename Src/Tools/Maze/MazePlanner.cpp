@@ -47,7 +47,8 @@ namespace Maze
     switch(action)
     {
       case Action::forward:
-        if(!graph.canPass(state.row, state.col, state.heading, policy))
+        if(!graph.canPass(state.row, state.col, state.heading, policy) ||
+           !inside(state.row + rowDelta[static_cast<std::size_t>(state.heading)], state.col + colDelta[static_cast<std::size_t>(state.heading)]))
           return false;
         next.row += rowDelta[static_cast<std::size_t>(state.heading)];
         next.col += colDelta[static_cast<std::size_t>(state.heading)];

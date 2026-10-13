@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -25,6 +26,11 @@ namespace
   std::string readFile(const std::string& path)
   {
     std::ifstream file(path, std::ios::binary);
+    if(!file)
+    {
+      ADD_FAILURE() << "cannot open " << path;
+      return std::string();
+    }
     std::ostringstream content;
     content << file.rdbuf();
     return content.str();
@@ -104,7 +110,10 @@ namespace
     {
       const std::vector<std::string> f = split(line);
       if(f.size() != 9)
+      {
+        ADD_FAILURE() << "expected.csv row has " << f.size() << " fields, expected 9: \"" << line << "\"";
         continue;
+      }
       rows.push_back({f[0], f[1], std::stoi(f[2]), std::stoi(f[3]), std::stoi(f[4]), secondsToMs(f[5]),
                       std::stoi(f[6]), std::stoi(f[7]), secondsToMs(f[8])});
     }
@@ -149,6 +158,12 @@ GTEST_TEST(MazePlanner, ExpectedCsvMatchesMazeFiles)
 {
   const std::vector<ExpectedRow> rows = readExpected();
   ASSERT_EQ(rows.size(), static_cast<std::size_t>(mazeFiles));
+  std::set<std::string> files;
+  for(const ExpectedRow& row : rows)
+    files.insert(row.file);
+  EXPECT_EQ(files.size(), static_cast<std::size_t>(mazeFiles));
+  for(int i = 1; i <= mazeFiles; ++i)
+    EXPECT_EQ(files.count("maze_" + std::to_string(i) + ".maze"), 1u) << "maze_" << i;
   for(const ExpectedRow& row : rows)
   {
     const std::string sha = MazeFile::toHex(MazeFile::fnv1a32(readFile(mazePath(mazeIndex(row.file)))));
@@ -158,7 +173,9 @@ GTEST_TEST(MazePlanner, ExpectedCsvMatchesMazeFiles)
 
 GTEST_TEST(MazePlanner, OptimalRouteMatchesReference)
 {
-  for(const ExpectedRow& row : readExpected())
+  const std::vector<ExpectedRow> rows = readExpected();
+  ASSERT_EQ(rows.size(), static_cast<std::size_t>(mazeFiles));
+  for(const ExpectedRow& row : rows)
   {
     SCOPED_TRACE(row.file);
     const MazeDescription maze = loadMaze(mazeIndex(row.file));
@@ -180,7 +197,9 @@ GTEST_TEST(MazePlanner, OptimalRouteMatchesReference)
 
 GTEST_TEST(MazePlanner, ExplorationMatchesReference)
 {
-  for(const ExpectedRow& row : readExpected())
+  const std::vector<ExpectedRow> rows = readExpected();
+  ASSERT_EQ(rows.size(), static_cast<std::size_t>(mazeFiles));
+  for(const ExpectedRow& row : rows)
   {
     SCOPED_TRACE(row.file);
     const ExplorationResult result = simulateExploration(loadMaze(mazeIndex(row.file)));
@@ -327,4 +346,34 @@ GTEST_TEST(MazePlanner, UnknownEdgeIsOpenForExplorationAndWallForSpeedRun)
   const MazePlan shortcut = planner.speedRun(corridor(EdgeState::open, true), start);
   ASSERT_TRUE(shortcut.found);
   EXPECT_EQ(shortcut.cells, 3);
+}
+
+GTEST_TEST(MazePlanner, NeverLeavesTheGridOnAnUnexploredGraph)
+{
+  MazePlanner planner;
+  const MazeGraph unexplored;
+  planner.computeCostToGo(unexplored, UnknownPolicy::asOpen);
+  int checked = 0;
+  for(int row = 0; row < size; ++row)
+    for(int col = 0; col < size; ++col)
+      for(int h = 0; h < headingCount; ++h)
+        for(int moving = 0; moving < 2; ++moving)
+        {
+          const MazeState state = {row, col, static_cast<Heading>(h), moving == 1};
+          ++checked;
+          Action action;
+          if(!planner.nextAction(state, action))
+          {
+            EXPECT_TRUE(isGoal(row, col)) << "cell " << cellId(row, col);
+            continue;
+          }
+          MazeState next;
+          MazeCost step;
+          ASSERT_TRUE(planner.apply(unexplored, UnknownPolicy::asOpen, state, action, next, step));
+          EXPECT_TRUE(inside(next.row, next.col)) << "cell " << cellId(row, col) << " heading " << h;
+          // Facing the border, going forward is never offered.
+          if(!inside(row + rowDelta[static_cast<std::size_t>(h)], col + colDelta[static_cast<std::size_t>(h)]))
+            EXPECT_NE(action, Action::forward);
+        }
+  EXPECT_EQ(checked, stateCount);
 }

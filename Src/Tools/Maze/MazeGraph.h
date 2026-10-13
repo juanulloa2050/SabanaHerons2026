@@ -9,6 +9,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 
 namespace Maze
@@ -96,10 +97,10 @@ namespace Maze
     {
       for(int i = 0; i < size; ++i)
       {
-        set(0, i, Heading::north, EdgeState::wall);
-        set(size - 1, i, Heading::south, EdgeState::wall);
-        set(i, 0, Heading::west, EdgeState::wall);
-        set(i, size - 1, Heading::east, EdgeState::wall);
+        *edge(0, i, Heading::north) = EdgeState::wall;
+        *edge(size - 1, i, Heading::south) = EdgeState::wall;
+        *edge(i, 0, Heading::west) = EdgeState::wall;
+        *edge(i, size - 1, Heading::east) = EdgeState::wall;
       }
     }
 
@@ -109,8 +110,11 @@ namespace Maze
       return *edge(row, col, heading);
     }
 
+    /** Sets an edge. The outer border is always a wall, so setting a border edge changes nothing. */
     void set(int row, int col, Heading heading, EdgeState state)
     {
+      if(!inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
+        return;
       *edge(row, col, heading) = state;
     }
 
@@ -143,6 +147,7 @@ namespace Maze
   private:
     [[nodiscard]] const EdgeState* edge(int row, int col, Heading heading) const
     {
+      assert(inside(row, col));
       switch(heading)
       {
         case Heading::north: return &horizontal[static_cast<std::size_t>(row)][static_cast<std::size_t>(col)];

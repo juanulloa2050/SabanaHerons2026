@@ -2,6 +2,7 @@
 #include "Platform/File.h"
 
 #include <gtest/gtest.h>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -15,6 +16,11 @@ namespace
   std::string readFile(const std::string& path)
   {
     std::ifstream file(path, std::ios::binary);
+    if(!file)
+    {
+      ADD_FAILURE() << "cannot open " << path;
+      return std::string();
+    }
     std::ostringstream content;
     content << file.rdbuf();
     return content.str();
@@ -95,6 +101,87 @@ GTEST_TEST(MazeFile, RejectsInvalidMazes)
   std::string badChar = valid;
   replaceAt(badChar, 0, 1, 'x');
   expectRejected(badChar, "invalid wall character");
+}
+
+GTEST_TEST(MazeFile, RejectsEachRuleOnce)
+{
+  const std::string valid = readFile(mazePath(3));
+  Maze::MazeDescription maze;
+  std::string error;
+  ASSERT_TRUE(Maze::MazeFile::parse(valid, maze, error)) << error;
+
+  // Open the east side of the start cell (0, 0): two open sides.
+  std::string twoOpenSides = valid;
+  replaceAt(twoOpenSides, 1, 2, ' ');
+  expectRejected(twoOpenSides, "start has 2 walls");
+
+  // Close the edge between the goal cells (3, 3) and (3, 4).
+  std::string goalWall = valid;
+  replaceAt(goalWall, 7, 8, '|');
+  expectRejected(goalWall, "wall inside goal block");
+
+  // Close the south side of cell (0, 7): cells (0, 6) and (0, 7) are cut off.
+  std::string unreachable = valid;
+  replaceAt(unreachable, 2, 15, '-');
+  expectRejected(unreachable, "2 cells unreachable");
+
+  std::string misplacedGoal = valid;
+  replaceAt(misplacedGoal, 1, 3, 'G');
+  expectRejected(misplacedGoal, "G must be in exactly");
+
+  std::string missingGoal = valid;
+  replaceAt(missingGoal, 7, 7, ' ');
+  expectRejected(missingGoal, "G must be in exactly");
+
+  std::string missingCorner = valid;
+  replaceAt(missingCorner, 2, 2, '-');
+  expectRejected(missingCorner, "corner missing");
+
+  std::string badCell = valid;
+  replaceAt(badCell, 3, 3, 'x');
+  expectRejected(badCell, "invalid cell character");
+}
+
+GTEST_TEST(MazeFile, SaveWritesAFileThatLoadsBack)
+{
+  Maze::MazeDescription maze, loaded;
+  std::string error;
+  ASSERT_TRUE(Maze::MazeFile::load(mazePath(3), maze, error)) << error;
+  const std::string path = (std::filesystem::temp_directory_path() / "MazeFileTest_save.maze").string();
+  ASSERT_TRUE(Maze::MazeFile::save(path, maze, error)) << error;
+  const bool loadedOk = Maze::MazeFile::load(path, loaded, error);
+  std::filesystem::remove(path);
+  ASSERT_TRUE(loadedOk) << error;
+  EXPECT_EQ(loaded.graph, maze.graph);
+  EXPECT_EQ(loaded.startCell, maze.startCell);
+  EXPECT_EQ(loaded.startHeading, maze.startHeading);
+
+  Maze::MazeDescription other;
+  const std::string missing = (std::filesystem::temp_directory_path() / "MazeFileTest_missing_dir" / "x.maze").string();
+  error.clear();
+  EXPECT_FALSE(Maze::MazeFile::save(missing, other, error));
+  EXPECT_FALSE(error.empty());
+}
+
+GTEST_TEST(MazeGraph, BorderStaysWallWhenSet)
+{
+  Maze::MazeGraph graph;
+  for(const Maze::EdgeState state : {Maze::EdgeState::open, Maze::EdgeState::unknown})
+    for(int i = 0; i < Maze::size; ++i)
+    {
+      graph.set(0, i, Maze::Heading::north, state);
+      graph.set(Maze::size - 1, i, Maze::Heading::south, state);
+      graph.set(i, 0, Maze::Heading::west, state);
+      graph.set(i, Maze::size - 1, Maze::Heading::east, state);
+    }
+  EXPECT_EQ(graph, Maze::MazeGraph());
+  for(int i = 0; i < Maze::size; ++i)
+  {
+    EXPECT_EQ(graph.get(0, i, Maze::Heading::north), Maze::EdgeState::wall);
+    EXPECT_EQ(graph.get(Maze::size - 1, i, Maze::Heading::south), Maze::EdgeState::wall);
+    EXPECT_EQ(graph.get(i, 0, Maze::Heading::west), Maze::EdgeState::wall);
+    EXPECT_EQ(graph.get(i, Maze::size - 1, Maze::Heading::east), Maze::EdgeState::wall);
+  }
 }
 
 GTEST_TEST(MazeGraph, BorderIsWallAndInnerEdgesUnknown)
