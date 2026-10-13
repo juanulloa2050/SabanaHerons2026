@@ -1,0 +1,8 @@
+call Includes/Normal
+# Hide the game clock and score board: no game time or goals in the maze.
+dr debugDrawing3d:representation:GameState off
+call Includes/Views
+# No automatic referee: it would penalize the robot for standing in the opponent half.
+ar off
+gc playing
+dr unmute on
