@@ -228,7 +228,7 @@ flowchart LR
 | Module | Thread | Provides | Notes |
 |---|---|---|---|
 | `AprilTagDetector` | Upper | `AprilTagPercept` | Wraps `ECImage.grayscaled` as `image_u8` without copying. `tag36h11`, `quad_decimate = 2`, `nthreads = 1`. `estimate_tag_pose` uses `CameraInfo` intrinsics, and the result goes to the robot frame through `CameraMatrix`. |
-| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on `ECImage` (light walls, matte floor), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (up to 2 cells), snapped to the 500 mm grid (MZ-019). |
+| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on the grey `ECImage`, found by brightness gradient rather than colour (the floor colour is not in the rules, Q13), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (2 cells while walking, 3 when standing, set from measurements), snapped to the 500 mm grid (MZ-019). |
 | `PerceptionAprilTagPerceptProvider`, `PerceptionWallPerceptProvider` | Cognition | aliases | `ALIAS(AprilTagPercept)`, `ALIAS(WallPercept)` in `PerceptionProviders.cpp` |
 | `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). The heading comes from the gyro (maze-north, section 4.5). EKF is a stretch goal. |
 | `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis, for any edge in view (not only the current cell), weighted by distance; a decoded tag names its cell, so it counts at any readable distance (MZ-020). State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
@@ -666,7 +666,7 @@ MZ-0XX — <title> (see docs/maze/TICKETS_LABERINTO.md)
 
 ## 11. Open questions for the organisers (MZ-006)
 
-Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review and Q12 from the goal-block rule.
+Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come from the corrections review, Q12 from the goal-block rule and Q13 from the wall-perceptor design (MZ-019).
 
 | # | Question | Impact |
 |---|---|---|
@@ -682,6 +682,7 @@ Q2, Q4 and Q5 keep their numbers so older references stay valid. Q8–Q11 come f
 | Q10 | What happens if the robot does not return to the start (or cannot within the time)? Is it picked up by a team member, and is there a penalty before attempt 2? | `Standby` flow and the pick-up procedure (MZ-029) |
 | Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | The start-scan switch (MZ-041): scan only if the clock does not run during it |
 | Q12 | Does the goal block (cells 27, 28, 35, 36) always have a single entrance, or can it have several? | Planner goal target and exploration (which block cell to aim for); test mazes and the generator (MZ-009, MZ-012) |
+| Q13 | What colour and material is the maze floor (outside the goal block)? The rules say light walls and a matte uniform floor, but not the floor colour. If the floor is also light, the wall base is hard to see. | Wall perceptor (MZ-019): floor-to-wall contrast; simulation scene colours (MZ-010) |
 
 ---
 

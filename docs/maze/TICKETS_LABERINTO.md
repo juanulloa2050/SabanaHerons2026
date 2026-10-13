@@ -264,7 +264,7 @@ git push -u origin Maze-Challenge
 **Goal.** Get official answers to the open rules questions, and keep one record of what was asked and answered. Q1 (which walls carry tags, and at what height) is the most urgent: six tickets depend on it (TAG-DEP).
 
 **Scope.**
-- An e-mail to the organisers (through the advisor if required) with Q1, Q3 and Q6–Q12 from section 11 of the roadmap, copied word for word. Q2 and Q5 are resolved (by the rules and by the arena image: the goal is the central 2×2 block) and Q4 is withdrawn; all three stay in the table.
+- An e-mail to the organisers (through the advisor if required) with Q1, Q3 and Q6–Q13 from section 11 of the roadmap, copied word for word. Q2 and Q5 are resolved (by the rules and by the arena image: the goal is the central 2×2 block) and Q4 is withdrawn; all three stay in the table.
 - `docs/maze/ORGANIZER_ANSWERS.md`: a table with the columns `# | Question | Date asked | Answer | Date answered | Source`, updated through new commits on the same branch as answers arrive.
 
 **Steps**
@@ -274,7 +274,7 @@ git push -u origin Maze-Challenge
 
 **Acceptance criteria**
 - [ ] The e-mail was sent by 8 Oct.
-- [ ] The file lists all 12 questions with dates. Q2 and Q5 say "resolved", Q4 says "withdrawn", and missing answers say "pending".
+- [ ] The file lists all 13 questions with dates. Q2 and Q5 say "resolved", Q4 says "withdrawn", and missing answers say "pending".
 - [ ] When Q1 is answered, Bryam is told the same day.
 
 ### MZ-007 — `Maze` and `MazeSafe` scenarios, `HandleMaze` stub, start flow
@@ -594,16 +594,18 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Goal.** Tell, from the image alone, which walls are around the robot **and along the corridor ahead**, and how far away they are. This feeds the map with wall evidence for the current cell and for cells the robot has not walked through yet, so it can avoid a dead end before entering it. The planner already replans whenever an edge changes (roadmap 4.6). Example: in `maze_1.maze`, at cell 10 facing east, seeing that cell 11 is closed to the south and east saves the 9.3 s detour into the dead end.
 
 **Scope.** Upper thread.
-- **Near walls.** Column scan for the floor-to-wall boundary on `ECImage` (light walls, matte floor), projected to the floor with `Transformation::imageToRobot` (uses `CameraMatrix`). Output: `WallPercept` with the distance to the wall in front, left and right when the head points that way.
-- **Look-ahead.** Along the gaze line, the percept also reports, for each cell ahead up to `lookAheadRange` cells (default 2), whether its side walls are present or open. A front wall at distance *d* means the edges before *d* are open and the edge at *d* is a wall.
+- **Near walls.** Column scan for the floor-to-wall boundary on the grey `ECImage`, projected to the floor with `Transformation::imageToRobot` (uses `CameraMatrix`). Output: `WallPercept` with the distance to the wall in front, left and right when the head points that way.
+- **Boundary by gradient, not colour.** The rules fix light walls and a matte uniform floor, but not the floor colour (Q13). The boundary is found as the brightness step between the floor and the wall: the floor is horizontal and the wall vertical, so they get different light even with the same paint. A colour threshold may be added only once Q13 is answered and shows a clear contrast. Tags (MZ-018) confirm walls without needing contrast.
+- **Look-ahead.** Along the gaze line, the percept also reports, for each cell ahead, whether its side walls are present or open. A front wall at distance *d* means the edges before *d* are open and the edge at *d* is a wall. The range depends on motion: `lookAheadRangeWalking` (default 2 cells), because the torso pitches while walking, and `lookAheadRangeStanding` (default 3 cells, up to 4 if the measurements allow it) while the robot stands and scans. Beyond a corner nothing is visible: walls are ≥60 cm high, above the camera.
 - **Grid snap.** Walls can only sit on the 500 mm grid. Each measurement is snapped to the nearest edge and kept only if it lies within `snapToleranceMm` (default 150 mm) of that edge; otherwise it is dropped. Every observation carries its distance, so the mapper can weight it (MZ-020).
-- **Why the range is limited.** The floor projection gets worse with distance. With the camera about 0.5 m above the floor, a 1° pitch error moves a floor point by roughly 10 cm at 1.5 m and 35 cm at 3 m (first estimate, measured in this ticket). Far edges are confirmed by tags instead (MZ-018): the tag id names the cell, so a far tag cannot be put on the wrong edge.
+- **Why the range is limited.** Pixel resolution is not the limit (about 2 cm per pixel at 4 cells). The camera angle error is: with the camera about 0.5 m above the floor, a pitch error of 1° moves a floor point by about 6 cm at 1.25 m, 11 cm at 1.75 m and 19 cm at 2.25 m, and twice that with 2° (first estimate, measured in this ticket). A measurement is useful while this error stays inside `snapToleranceMm`. Far edges are confirmed by tags instead (MZ-018): the tag id names the cell, so a far tag cannot be put on the wrong edge.
 
 **Acceptance criteria**
 - [ ] In simulation, wall present or absent is ≥98 % correct for the 4 sides of visited cells (10 cells, 3 mazes).
 - [ ] On Lab 1 corridor logs, the side-wall distance is within ±3 cm of the tape measurement.
-- [ ] In simulation, the side walls of the next cell ahead are ≥95 % correct, and no edge beyond `lookAheadRange` is reported.
-- [ ] The distance error at 0.5, 1.0 and 1.5 m is measured (Lab 1 logs, or rendered images if the logs do not exist) and written in the PR; `lookAheadRange` and `snapToleranceMm` are set from it.
+- [ ] In simulation, the side walls of the next cell ahead are ≥95 % correct, and no edge beyond the active range (walking or standing) is reported.
+- [ ] The distance error at 0.5, 1.0, 1.5, 2.0 and 2.5 m is measured, standing and walking (Lab 1 logs, or rendered images if the logs do not exist), and written in the PR; `lookAheadRangeWalking`, `lookAheadRangeStanding` and `snapToleranceMm` are set from it.
+- [ ] With the floor and walls set to the same light colour in the simulation scene, wall present or absent is still ≥90 % correct for the 4 sides of visited cells (gradient check).
 
 ### MZ-020 — Maze localizer and mapper ⚠️ TAG-DEP
 
