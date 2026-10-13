@@ -91,6 +91,8 @@ a comment naming the source file. Regenerate `current.rsi2` after changing the m
 
 - One `BoxGeometry` per `-` or `|` character, border included: 0.5 m cell side plus 1.5 cm overlap
   (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.
+- Each wall also carries a `BoxAppearance` of the same size and position (a `BoxGeometry` alone is
+  invisible). `Maze.con` runs `ar off`, so the automatic referee does not penalize the robot.
 - The maze is centred on the simulator origin. Cell (row, col) is centred at
   `x = (col - 3.5) * 0.5 m`, `y = (3.5 - row) * 0.5 m`, so row 0 (top of the file) is the +y side.
 - The robot (`mazeRobots` compound, placed in the `robots` group by `Maze.ros2`) stands at the centre of `S`

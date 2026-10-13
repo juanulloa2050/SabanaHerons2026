@@ -14,6 +14,9 @@ import maze_to_scene as ms  # noqa: E402
 
 BOX = re.compile(r'<BoxGeometry depth="([^"]+)" width="([^"]+)" height="([^"]+)" color="([^"]+)">\s*'
                  r'<Translation x="([^"]+)" y="([^"]+)" z="([^"]+)"/>')
+APPEARANCE = re.compile(r'<BoxAppearance depth="([^"]+)" width="([^"]+)" height="([^"]+)">\s*'
+                        r'<Surface ref="mazeWall"/>\s*'
+                        r'<Translation x="([^"]+)" y="([^"]+)" z="([^"]+)"/>')
 ROBOT = re.compile(r'<Translation x="([^"]+)" y="([^"]+)" z="320mm"/>\s*<Rotation z="(-?\d+)degree"/>')
 
 
@@ -32,6 +35,22 @@ class ConvertTest(unittest.TestCase):
             text = gm.generate(seed, loops=seed)
             walls = sum(line.count("-") + line.count("|") for line in text.splitlines())
             self.assertEqual(len(boxes(ms.convert(text, "m.maze"))), walls)
+
+    def test_each_wall_has_matching_appearance(self):
+        for seed in (1, 2, 3):
+            text = gm.generate(seed, loops=seed)
+            wall_chars = sum(line.count("-") + line.count("|") for line in text.splitlines())
+            scene = ms.convert(text, "m.maze")
+            appearances = APPEARANCE.findall(scene)
+            self.assertEqual(len(appearances), wall_chars)
+            self.assertEqual(len(boxes(scene)), wall_chars)
+            for (d, w, h, x, y, z), (gd, gw, gh, _, gx, gy, gz) in zip(appearances, boxes(scene)):
+                self.assertEqual((d, w, h, x, y, z), (gd, gw, gh, gx, gy, gz))
+
+    def test_wall_surface_defined_once(self):
+        scene = ms.convert(gm.generate(1), "m.maze")
+        self.assertEqual(scene.count('<Surface name="mazeWall"'), 1)
+        self.assertLess(scene.index('<Surface name="mazeWall"'), scene.index('<Compound name="maze">'))
 
     def test_known_walls(self):
         scene = ms.convert(gm.generate(1), "m.maze")

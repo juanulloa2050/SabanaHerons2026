@@ -1,4 +1,6 @@
 call Includes/Normal
 call Includes/Views
+# No automatic referee: it would penalize the robot for standing in the opponent half.
+ar off
 gc playing
 dr unmute on
