@@ -15,7 +15,10 @@ state. Standard library only.
 import argparse
 import csv
 import heapq
+import io
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -250,24 +253,40 @@ def csv_row(name, data, optimal, explore):
 
 
 def update_csv(path, rows):
-    """Upsert rows keyed by ``file``; sorted by file; ``\\n`` line endings."""
+    """Upsert rows keyed by ``file``; sorted by file; ``\\n`` line endings; atomic replace."""
     path = Path(path)
     merged = {}
     if path.exists():
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if reader.fieldnames != CSV_HEADER:
-                raise ValueError(f"{path}: unexpected CSV header")
-            for row in reader:
+                raise ValueError("unexpected CSV header")
+            for number, row in enumerate(reader, start=2):
+                if None in row or None in row.values():
+                    raise ValueError(f"malformed CSV row at line {number}")
                 merged[row["file"]] = row
     for row in rows:
         merged[row["file"]] = row
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_HEADER, lineterminator="\n")
+    writer.writeheader()
+    for name in sorted(merged):
+        writer.writerow(merged[name])
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADER, lineterminator="\n")
-        writer.writeheader()
-        for name in sorted(merged):
-            writer.writerow(merged[name])
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", dir=path.parent,
+                                         delete=False) as tmp:
+            tmp_name = tmp.name
+            tmp.write(buffer.getvalue())
+        os.replace(tmp_name, path)
+    except BaseException:
+        if tmp_name is not None:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+        raise
 
 
 def build_parser():
@@ -305,10 +324,18 @@ def main(argv=None):
             failed = True
     if failed:
         return 1
-    rows = []
+    solved = []
     for path, data, grid in loaded:
+        try:
+            solved.append((path, data, grid, *solve(grid)))
+        except (ValueError, RuntimeError) as exc:
+            print(f"{path}: {exc}", file=sys.stderr)
+            failed = True
+    if failed:
+        return 1
+    rows = []
+    for path, data, grid, optimal, explore in solved:
         name = Path(path).name
-        optimal, explore = solve(grid)
         print(f"{name}: optimal {optimal.cells} cells, {optimal.turns90} turns90, {optimal.turns180} turns180, "
               f"{fmt_s(optimal.ms)} s; explore {explore.cells} cells, {explore.turns} turns, {fmt_s(explore.ms)} s")
         if args.draw:

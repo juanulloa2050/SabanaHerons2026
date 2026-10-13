@@ -4,8 +4,10 @@ import contextlib
 import io
 import os
 import sys
+import csv
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -164,10 +166,55 @@ class CliTests(unittest.TestCase):
             self.assertIn("bad.maze:", err)
             self.assertFalse(csv_path.exists())
 
+    def test_solve_error_exits_1_without_csv(self):
+        for exc in (ValueError("boom"), RuntimeError("goal unreachable")):
+            with self.subTest(exc=type(exc).__name__), tempfile.TemporaryDirectory() as tmp:
+                csv_path = Path(tmp) / "out.csv"
+                with mock.patch.object(sm, "solve", side_effect=exc):
+                    code, out, err = run_cli([str(MAZES[0]), "--update", str(csv_path)])
+                self.assertEqual(code, 1)
+                self.assertIn(f"{MAZES[0]}: {exc}", err)
+                self.assertEqual(out, "")
+                self.assertFalse(csv_path.exists())
+
+    def test_update_rejects_malformed_rows_and_keeps_file(self):
+        good = ",".join(["maze_1.maze"] + ["x"] * (len(sm.CSV_HEADER) - 1))
+        cases = {"extra field": good + ",extra\n", "short row": "maze_1.maze,abc\n"}
+        for label, body in cases.items():
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
+                csv_path = Path(tmp) / "expected.csv"
+                csv_path.write_bytes((",".join(sm.CSV_HEADER) + "\n" + body).encode())
+                before = csv_path.read_bytes()
+                code, _, err = run_cli([str(MAZES[2]), "--update", str(csv_path)])
+                self.assertEqual(code, 1)
+                self.assertIn(str(csv_path), err)
+                self.assertEqual(csv_path.read_bytes(), before)
+                self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["expected.csv"])
+
     def test_missing_file_exits_1(self):
         code, _, err = run_cli(["/nonexistent/none.maze"])
         self.assertEqual(code, 1)
         self.assertIn("none.maze:", err)
+
+
+class ExpectedCsvTests(unittest.TestCase):
+    """The committed expected.csv must match the committed mazes and the solver."""
+
+    def test_expected_csv_is_current(self):
+        stale = "expected.csv is stale, run solve_maze.py --update"
+        with (MAZE_DIR / "expected.csv").open(newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            self.assertEqual(reader.fieldnames, sm.CSV_HEADER)
+            rows = list(reader)
+        files = sorted(p.name for p in MAZE_DIR.glob("maze_*.maze"))
+        self.assertEqual(len(files), 20)
+        self.assertEqual(sorted(r["file"] for r in rows), files)
+        for row in rows:
+            with self.subTest(maze=row["file"]):
+                data = read(MAZE_DIR / row["file"])
+                self.assertEqual(row["maze_sha"], sm.fnv1a32(data), stale)
+                expected = sm.csv_row(row["file"], data, *sm.solve(gm.parse(data.decode("utf-8"))))
+                self.assertEqual(row, expected, stale)
 
 
 if __name__ == "__main__":

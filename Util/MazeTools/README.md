@@ -163,7 +163,9 @@ python3 Util/MazeTools/solve_maze.py Config/Mazes/generated/maze_*.maze --update
 with which the robot leaves it; the final goal cell shows the heading it was entered with), then the
 maze again with `*` in every cell visited during the exploration. `--update` inserts or replaces the row
 of each maze, so running it twice leaves one row per maze and a byte-identical file. An invalid or
-unreadable maze prints `<path>: <message>` to stderr and exits with 1 without touching the CSV.
+unreadable maze, or a solver error, prints `<path>: <message>` to stderr and exits with 1 without touching the CSV.
+The update is atomic (temp file plus replace) and rejects an existing CSV with malformed rows; a unit test
+pins `expected.csv` to the current mazes and solver and fails with "expected.csv is stale" on drift.
 
 ## Tests
 
