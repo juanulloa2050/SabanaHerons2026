@@ -78,6 +78,8 @@ stderr and the exit code is 1.
 
 `maze_to_scene.py` turns a `.maze` file into `Config/Scenes/Includes/Maze/current.rsi2`, which
 `Config/Scenes/Maze.ros2` includes.
+`current.rsi2` is git-ignored: generate it once after cloning (first command below). Step-by-step
+guide and console commands: `docs/SIMULACION_LABERINTO.md`.
 
 ```bash
 python3 Util/MazeTools/maze_to_scene.py Config/Mazes/generated/maze_1.maze --out Config/Scenes/Includes/Maze/current.rsi2

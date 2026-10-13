@@ -61,3 +61,6 @@ Thumbs.db
 /Config/NeuralNets/BallDetector/*.bak_*
 /Util/CompiledNN_broken
 /Util/SimRobot_broken
+
+# Generated maze scene (Util/MazeTools/maze_to_scene.py); each person creates it locally.
+/Config/Scenes/Includes/Maze/current.rsi2
