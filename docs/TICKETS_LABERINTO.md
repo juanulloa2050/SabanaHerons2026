@@ -388,8 +388,9 @@ git push -u origin Maze-Challenge
 **Goal.** Load any `.maze` file in SimRobot with walls, a start cell and one NAO, so everything downstream can be tested in simulation.
 
 **Scope.**
-- **Scene template (pairing, Bryam).** `Config/Scenes/Maze.ros2`, based on `Config/Scenes/RL1v0_3D.ros2`: scenario `Maze`, location `Default`, one robot, no ball, and it includes `Includes/Maze/current.rsi2`.
+- **Scene template (pairing, Bryam).** `Config/Scenes/Maze.ros2`, based on `Config/Scenes/RL1v0_3D.ros2`: scenario `Maze`, location `Default`, one robot, no ball. It does not include the SPL field; it includes `Includes/Maze/current.rsi2`, which provides the walls, the floor and the robot. `Maze.con` runs `ar off` so the automatic referee does not penalize the robot.
 - **Converter (Wilson).** `maze_to_scene.py` turns a `.maze` file into `current.rsi2`.
+- **Walls, floor and goal patch.** Each wall has a `BoxAppearance` (visible) and a `BoxGeometry` (collision). The converter also generates a matte floor slab slightly larger than the maze and an appearance-only patch of a different colour over the goal block (cells 27, 28, 35, 36). Floor, goal and wall colours are placeholders, set as constants in `maze_to_scene.py`, until the organisers confirm them.
 - **Geometry** (from `Config/Scenes/Includes/Field2020SPL.rsi2`): in `BoxGeometry`, `depth` is the size along x, `width` along y, `height` along z. A wall along x is `depth="0.515m" width="0.015m" height="0.6m"`; along y, `depth="0.015m" width="0.515m" height="0.6m"`. Use `color="rgb(235, 235, 235)"` and `<Translation x=".." y=".." z="0.3m"/>`. The maze is centred on the simulator origin: cell `(row, col)` centre is `x = (col − 3.5)·0.5 m`, `y = (3.5 − row)·0.5 m`. The robot starts at the centre of `S`, facing the open side, at `z="320mm"`.
 
 **Steps**

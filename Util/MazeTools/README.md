@@ -93,6 +93,13 @@ a comment naming the source file. Regenerate `current.rsi2` after changing the m
   (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.
 - Each wall also carries a `BoxAppearance` of the same size and position (a `BoxGeometry` alone is
   invisible). `Maze.con` runs `ar off`, so the automatic referee does not penalize the robot.
+- `Maze.ros2` no longer includes the SPL field (no green carpet, lines or goals). The converter emits
+  a `mazeFloor` compound instead: a 6 m x 6 m matte slab (maze plus 1 m margin, top at z = 0, geometry
+  and appearance) and, over the goal block (cells 27, 28, 35, 36), a 1 m x 1 m x 2 mm patch centred on the
+  origin with a different colour. The patch is appearance only, so the physics floor stays flat.
+- Changing colours: floor, goal patch and wall colours are placeholders until the organisers confirm them.
+  Edit `FLOOR_COLOR`, `GOAL_COLOR` and `WALL_COLOR` at the top of `maze_to_scene.py`, then regenerate
+  `current.rsi2`. Tests read the colours from those constants.
 - The maze is centred on the simulator origin. Cell (row, col) is centred at
   `x = (col - 3.5) * 0.5 m`, `y = (3.5 - row) * 0.5 m`, so row 0 (top of the file) is the +y side.
 - The robot (`mazeRobots` compound, placed in the `robots` group by `Maze.ros2`) stands at the centre of `S`

@@ -29,6 +29,10 @@ def robot(scene):
     return x, y, int(heading)
 
 
+def surface_def(name):
+    return re.search(rf'<Surface name="{name}" diffuseColor="([^"]+)"', ms.convert(gm.generate(1), "m.maze")).group(1)
+
+
 class ConvertTest(unittest.TestCase):
     def test_one_box_per_wall_character(self):
         for seed in (1, 2, 3):
@@ -52,17 +56,44 @@ class ConvertTest(unittest.TestCase):
         self.assertEqual(scene.count('<Surface name="mazeWall"'), 1)
         self.assertLess(scene.index('<Surface name="mazeWall"'), scene.index('<Compound name="maze">'))
 
+    def test_floor_slab_geometry_and_appearance(self):
+        scene = ms.convert(gm.generate(1), "m.maze")
+        floor = scene[scene.index('<Compound name="mazeFloor">'):scene.index('<Compound name="mazeRobots">')]
+        size = 'depth="6m" width="6m" height="0.2m"'
+        self.assertEqual(floor.count(f"<BoxAppearance {size}>"), 1)
+        self.assertEqual(floor.count(f"<BoxGeometry {size} "), 1)
+        self.assertEqual(floor.count('<Translation z="-0.1m"/>'), 2)  # top surface at z = 0
+        self.assertIn(f'<Surface ref="{ms.FLOOR_SURFACE_NAME}"/>', floor)
+
+    def test_goal_patch_is_appearance_only_and_centred(self):
+        scene = ms.convert(gm.generate(1), "m.maze")
+        floor = scene[scene.index('<Compound name="mazeFloor">'):scene.index('<Compound name="mazeRobots">')]
+        patch = re.findall(r'<BoxAppearance depth="1m" width="1m" height="0.002m">\s*'
+                           rf'<Surface ref="{ms.GOAL_SURFACE_NAME}"/>\s*<Translation z="0.001m"/>', floor)
+        self.assertEqual(len(patch), 1)  # no x/y translation: centred on the origin
+        self.assertEqual(floor.count("<BoxGeometry"), 1)  # the floor slab only
+
+    def test_surfaces_defined_once_with_distinct_colours(self):
+        scene = ms.convert(gm.generate(1), "m.maze")
+        for name in (ms.WALL_SURFACE_NAME, ms.FLOOR_SURFACE_NAME, ms.GOAL_SURFACE_NAME):
+            self.assertEqual(scene.count(f'<Surface name="{name}"'), 1)
+            self.assertLess(scene.index(f'<Surface name="{name}"'), scene.index('<Compound name="maze">'))
+        self.assertEqual(surface_def(ms.WALL_SURFACE_NAME), ms.WALL_COLOR)
+        self.assertEqual(surface_def(ms.FLOOR_SURFACE_NAME), ms.FLOOR_COLOR)
+        self.assertEqual(surface_def(ms.GOAL_SURFACE_NAME), ms.GOAL_COLOR)
+        self.assertEqual(len({ms.WALL_COLOR, ms.FLOOR_COLOR, ms.GOAL_COLOR}), 3)
+
     def test_known_walls(self):
         scene = ms.convert(gm.generate(1), "m.maze")
         found = boxes(scene)
         # Top border, first cell: along x, half a cell right of the left edge, at the top edge.
-        self.assertEqual(found[0], ("0.515m", "0.015m", "0.6m", "rgb(235, 235, 235)", "-1.75m", "2m", "0.3m"))
+        self.assertEqual(found[0], ("0.515m", "0.015m", "0.6m", ms.WALL_COLOR, "-1.75m", "2m", "0.3m"))
         # Left border of the first cell row: along y, at the left edge.
-        self.assertIn(("0.015m", "0.515m", "0.6m", "rgb(235, 235, 235)", "-2m", "1.75m", "0.3m"), found)
+        self.assertIn(("0.015m", "0.515m", "0.6m", ms.WALL_COLOR, "-2m", "1.75m", "0.3m"), found)
         # Bottom-right border corner side: along x at the bottom edge, last column.
-        self.assertIn(("0.515m", "0.015m", "0.6m", "rgb(235, 235, 235)", "1.75m", "-2m", "0.3m"), found)
+        self.assertIn(("0.515m", "0.015m", "0.6m", ms.WALL_COLOR, "1.75m", "-2m", "0.3m"), found)
         # Right border of the last cell row: along y at the right edge.
-        self.assertIn(("0.015m", "0.515m", "0.6m", "rgb(235, 235, 235)", "2m", "-1.75m", "0.3m"), found)
+        self.assertIn(("0.015m", "0.515m", "0.6m", ms.WALL_COLOR, "2m", "-1.75m", "0.3m"), found)
 
     def test_start_pose_for_each_corner(self):
         # Position is the centre of the corner cell; heading faces the single open side.
