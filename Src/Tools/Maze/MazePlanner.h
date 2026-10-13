@@ -96,7 +96,11 @@ namespace Maze
   class MazePlanner
   {
   public:
-    explicit MazePlanner(const MazeCosts& costs = MazeCosts()) : costs(costs) {}
+    /** Every state is unreachable until computeCostToGo() runs. */
+    explicit MazePlanner(const MazeCosts& costs = MazeCosts()) : costs(costs)
+    {
+      table.fill(MazeCost::infinity());
+    }
 
     /** Index of `state` in 0..stateCount-1. */
     [[nodiscard]] static int stateIndex(const MazeState& state);

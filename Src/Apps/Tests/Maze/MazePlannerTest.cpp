@@ -2,10 +2,12 @@
 #include "Platform/File.h"
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -63,11 +65,17 @@ namespace
     return planner.routeFromTable(startOf(maze));
   }
 
-  /** "40.100" -> 40100 */
-  int secondsToMs(std::string text)
+  /** "40.100" -> 40100; also accepts "40.1" and "40". */
+  int secondsToMs(const std::string& text)
   {
-    text.erase(text.find('.'), 1);
-    return std::stoi(text);
+    const std::size_t dot = text.find('.');
+    const int seconds = std::stoi(text.substr(0, dot));
+    if(dot == std::string::npos)
+      return seconds * 1000;
+    std::string fraction = text.substr(dot + 1);
+    EXPECT_LE(fraction.size(), 3u) << "more than millisecond precision in \"" << text << "\"";
+    fraction.resize(3, '0');
+    return seconds * 1000 + std::stoi(fraction);
   }
 
   std::vector<std::string> split(const std::string& line)
@@ -228,29 +236,64 @@ GTEST_TEST(MazePlanner, RotationsKeepTimeAndTurns)
 
 GTEST_TEST(MazePlanner, PlanningIsFastEnough)
 {
-  constexpr int runs = 500;
+  constexpr int batches = 5;
+  constexpr int runsPerBatch = 100;
   constexpr double limitMs = 5.0;
   const MazeDescription maze = loadMaze(1);
   MazePlanner planner;
   const MazeGraph unexplored; // only the border is known: the most edges to relax
 
+  // The fastest batch is used, so a short load spike on the host does not fail the test.
   int sink = 0;
-  auto begin = std::chrono::steady_clock::now();
-  for(int i = 0; i < runs; ++i)
+  auto fastestBatchMs = [&](auto&& run)
+  {
+    double best = std::numeric_limits<double>::max();
+    for(int batch = 0; batch < batches; ++batch)
+    {
+      const auto begin = std::chrono::steady_clock::now();
+      for(int i = 0; i < runsPerBatch; ++i)
+        sink += run(i);
+      best = std::min(best, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() / runsPerBatch);
+    }
+    return best;
+  };
+
+  const double replanMs = fastestBatchMs([&](int i)
   {
     planner.computeCostToGo(i % 2 == 0 ? unexplored : maze.graph, UnknownPolicy::asOpen);
-    sink += planner.costToGo(startOf(maze)).timeMs;
-  }
-  const double replanMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() / runs;
+    return planner.costToGo(startOf(maze)).timeMs;
+  });
+  const double speedRunMs = fastestBatchMs([&](int)
+  {
+    return planner.speedRun(maze.graph, startOf(maze)).timeMs;
+  });
 
-  begin = std::chrono::steady_clock::now();
-  for(int i = 0; i < runs; ++i)
-    sink += planner.speedRun(maze.graph, startOf(maze)).timeMs;
-  const double speedRunMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() / runs;
-
-  std::cout << "[ MazePlanner ] average replan " << replanMs << " ms, average speed run " << speedRunMs << " ms (sink " << sink << ")\n";
+  std::cout << "[ MazePlanner ] replan " << replanMs << " ms, speed run " << speedRunMs << " ms (sink " << sink << ")\n";
+  // Even the unoptimized Develop build of Tests is ~10x below the limit; sanitizers are not.
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+  static_cast<void>(limitMs);
+  std::cout << "[ MazePlanner ] timing limit not checked: sanitized build\n";
+#else
   EXPECT_LT(replanMs, limitMs);
   EXPECT_LT(speedRunMs, limitMs);
+#endif
+}
+
+GTEST_TEST(MazePlanner, FreshPlannerReachesNothing)
+{
+  const MazePlanner planner;
+  const MazeState start = {0, 0, Heading::south, false};
+  Action action;
+  EXPECT_TRUE(planner.costToGo(start).isInfinite());
+  EXPECT_FALSE(planner.nextAction(start, action));
+}
+
+GTEST_TEST(MazePlanner, SecondsToMsAcceptsShortFractions)
+{
+  EXPECT_EQ(secondsToMs("40.100"), 40100);
+  EXPECT_EQ(secondsToMs("40.1"), 40100);
+  EXPECT_EQ(secondsToMs("40"), 40000);
+  EXPECT_EQ(secondsToMs("0.005"), 5);
 }
 
 GTEST_TEST(MazePlanner, UnknownEdgeIsOpenForExplorationAndWallForSpeedRun)
