@@ -214,7 +214,7 @@ git push -u origin Maze-Challenge
 | Depends on | MZ-001 |
 | Lab / robot | no |
 | Branch | `docs/MZ-003-roadmap` |
-| Files | `docs/ROADMAP_LABERINTO.md`, `docs/TICKETS_LABERINTO.md`, `docs/GANTT_LABERINTO.md` |
+| Files | `docs/maze/ROADMAP_LABERINTO.md`, `docs/maze/TICKETS_LABERINTO.md`, `docs/maze/GANTT_LABERINTO.md` |
 
 **Goal.** Put the architecture, the ticket list and the schedule in the repository, so both people work from the same plan.
 
@@ -242,7 +242,7 @@ git push -u origin Maze-Challenge
 
 **Goal.** Every PR description has the same sections: what changes, ticket, how it was tested, risks, checklist.
 
-**Scope.** One file, `.github/pull_request_template.md`, with **exactly** the template in section 9 of `docs/ROADMAP_LABERINTO.md` ("PR description template"). Docs only, no build needed.
+**Scope.** One file, `.github/pull_request_template.md`, with **exactly** the template in section 9 of `docs/maze/ROADMAP_LABERINTO.md` ("PR description template"). Docs only, no build needed.
 
 **Acceptance criteria**
 - [x] Opening a new PR on GitHub pre-fills the description with the template.
