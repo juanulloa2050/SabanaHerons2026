@@ -6,6 +6,7 @@
 #include "Streaming/InStreams.h"
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -58,23 +59,26 @@ namespace
     return layout;
   }
 
-  /** The (cell, face) pairs the oracle sees along the look-ahead, like the provider does without dropout. */
-  std::vector<std::pair<int, Maze::Heading>> seenTags(const Maze::MazeGraph& graph, const Maze::MazeTagLayout& layout, const View& view,
-                                                      int maxRange, float maxTagViewAngle, const Camera& camera = forwardCamera())
+  using Seen = std::vector<std::pair<int, Maze::Heading>>;
+
+  /** The (cell, face) pairs the oracle sees, like the provider does without dropout. */
+  Seen seenTags(const Maze::MazeGraph& graph, const Maze::MazeTagLayout& layout, const View& view,
+                int maxRange, float maxTagViewAngle, const Camera& camera = forwardCamera())
   {
-    std::vector<std::pair<int, Maze::Heading>> seen;
-    for(const LookAheadCell& cell : view.cells)
-    {
-      const int id = Maze::cellId(cell.row, cell.col);
-      for(int h = 0; h < Maze::headingCount; ++h)
-      {
-        const Maze::Heading face = static_cast<Maze::Heading>(h);
-        Pose3f pose;
-        if(layout.hasTag(id, face, graph) && observeTag(view, camera, maxRange, maxTagViewAngle, id, face, layout.centreHeight, pose))
-          seen.emplace_back(id, face);
-      }
-    }
+    Seen seen;
+    for(const VisibleTag& tag : visibleTags(graph, layout, view, camera, maxRange, maxTagViewAngle))
+      seen.emplace_back(tag.cell, tag.face);
     return seen;
+  }
+
+  Maze::MazeTagLayout layoutFromAllFaces()
+  {
+    return layoutFrom("allFaces", "north, east, south, west");
+  }
+
+  bool contains(const Seen& seen, int cell, Maze::Heading face)
+  {
+    return std::find(seen.begin(), seen.end(), std::make_pair(cell, face)) != seen.end();
   }
 }
 
@@ -187,7 +191,7 @@ GTEST_TEST(MazeOracle, NothingIsSeenPastACorner)
   const View view = viewOf(graph, robotIn(4, 0), 3);
   ASSERT_EQ(view.cells.size(), 1u);
   const Maze::MazeTagLayout layout = layoutFrom("allFaces", "north, east, south, west");
-  // Only the wall in front is seen; the cells and tags behind it are not in the look-ahead.
+  // Only the wall in front is seen; the tags behind it are hidden by it.
   const auto seen = seenTags(graph, layout, view, 3, viewAngle);
   ASSERT_EQ(seen.size(), 1u);
   EXPECT_EQ(seen[0], std::make_pair(Maze::cellId(4, 0), Maze::Heading::east));
@@ -397,4 +401,81 @@ GTEST_TEST(MazeOracle, GeneratedMazeStartCorridor)
   EXPECT_EQ(view.cells[0].front, Maze::EdgeState::open);
   EXPECT_EQ(view.cells[1].front, Maze::EdgeState::open);
   EXPECT_EQ(view.cells[2].front, Maze::EdgeState::wall);
+}
+
+GTEST_TEST(MazeOracle, SeesBothTagsOfTheGoalWall)
+{
+  Maze::MazeDescription maze;
+  std::string error;
+  ASSERT_TRUE(Maze::MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/generated/maze_1.maze", maze, error)) << error;
+  // The goal block (cells 27, 28, 35, 36) has no inner walls and a wall to its south that carries tags 35 and 36.
+  ASSERT_EQ(maze.graph.get(4, 3, Maze::Heading::south), Maze::EdgeState::wall);
+  ASSERT_EQ(maze.graph.get(4, 4, Maze::Heading::south), Maze::EdgeState::wall);
+  ASSERT_EQ(maze.graph.get(3, 3, Maze::Heading::east), Maze::EdgeState::open);
+  ASSERT_EQ(maze.graph.get(3, 3, Maze::Heading::south), Maze::EdgeState::open);
+  ASSERT_EQ(maze.graph.get(3, 4, Maze::Heading::south), Maze::EdgeState::open);
+
+  // 822 mm from the wall (y = 1500), 238 mm west of the centre of tag 36 (x = 2250), looking south: tag 36
+  // is left of the camera axis, tag 35 right of it, in the neighbouring column of the gaze corridor.
+  const View view = viewOf(maze.graph, Pose2f(-pi / 2.f, Vector2f(2012.f, 2322.f)), 2);
+  ASSERT_EQ(view.row, 3);
+  ASSERT_EQ(view.col, 4);
+  ASSERT_EQ(view.gaze, Maze::Heading::south);
+  const auto tags = visibleTags(maze.graph, layoutFrom("allFaces", "north, east, south, west"), view, forwardCamera(), 2, viewAngle);
+
+  int found = 0;
+  for(const VisibleTag& tag : tags)
+  {
+    if(tag.face != Maze::Heading::south || (tag.cell != 35 && tag.cell != 36))
+      continue;
+    ++found;
+    EXPECT_NEAR(tag.tagInRobot.translation.x(), 822.f, 0.01f);
+    EXPECT_NEAR(tag.tagInRobot.translation.y(), tag.cell == 36 ? 238.f : -262.f, 0.01f);
+  }
+  EXPECT_EQ(found, 2);
+}
+
+GTEST_TEST(MazeOracle, TagBehindAWallIsNotSeen)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  graph.set(4, 2, Maze::Heading::east, Maze::EdgeState::wall);
+  const View view = viewOf(graph, robotIn(4, 0), 2);
+  const auto seen = seenTags(graph, layoutFromAllFaces(), view, 2, viewAngle);
+  // The second wall is in range (1250 mm) and straight ahead, but the first one hides it.
+  EXPECT_TRUE(contains(seen, Maze::cellId(4, 1), Maze::Heading::east));
+  EXPECT_FALSE(contains(seen, Maze::cellId(4, 2), Maze::Heading::east));
+}
+
+GTEST_TEST(MazeOracle, TagPartlyOutsideTheFieldOfViewIsNotSeen)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  // The tag centre is 300 mm ahead and 150 mm to the left (26.6 degrees); its far edge is at 36.9 degrees.
+  const Pose2f pose(0.f, Vector2f(700.f, 1600.f));
+  const View view = viewOf(graph, pose, 2);
+  const int cell = Maze::cellId(4, 1);
+  Pose3f tag;
+  EXPECT_TRUE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, tag)); // centre only: +-28.6 degrees
+  EXPECT_FALSE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, tag, 150.f));
+  EXPECT_FALSE(contains(seenTags(graph, layoutFromAllFaces(), view, 2, viewAngle), cell, Maze::Heading::east));
+  // A wider camera takes the whole tag in.
+  EXPECT_TRUE(contains(seenTags(graph, layoutFromAllFaces(), view, 2, viewAngle, Camera{Vector2f::Zero(), 0.f, 1.4f}), cell, Maze::Heading::east));
+}
+
+GTEST_TEST(MazeOracle, TagPastTheEndOfAWallCountsAsBlockedWhenGrazing)
+{
+  Maze::MazeGraph graph = openMaze();
+  // A wall at x = 1000 from y = 1500 to y = 2000; the tag is on the wall at x = 2000 (cell (4, 3), east face).
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  graph.set(4, 3, Maze::Heading::east, Maze::EdgeState::wall);
+  const int cell = Maze::cellId(4, 3);
+  const auto seenFrom = [&](float y)
+  {
+    const View view = viewOf(graph, Pose2f(0.f, Vector2f(500.f, y)), 4);
+    return contains(seenTags(graph, layoutFromAllFaces(), view, 4, viewAngle), cell, Maze::Heading::east);
+  };
+  EXPECT_FALSE(seenFrom(1750.f)); // straight through the wall
+  EXPECT_FALSE(seenFrom(2170.f)); // the ray to the near tag edge passes 5 mm past the wall end: inside the 7.5 mm margin
+  EXPECT_TRUE(seenFrom(2200.f));  // all three rays clear the wall end by at least 17 mm
 }

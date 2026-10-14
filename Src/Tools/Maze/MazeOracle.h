@@ -9,11 +9,14 @@
  * one (x forward, y left). Occlusion is approximated by a look-ahead corridor: from the robot's cell,
  * along the gaze snapped to the nearest maze heading, up to `maxRange` cells and not beyond a front
  * wall. The vertical field of view is ignored.
+ *
+ * AprilTags do not use the corridor: every wall face the layout tags is a candidate, see `visibleTags`.
  */
 
 #pragma once
 
 #include "MazeGraph.h"
+#include "MazeTagLayout.h"
 #include "Math/Angle.h"
 #include "Math/Eigen.h"
 #include "Math/Pose2f.h"
@@ -25,6 +28,20 @@ namespace Maze
   namespace Oracle
   {
     constexpr float halfCellMm = cellSizeMm / 2.f;
+
+    /**
+     * Thickness of a wall in mm. A wall blocks the view as a segment of its 500 mm centre line that is
+     * extended by half of this at both ends, so a ray that grazes the end of a wall (its corner post) is blocked.
+     */
+    constexpr float wallThicknessMm = 15.f;
+
+    /** A tag the camera sees. */
+    struct VisibleTag
+    {
+      int cell;               /**< Cell the tag belongs to, which is also the tag id. */
+      Heading face;           /**< Face of that cell the tag is on. */
+      Pose3f tagInRobot;      /**< Pose of the tag in the robot frame, see `observeTag`. */
+    };
 
     /** The camera as far as the oracle needs it. */
     struct Camera
@@ -93,12 +110,29 @@ namespace Maze
     [[nodiscard]] Vector2f toRobot(const View& view, const Vector2f& mazePoint);
 
     /**
-     * Whether the tag on `face` of `cell` is seen: close enough, inside the horizontal field of view and
-     * facing the camera by at most `maxTagViewAngle`. Whether the layout puts a tag there is not checked.
+     * Whether the tag on `face` of `cell` is within reach: close enough, with the whole black square of
+     * width `tagSize` (along the wall) inside the horizontal field of view, and facing the camera by at most
+     * `maxTagViewAngle`. Whether the layout puts a tag there and whether a wall hides it is not checked.
+     * @param tagSize Edge of the black square in mm; 0 checks only the tag centre.
      * @param tagInRobot Receives the pose of the tag: x to the right and y up when looking at it, z along
      *                   the wall normal into the cell, at height `centreHeight` in mm.
      */
     [[nodiscard]] bool observeTag(const View& view, const Camera& camera, int maxRange, float maxTagViewAngle,
-                                  int cell, Heading face, float centreHeight, Pose3f& tagInRobot);
+                                  int cell, Heading face, float centreHeight, Pose3f& tagInRobot, float tagSize = 0.f);
+
+    /**
+     * Whether no wall of `maze` blocks the 2D line from `from` to `to` (maze frame). The edge `face` of
+     * `cell` (the wall the target lies on) is ignored. See `wallThicknessMm` for grazing rays.
+     */
+    [[nodiscard]] bool lineOfSightClear(const MazeGraph& maze, const Vector2f& from, const Vector2f& to, int cell, Heading face);
+
+    /**
+     * Every tag the camera sees. A tag on a wall face is seen when the layout tags it and, all at once,
+     * it is within reach (`observeTag`, the whole tag inside the field of view) and no wall blocks the line
+     * from the camera to the tag centre, nor to either side edge of the black square. The look-ahead corridor
+     * of `view` plays no role: tags beside or beyond the gaze corridor are seen if they are visible.
+     */
+    [[nodiscard]] std::vector<VisibleTag> visibleTags(const MazeGraph& maze, const MazeTagLayout& layout, const View& view,
+                                                      const Camera& camera, int maxRange, float maxTagViewAngle);
   }
 }

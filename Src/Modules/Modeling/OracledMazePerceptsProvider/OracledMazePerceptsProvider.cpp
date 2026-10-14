@@ -103,25 +103,22 @@ bool OracledMazePerceptsProvider::computeView(View& view) const
   return Maze::Oracle::computeView(maze.graph, Maze::Oracle::robotInMaze(theGroundTruthRobotPose, mazePoseOnField), camera(), maxRange, view);
 }
 
-bool OracledMazePerceptsProvider::observeTag(const View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const
+AprilTagPercept::Detection OracledMazePerceptsProvider::detect(const Maze::Oracle::VisibleTag& tag) const
 {
-  Pose3f tagInRobot;
-  if(!Maze::Oracle::observeTag(view, camera(), maxRange, static_cast<float>(maxTagViewAngle), cell, face, layout.centreHeight, tagInRobot))
-    return false;
-
-  RotationMatrix rotation(tagInRobot.rotation);
+  RotationMatrix rotation(tag.tagInRobot.rotation);
   rotation.rotateX(noisy(0.f, tagRotationStdDev));
   rotation.rotateY(noisy(0.f, tagRotationStdDev));
   rotation.rotateZ(noisy(0.f, tagRotationStdDev));
 
-  detection.id = cell;
+  AprilTagPercept::Detection detection;
+  detection.id = tag.cell;
   detection.corners.clear();
   detection.tagInRobot.rotation = rotation;
-  detection.tagInRobot.translation = Vector3f(noisy(tagInRobot.translation.x(), tagPositionStdDev),
-                                              noisy(tagInRobot.translation.y(), tagPositionStdDev),
-                                              noisy(tagInRobot.translation.z(), tagPositionStdDev));
+  detection.tagInRobot.translation = Vector3f(noisy(tag.tagInRobot.translation.x(), tagPositionStdDev),
+                                              noisy(tag.tagInRobot.translation.y(), tagPositionStdDev),
+                                              noisy(tag.tagInRobot.translation.z(), tagPositionStdDev));
   detection.decisionMargin = perfectDecisionMargin;
-  return true;
+  return detection;
 }
 
 void OracledMazePerceptsProvider::update(AprilTagPercept& aprilTagPercept)
@@ -131,17 +128,10 @@ void OracledMazePerceptsProvider::update(AprilTagPercept& aprilTagPercept)
   Maze::Oracle::View view;
   if(dropoutRate >= 1.f || !updateMaze() || !computeView(view))
     return;
-  for(const Maze::Oracle::LookAheadCell& cell : view.cells)
-  {
-    const int id = Maze::cellId(cell.row, cell.col);
-    for(int h = 0; h < Maze::headingCount; ++h)
-    {
-      const Maze::Heading face = static_cast<Maze::Heading>(h);
-      AprilTagPercept::Detection detection;
-      if(layout.hasTag(id, face, maze.graph) && !dropped() && observeTag(view, id, face, detection))
-        aprilTagPercept.detections.push_back(detection);
-    }
-  }
+  // Every visible tag, wherever it is: not only those of the look-ahead corridor.
+  for(const Maze::Oracle::VisibleTag& tag : Maze::Oracle::visibleTags(maze.graph, layout, view, camera(), maxRange, static_cast<float>(maxTagViewAngle)))
+    if(!dropped())
+      aprilTagPercept.detections.push_back(detect(tag));
 }
 
 void OracledMazePerceptsProvider::update(WallPercept& wallPercept)

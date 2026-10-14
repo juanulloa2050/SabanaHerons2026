@@ -5,11 +5,16 @@
  * computed from the ground truth robot pose and a `.maze` file. This lets the behavior, the
  * mapping and the safe mode be built before the real detectors exist.
  *
- * The model is an approximation. Occlusion is approximated by a look-ahead corridor: from the
- * robot's cell, along the gaze snapped to the nearest maze heading, up to `maxRange` cells and not
- * beyond a front wall (walls are higher than the camera, so nothing is visible past a corner).
- * Tags are seen on the wall faces of those cells when they are inside the horizontal field of view
- * and face the camera. The vertical field of view is ignored.
+ * The model is an approximation that ignores the vertical field of view.
+ *
+ * Tags: every wall face that the layout tags is a candidate, wherever it is. A tag is reported when it
+ * is within `maxRange` cells, the whole black square (both side edges) is inside the horizontal field of
+ * view, it faces the camera within `maxTagViewAngle`, and no wall blocks the 2D line from the camera to
+ * the tag centre or to either side edge (walls are higher than the camera). A wall blocks as its centre
+ * line extended by half its thickness at both ends, so a ray grazing a wall end counts as blocked.
+ *
+ * Walls (`WallPercept`) keep the look-ahead corridor: from the robot's cell, along the gaze snapped to
+ * the nearest maze heading, up to `maxRange` cells and not beyond a front wall.
  *
  * Frames: the maze frame is in mm, x is east, y is north and a rotation of 0 looks east. Its origin is
  * the south-west corner of the maze. `mazePoseOnField` is the pose of that frame in the frame of the
@@ -77,8 +82,8 @@ private:
   /** Fills `view` from the ground truth. @return Whether the robot is inside the maze. */
   bool computeView(Maze::Oracle::View& view) const;
 
-  /** Whether the tag on `face` of the cell is seen; fills `detection` (with noise) if so. */
-  bool observeTag(const Maze::Oracle::View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const;
+  /** The detection of a visible tag with the configured noise. */
+  AprilTagPercept::Detection detect(const Maze::Oracle::VisibleTag& tag) const;
 
   bool dropped() const;
 
