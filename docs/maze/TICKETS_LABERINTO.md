@@ -529,7 +529,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 **Acceptance criteria**
 - [ ] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
 - [ ] Dropout = 1.0 produces empty percepts, which is used later by the safe-mode tests.
-- [ ] `MazeTagLayoutTest` passes: with `allFaces` every wall face has a tag; with `faces = [east]` only east wall faces do; with `walls` only the listed pairs do; and no tag is ever placed where the maze has no wall.
+- [x] `MazeTagLayoutTest` passes: with `allFaces` every wall face has a tag; with `faces = [east]` only east wall faces do; with `walls` only the listed pairs do; and no tag is ever placed where the maze has no wall.
 - [ ] Changing `mode` in `mazeTagLayout.cfg` changes the oracle tags in SimRobot without recompiling.
 
 ### MZ-016 — Corridor walk profile in simulation
