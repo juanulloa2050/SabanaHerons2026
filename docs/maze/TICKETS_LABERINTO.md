@@ -43,9 +43,26 @@ closed when those logs exist.
 
 ⚠️ **TAG-DEP** marks tickets whose design depends on the organisers' answer about which walls
 carry tags and at what height (question Q1, ticket MZ-006): MZ-013, MZ-015, MZ-017, MZ-018,
-MZ-020, MZ-022. Until the answer arrives, they assume **one tag centred on every wall face of
-every cell, tag centre at 30 cm above the floor**. If the answer differs, only the tag model in
-`Src/Tools/Maze/` and the tag mounts change.
+MZ-020, MZ-022. The rules fix the family (`tag36h11`) and the size (15 × 15 cm), but not which
+walls carry tags or at what height. Until the answer arrives, the default is **one tag centred on
+every wall face of every cell, tag centre at 30 cm above the floor**.
+
+**Tag layout switch.** No ticket hard-codes the layout. A single model, `MazeTagLayout`
+(`Src/Tools/Maze/MazeTagLayout.{h,cpp}`, created in MZ-013), is loaded from
+`Config/Scenarios/Maze/mazeTagLayout.cfg`. Every module that places, expects or interprets a tag
+asks it. If Q1 changes the layout, only this file and the tag mounts change, with no code change.
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `mode` | `allFaces`: a tag on every wall face of every cell. `faces`: only on the faces listed in `faces`. `walls`: only on the (cell, face) pairs listed in `walls`. | `allFaces` |
+| `faces` | Subset of `north`, `east`, `south`, `west` (maze frame, roadmap 4.5). Used when `mode = faces`. Example, east face only: `faces = [east];` | all four |
+| `walls` | List of `{cell, face}`. Used when `mode = walls`, for a layout the organisers give wall by wall. | empty |
+| `centreHeight` | Height of the tag centre above the floor, in mm | 300 |
+| `size` | Edge of the black outer square, in mm (rules) | 150 |
+
+- `hasTag(cell, face, maze)`: a face carries a tag only if the layout lists it **and** the maze has a wall there.
+- `candidateFaces(cell)`: the faces that may carry the tag with that id. Side inference picks the candidate that matches the heading, and rejects a detection whose face is not a candidate (a false-positive filter).
+- Faces are absolute (maze frame). A layout relative to the robot's path (for example "the wall on the robot's right") is not a static layout and is not covered. If Q1 answers that, it needs a new design decision.
 
 ### Software tickets (scheduled)
 
@@ -503,15 +520,17 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 | Depends on | MZ-010, MZ-011 |
 | Lab / robot | no |
 | Branch | `feat/MZ-013-oracle-percepts` |
-| Files | `Src/Modules/Modeling/OracledMazePerceptsProvider/` (create); `Src/Representations/Perception/MazePercepts/{AprilTagPercept,WallPercept}.h` (create); `Config/Scenarios/Maze/threads.cfg` (sim variant) |
+| Files | `Src/Modules/Modeling/OracledMazePerceptsProvider/` (create); `Src/Representations/Perception/MazePercepts/{AprilTagPercept,WallPercept}.h` (create); `Src/Tools/Maze/MazeTagLayout.{h,cpp}`, `Config/Scenarios/Maze/mazeTagLayout.cfg`, `Src/Apps/Tests/Maze/MazeTagLayoutTest.cpp` (create); `Config/Scenarios/Maze/threads.cfg` (sim variant) |
 
 **Goal.** Fake perception for simulation: publish the tags and walls the robot *would* see, computed from ground truth. Behaviour, planning and mapping can then be built and tested before the real detectors (MZ-018, MZ-019) exist.
 
-**Scope.** `OracledMazePerceptsProvider` (Cognition, simulation only) builds `AprilTagPercept` and `WallPercept` from `GroundTruthRobotPose` and the loaded `.maze` file. Parameters: Gaussian noise, dropout rate and maximum range. Tag placement follows the TAG-DEP assumption (one tag on every wall face, centre at 30 cm). `WallPercept` also carries the walls of the cells ahead along the gaze, up to the maximum range, in the same format as MZ-019, so look-ahead mapping (MZ-020) can be tested before the real perceptor exists.
+**Scope.** `OracledMazePerceptsProvider` (Cognition, simulation only) builds `AprilTagPercept` and `WallPercept` from `GroundTruthRobotPose` and the loaded `.maze` file. Parameters: Gaussian noise, dropout rate and maximum range. Tag placement comes from `MazeTagLayout` (see *Tag layout switch* above), which this ticket creates; the default is one tag on every wall face, centre at 30 cm. `WallPercept` also carries the walls of the cells ahead along the gaze, up to the maximum range, in the same format as MZ-019, so look-ahead mapping (MZ-020) can be tested before the real perceptor exists.
 
 **Acceptance criteria**
 - [ ] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
 - [ ] Dropout = 1.0 produces empty percepts, which is used later by the safe-mode tests.
+- [ ] `MazeTagLayoutTest` passes: with `allFaces` every wall face has a tag; with `faces = [east]` only east wall faces do; with `walls` only the listed pairs do; and no tag is ever placed where the maze has no wall.
+- [ ] Changing `mode` in `mazeTagLayout.cfg` changes the oracle tags in SimRobot without recompiling.
 
 ### MZ-016 — Corridor walk profile in simulation
 
@@ -571,6 +590,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - Wrap `ECImage.grayscaled` as `image_u8` without copying. `quad_decimate = 2`, `nthreads = 1`.
 - Tag pose with `estimate_tag_pose` using the `CameraInfo` intrinsics, transformed to the robot frame with `CameraMatrix`.
 - A decision-margin threshold and a size-versus-distance consistency check in `aprilTagDetector.cfg`.
+- The tag size for pose estimation comes from `MazeTagLayout.size` (150 mm). The detector does not depend on which walls carry tags.
 - Self-test: on the robot, a single `headRear` tap says the last seen tag id ("tag 11"), or "no tag".
 
 **Acceptance criteria**
@@ -622,7 +642,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Goal.** Know **where** the robot is (cell, heading, and a pose inside the cell) and **what** it has learned (the wall map), and keep that knowledge for the whole process.
 
 **Scope.**
-- **`MazeLocalizer`** replaces `SelfLocator` (useless in a maze). It provides `RobotPose` and `MazeCellPose`: odometry prediction, a tag fix (complementary filter, roadmap 4.5), and a heading snap on square-on tags. The gyro heading comes later in MZ-038.
+- **`MazeLocalizer`** replaces `SelfLocator` (useless in a maze). It provides `RobotPose` and `MazeCellPose`: odometry prediction, a tag fix (complementary filter, roadmap 4.5), and a heading snap on square-on tags. The gyro heading comes later in MZ-038. The face a seen tag is on comes from `MazeTagLayout::candidateFaces`, so no layout is hard-coded.
 - **`MazeMapper`** provides `MazeMap`: fuses wall evidence per edge with hysteresis (3 consistent observations before `unknown → wall/open`). Evidence is accepted for **any edge in view**, not only the edges of the current cell: wall percepts already snapped to the grid (MZ-019) and tag detections (MZ-018), where the tag id names the cell and so the edge. The weight of a wall-percept observation drops with its distance (parameter); a decoded tag counts as full evidence at any distance it can be read. The map is a module member, so it **persists for the whole process**. The attempt counter increments on Standby → start.
 
 **Acceptance criteria**
@@ -630,6 +650,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - [ ] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2.
 - [ ] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025).
 - [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11.
+- [ ] The localizer runs with each `mode` of `mazeTagLayout.cfg` (a config change only), and the tag-fix rate per mode is recorded in the PR.
 
 ### MZ-021 — Headless simulation campaign runner
 
@@ -958,7 +979,7 @@ These tickets turn the notes in `docs/CORRECCIONES.md` into work. They are small
 1. Add `InertialData` to the logger list, so Lab 1 logs carry it (a one-line change, do it before 13 Oct).
 2. From the Lab 1 logs, plot the yaw drift over a 5 min stand and a corridor walk. Write the numbers in `GYRO_HEADING.md`.
 3. Implement the offset, the snap and the tag-based re-alignment. Unit-test the snap with ±44° and ±46° inputs.
-4. **Experiment:** in simulation and on the bench, put tags **only on the north face** and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
+4. **Experiment:** put tags **only on the north face** (in simulation, `mode = faces; faces = [north];` in `mazeTagLayout.cfg`; on the bench, mount only north tags) and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
 
 **Acceptance criteria**
 - [ ] The drift rate (° per minute) is measured and recorded.
@@ -1110,7 +1131,7 @@ Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → Lab 2 (MZ-023) → Lab 3 (M
 
 **Goal.** Seven printed `tag36h11` tags at the exact size of the rules, glued to the bench panels at the height we assume, so the detector sees what it will see in the competition.
 
-**Scope.** Ids 0, 1, 7, 8, 9, 56 and 63, from the AprilRobotics `apriltag-imgs` repository (folder `tag36h11`). The **black outer square measures 150 mm**, printed on matte paper (no glossy finish), glued **centred horizontally with the tag centre 30 cm above the floor** (the TAG-DEP assumption, to be changed if Q1 says otherwise).
+**Scope.** Ids 0, 1, 7, 8, 9, 56 and 63, from the AprilRobotics `apriltag-imgs` repository (folder `tag36h11`). The **black outer square measures 150 mm**, printed on matte paper (no glossy finish), glued **centred horizontally with the tag centre at `centreHeight` above the floor** (30 cm by default), on the faces that `mazeTagLayout.cfg` lists. If Q1 changes the layout, the file and the mounts change together.
 
 **Steps**
 1. Download and scale the images so the black outer square is 150 mm.

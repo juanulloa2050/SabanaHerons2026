@@ -242,12 +242,12 @@ flowchart LR
 - **Tag id:** `id = row·8 + col`, so `row = id / 8` and `col = id % 8`.
 - **Tag observation → robot pose.**
   1. The tag id gives the cell.
-  2. The tag normal plus the current heading, snapped to 90°, gives the wall side (N/E/S/W).
-  3. That yields the tag's world pose: wall centre at 250 mm from the cell centre, mounting height from Q1.
+  2. The tag normal plus the current heading, snapped to 90°, gives the wall side (N/E/S/W), among the faces the tag layout allows for that cell.
+  3. That yields the tag's world pose: wall centre at 250 mm from the cell centre, mounting height `centreHeight` from the tag layout.
   4. `robotPose = tagWorld ∘ (tagInRobot)⁻¹`.
 
   A tag seen roughly square-on also corrects the heading, because walls are axis-aligned.
-- If the organisers' answer to Q1 changes the tag layout, only the side-inference step changes (tickets marked **TAG-DEP**).
+- **Tag layout switch.** Which walls carry tags is configuration, not code: `MazeTagLayout` (`Src/Tools/Maze/`) is loaded from `Config/Scenarios/Maze/mazeTagLayout.cfg`. `mode = allFaces` (default: every wall face of every cell), `faces` (only some orientations, for example `faces = [east];`) or `walls` (an explicit list of cell and face pairs). `centreHeight` defaults to 300 mm and `size` is 150 mm (rules). If the organisers' answer to Q1 changes the layout, only this file and the tag mounts change (tickets marked **TAG-DEP**; parameter table in the tickets document).
 
 **Maze-north from the gyro (MZ-038).** The robot always knows which way it faces:
 
@@ -500,7 +500,7 @@ maze file. See MZ-040.
 | Risk | Mitigation |
 |---|---|
 | Drift over long runs | Tag re-fix at every visible tag. Turns only at cell centres. Heading snap on square-on tags. |
-| Tag layout differs from our assumption | Side-inference isolated in one function (TAG-DEP). The 5-minute calibration checks the tag id and distance at 1 m. |
+| Tag layout differs from our assumption | The layout is a config switch (`mazeTagLayout.cfg`, section 4.5), not code (TAG-DEP). The 5-minute calibration checks the tag id and distance at 1 m. |
 | Different floor or light | Conservative defaults (below). `MazeSafe` fallback deploy. Camera auto-exposure is kept. |
 | Wall touches | Speed capped at 60 % of `maxSpeed`. Corridor centring. Turns only in place. Arm envelope reduced. |
 | Stall or loop | Watchdog at 3 s, safe mode, wall-follower |
