@@ -13,6 +13,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import generate_maze as gm  # noqa: E402
+import make_tag_textures as tags  # noqa: E402
 import maze_to_scene as ms  # noqa: E402
 
 BOX = re.compile(r'<BoxGeometry depth="([^"]+)" width="([^"]+)" height="([^"]+)" color="([^"]+)">\s*'
@@ -135,7 +136,8 @@ class MainTest(unittest.TestCase):
             bad.write_text("nope\n")
             out = Path(tmp, "sub", "current.rsi2")
             self.assertEqual(ms.main([str(good), "--out", str(out)]), 0)
-            self.assertEqual(out.read_text(), ms.convert(gm.generate(1), str(good)))
+            layout = ms.parse_tag_layout(ms.TAG_LAYOUT_PATH.read_text())
+            self.assertEqual(out.read_text(), ms.convert(gm.generate(1), str(good), layout))
             self.assertEqual(ms.main([str(bad), "--out", str(Path(tmp, "x.rsi2"))]), 1)
             self.assertFalse(Path(tmp, "x.rsi2").exists())
             self.assertEqual(ms.main([str(Path(tmp, "missing.maze"))]), 1)
@@ -229,6 +231,135 @@ class MainTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(ms.main([str(good)]), 0)
             self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), before)
+
+
+QUAD = re.compile(r'<ComplexAppearance name="tag(\d+)(\w+)">\s*<Surface [^>]*diffuseTexture="([^"]+)"/>\s*<Vertices>\s*'
+                  r'((?:\S+ \S+ \S+\s+){4})</Vertices>')
+
+
+def quads(scene):
+    """Return {(cell, face): (texture, [4 vertices])}."""
+    return {(int(cell), face): (texture, [tuple(map(float, row.split())) for row in vertices.strip().splitlines()])
+            for cell, face, texture, vertices in QUAD.findall(scene)}
+
+
+def scene_with(cfg, seed=1):
+    return ms.convert(gm.generate(seed), "m.maze", ms.parse_tag_layout(cfg))
+
+
+class TagLayoutTest(unittest.TestCase):
+    def test_parses_the_shipped_layout(self):
+        layout = ms.parse_tag_layout(ms.TAG_LAYOUT_PATH.read_text())
+        self.assertEqual((layout.mode, layout.centre_height, layout.size), ("allFaces", 300.0, 150.0))
+        self.assertEqual(layout.faces, ("north", "east", "south", "west"))
+
+    def test_parses_faces_and_walls(self):
+        layout = ms.parse_tag_layout("mode = faces; faces = [east, south]; // c\nwalls = [{cell = 10; face = east;}, "
+                                     "{cell = 11; face = north;}]; centreHeight = 250; size = 120;")
+        self.assertEqual((layout.mode, layout.faces, layout.centre_height, layout.size), ("faces", ("east", "south"), 250.0, 120.0))
+        self.assertEqual(layout.walls, ((10, "east"), (11, "north")))
+        self.assertEqual(layout.candidates(10), ["east", "south"])
+
+    def test_rejects_unknown_values(self):
+        for cfg in ("mode = everything;", "faces = [up];", "colour = 1;", "walls = [{cell = x; face = east;}]", "walls = [{cell = 1;}]"):
+            with self.assertRaises(ValueError, msg=cfg):
+                ms.parse_tag_layout(cfg)
+
+    def test_all_faces_one_quad_per_wall_face_never_without_wall(self):
+        lines = gm.parse(gm.generate(1))
+        found = quads(scene_with("mode = allFaces;"))
+        expected = {(r * 8 + c, f) for r in range(8) for c in range(8) for f, (dr, dc, _, _) in ms.FACES.items()
+                    if lines[gm.wall_pos(r, c, dr, dc)[0]][gm.wall_pos(r, c, dr, dc)[1]] in "-|"}
+        self.assertEqual(set(found), expected)
+        self.assertEqual({k for k in expected if k[0] == 0}, {(0, "north"), (0, "east"), (0, "west")})  # open south side
+
+    def test_faces_and_walls_modes(self):
+        self.assertEqual({f for _, f in quads(scene_with("mode = faces; faces = [east];"))}, {"east"})
+        self.assertEqual(set(quads(scene_with("mode = walls; walls = [{cell = 0; face = north;}, {cell = 0; face = south;}];"))),
+                         {(0, "north")})  # cell 0 has no south wall
+        self.assertEqual(quads(scene_with("mode = walls;")), {})
+        self.assertNotIn("ComplexAppearance", ms.convert(gm.generate(1), "m.maze"))
+
+    def test_quad_position_orientation_and_texture(self):
+        # Cell 0 is centred at (-1.75, 1.75); its walls are 15 mm thick, the quad is 1 mm in front of the surface.
+        found = quads(scene_with("mode = allFaces;"))
+        r = 0.25 - 0.0075 - 0.001
+        half = 0.150 * 10 / 8 / 2
+        want = {  # face: (quad centre x, y, bottom-left x, y)
+            "north": (-1.75, 1.75 + r, -1.75 - half, 1.75 + r),
+            "east": (-1.75 + r, 1.75, -1.75 + r, 1.75 + half),
+            "west": (-1.75 - r, 1.75, -1.75 - r, 1.75 - half),
+        }
+        for face, (cx, cy, blx, bly) in want.items():
+            texture, (bl, br, tr, tl) = found[(0, face)]
+            self.assertTrue(texture.endswith("/tag36_11_00000.png"), texture)
+            self.assertAlmostEqual(bl[0], blx, places=5)
+            self.assertAlmostEqual(bl[1], bly, places=5)
+            self.assertAlmostEqual((bl[0] + tr[0]) / 2, cx, places=5)
+            self.assertAlmostEqual((bl[1] + tr[1]) / 2, cy, places=5)
+            self.assertAlmostEqual(bl[2], 0.3 - half, places=5)  # centred at 300 mm
+            self.assertAlmostEqual(tl[2], 0.3 + half, places=5)
+            self.assertEqual(bl[:2], tl[:2])
+            self.assertEqual(br[:2], tr[:2])
+            # Seen from inside the cell the edge bl -> br points to the viewer's right, which is d x z.
+            dx, dy = (cx + 1.75), (cy - 1.75)
+            self.assertAlmostEqual((br[0] - bl[0]) * dy - (br[1] - bl[1]) * dx, 2 * half * r, places=5)
+            self.assertAlmostEqual((br[0] - bl[0]) * dx + (br[1] - bl[1]) * dy, 0.0, places=5)
+
+    def test_texture_is_the_cell_id_and_size_follows_the_layout(self):
+        found = quads(scene_with("mode = allFaces; size = 100; centreHeight = 200;"))
+        for (cell, _), (texture, (bl, _, _, tl)) in found.items():
+            self.assertTrue(texture.endswith(f"/tag36_11_{cell:05d}.png"), texture)
+            self.assertAlmostEqual(tl[2] - bl[2], 0.125, places=5)
+            self.assertAlmostEqual((tl[2] + bl[2]) / 2, 0.2, places=5)
+
+    def test_main_reads_the_layout_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            maze, cfg, out = Path(tmp, "m.maze"), Path(tmp, "l.cfg"), Path(tmp, "current.rsi2")
+            maze.write_text(gm.generate(1))
+            cfg.write_text("mode = faces; faces = [west];")
+            self.assertEqual(ms.main([str(maze), "--out", str(out), "--tag-layout", str(cfg)]), 0)
+            self.assertEqual({f for _, f in quads(out.read_text())}, {"west"})
+            cfg.write_text("mode = bogus;")
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ms.main([str(maze), "--tag-layout", str(cfg)]), 1)
+                self.assertEqual(ms.main([str(maze), "--tag-layout", str(Path(tmp, "none.cfg"))]), 1)
+
+
+class TagTextureTest(unittest.TestCase):
+    @staticmethod
+    def decode(data):
+        """Decode one of our PNGs back into a pixel-per-module grid of grey values."""
+        import struct
+        import zlib
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+        width, height, depth, colour = struct.unpack(">IIBB", data[16:26])
+        assert (depth, colour) == (8, 2)  # RGB, which SimRobot can load
+        raw = zlib.decompress(data[data.index(b"IDAT") + 4:data.index(b"IEND") - 8])
+        stride = width * 3 + 1
+        pixels = [[raw[y * stride + 1 + x * 3] for x in range(width)] for y in range(height)]
+        return [[pixels[m * tags.SCALE][n * tags.SCALE] for n in range(width // tags.SCALE)] for m in range(height // tags.SCALE)]
+
+    def test_modules_match_the_apriltag_library_data(self):
+        codes, bit_x, bit_y, border, total = tags.load_family()
+        self.assertEqual((border, total, len(codes)), (8, 10, 587))
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(tags.main(["--out", tmp]), 0)
+            self.assertEqual(len(list(Path(tmp).glob("tag36_11_*.png"))), 64)
+            for tag_id in (0, 1, 33, 63):
+                grid = self.decode(Path(tmp, tags.texture_name(tag_id)).read_bytes())
+                self.assertEqual(len(grid), 10)
+                self.assertTrue(all(v == 255 for v in grid[0] + grid[9] + [row[0] for row in grid] + [row[9] for row in grid]))
+                self.assertTrue(all(v == 0 for v in grid[1][1:9] + grid[8][1:9] + [row[1] for row in grid[1:9]] + [row[8] for row in grid[1:9]]))
+                for i in range(36):
+                    bit = codes[tag_id] >> (35 - i) & 1
+                    self.assertEqual(grid[bit_y[i] + 1][bit_x[i] + 1], 255 if bit else 0, f"id {tag_id} bit {i}")
+
+    def test_committed_textures_are_up_to_date(self):
+        codes, bit_x, bit_y, border, total = tags.load_family()
+        for tag_id in range(64):
+            expected = tags.png_bytes(tags.tag_modules(codes[tag_id], bit_x, bit_y, border, total))
+            self.assertEqual((tags.OUT_DIR / tags.texture_name(tag_id)).read_bytes(), expected, tag_id)
 
 
 if __name__ == "__main__":

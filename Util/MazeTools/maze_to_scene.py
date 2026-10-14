@@ -6,6 +6,8 @@ The include defines two compounds that ``Config/Scenes/Maze.ros2`` references:
 * ``maze``: per wall character (``-`` or ``|``) of the file, border included, one
   ``BoxAppearance`` (visual) and one ``BoxGeometry`` (collision) of the same size and
   position. Each box is one 0.5 m cell side plus a 1.5 cm overlap.
+  The wall faces that carry an AprilTag (see ``Config/Scenarios/Maze/mazeTagLayout.cfg``) also get a
+  textured quad (appearance only) inside this compound, placed where the oracle assumes the tag.
 * ``mazeFloor``: a matte floor slab (geometry and appearance, top at z = 0) with a margin around the
   maze, and an appearance-only patch over the goal block (cells 27, 28, 35, 36).
 * ``mazeRobots``: the robot placed at the centre of ``S``, facing the open side.
@@ -17,11 +19,13 @@ is the +y side). Output is deterministic. Standard library only.
 
 import argparse
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
 
 import generate_maze as gm
+import make_tag_textures as tags
 
 # Colours (placeholders until the organisers confirm them; edit here, then regenerate current.rsi2).
 WALL_COLOR = "rgb(235, 235, 235)"
@@ -43,6 +47,14 @@ GOAL_THICKNESS_M = 0.002
 ROBOT_HEIGHT = "320mm"
 # Heading in degrees (+x = 0, +y = 90) for each (dr, dc); row 0 is the +y side.
 HEADINGS = {(-1, 0): 90, (1, 0): -90, (0, -1): 180, (0, 1): 0}
+
+# AprilTags. Faces as in Maze::Heading (north is +y); each has (dr, dc) towards its wall and the unit vector
+# (dx, dy) from the cell centre to it.
+TAG_LAYOUT_PATH = Path(__file__).resolve().parents[2] / "Config/Scenarios/Maze/mazeTagLayout.cfg"
+FACES = {"north": (-1, 0, 0, 1), "east": (0, 1, 1, 0), "south": (1, 0, 0, -1), "west": (0, -1, -1, 0)}
+TAG_MODES = ("allFaces", "faces", "walls")
+TAG_OFFSET_M = 0.001  # in front of the wall surface, against z-fighting
+TEXTURE_DIR = "../../Textures/AprilTags/"  # relative to Includes/Maze/current.rsi2
 
 
 def metres(value):
@@ -88,8 +100,110 @@ def start_pose(lines):
     raise ValueError("no start cell with an open side")
 
 
-def convert(text, source):
-    """Return the .rsi2 text for a valid maze; raise ValueError otherwise."""
+class TagLayout:
+    """Which wall faces carry a tag; the same rules as Maze::MazeTagLayout::hasTag, minus the wall check."""
+
+    def __init__(self, mode="allFaces", faces=tuple(FACES), walls=(), centre_height=300.0, size=150.0):
+        self.mode, self.faces, self.walls = mode, tuple(faces), tuple(walls)
+        self.centre_height, self.size = centre_height, size
+
+    def candidates(self, cell):
+        if self.mode == "allFaces":
+            return list(FACES)
+        if self.mode == "faces":
+            return [f for f in FACES if f in self.faces]
+        return [f for f in FACES if (cell, f) in self.walls]
+
+
+def _split_top_level(text, separator):
+    """Split on `separator` outside of [] and {}."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        depth += ch in "[{"
+        depth -= ch in "]}"
+        if ch == separator and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _face(name):
+    if name not in FACES:
+        raise ValueError(f"unknown face '{name}'")
+    return name
+
+
+def _pair(field):
+    key, _, value = field.partition("=")
+    return key.strip(), value.strip()
+
+
+def parse_tag_layout(text):
+    """Parse a mazeTagLayout.cfg (key = value; // comment); raise ValueError on anything unknown."""
+    values = {}
+    for statement in _split_top_level(re.sub(r"//[^\n]*", "", text), ";"):
+        key, sep, value = statement.partition("=")
+        if not sep:
+            raise ValueError(f"cannot parse '{statement}'")
+        values[key.strip()] = value.strip()
+    unknown = set(values) - {"mode", "faces", "walls", "centreHeight", "size"}
+    if unknown:
+        raise ValueError(f"unknown key '{sorted(unknown)[0]}'")
+    layout = TagLayout()
+    try:
+        if "mode" in values:
+            if values["mode"] not in TAG_MODES:
+                raise ValueError(f"unknown mode '{values['mode']}'")
+            layout.mode = values["mode"]
+        if "faces" in values:
+            layout.faces = tuple(_face(f.strip()) for f in values["faces"].strip("[]").split(",") if f.strip())
+        if "walls" in values:
+            walls = []
+            for entry in _split_top_level(values["walls"].strip("[]"), ","):
+                fields = dict(_pair(f) for f in _split_top_level(entry.strip("{}"), ";"))
+                walls.append((int(fields["cell"]), _face(fields["face"])))
+            layout.walls = tuple(walls)
+        if "centreHeight" in values:
+            layout.centre_height = float(values["centreHeight"])
+        if "size" in values:
+            layout.size = float(values["size"])
+    except (KeyError, ValueError) as exc:
+        raise ValueError(f"invalid tag layout: {exc}") from None
+    return layout
+
+
+def tag_quads(lines, layout):
+    """Yield (cell, face, corners) for each wall face that carries a tag; corners are 4 (x, y, z) in metres,
+    bottom-left, bottom-right, top-right, top-left as seen from inside the cell looking at the wall."""
+    half = layout.size / 1000 * tags.TOTAL_WIDTH / tags.WIDTH_AT_BORDER / 2  # the white ring is part of the texture
+    z0, z1 = layout.centre_height / 1000 - half, layout.centre_height / 1000 + half
+    reach = CELL / 2 - float(WALL_THICKNESS[:-1]) / 2 - TAG_OFFSET_M  # cell centre to the quad
+    for cell in range(gm.N * gm.N):
+        r, c = divmod(cell, gm.N)
+        cx, cy = cell_centre(r, c)
+        for face in layout.candidates(cell):
+            dr, dc, dx, dy = FACES[face]
+            wr, wc = gm.wall_pos(r, c, dr, dc)
+            if lines[wr][wc] not in "-|":
+                continue
+            x, y = cx + dx * reach, cy + dy * reach
+            rx, ry = dy * half, -dx * half  # right when looking at the wall, tag x axis
+            yield cell, face, [(x - rx, y - ry, z0), (x + rx, y + ry, z0), (x + rx, y + ry, z1), (x - rx, y - ry, z1)]
+
+
+def tag_appearance(cell, face, corners):
+    vertices = "\n".join("        " + " ".join(f"{v:.6g}" for v in corner) for corner in corners)
+    return [f'    <ComplexAppearance name="tag{cell}{face}">',
+            f'      <Surface diffuseColor="rgb(100%, 100%, 100%)" diffuseTexture="{TEXTURE_DIR}{tags.texture_name(cell)}"/>',
+            "      <Vertices>", vertices, "      </Vertices>",
+            "      <Quads>0 1 2 3</Quads>",
+            "      <TexCoords>0 0 1 0 1 1 0 1</TexCoords>",
+            "    </ComplexAppearance>"]
+
+
+def convert(text, source, layout=None):
+    """Return the .rsi2 text for a valid maze; raise ValueError otherwise. Tags only with a `layout`."""
     error = gm.validate(text)
     if error is not None:
         raise ValueError(error)
@@ -110,6 +224,9 @@ def convert(text, source):
         translation = f'      <Translation x="{metres(x)}" y="{metres(y)}" z="{metres(WALL_HEIGHT_M / 2)}"/>'
         out += [f"    <BoxAppearance {size}>", f'      <Surface ref="{WALL_SURFACE_NAME}"/>', translation, "    </BoxAppearance>"]
         out += [f'    <BoxGeometry {size} color="{WALL_COLOR}">', translation, "    </BoxGeometry>"]
+    if layout is not None:
+        for cell, face, corners in tag_quads(lines, layout):
+            out += tag_appearance(cell, face, corners)
     out.append("  </Compound>")
     slab = box_size(FLOOR_SIZE_M, FLOOR_SIZE_M, FLOOR_THICKNESS_M)
     slab_z = f'      <Translation z="{metres(-FLOOR_THICKNESS_M / 2)}"/>'
@@ -197,7 +314,17 @@ def main(argv=None):
     p = argparse.ArgumentParser(description="Convert a .maze file into a SimRobot .rsi2 include.")
     p.add_argument("maze", help="input .maze file")
     p.add_argument("--out", help="output file (default: stdout); a byte-exact copy of the maze is written next to it with the .maze suffix")
+    p.add_argument("--tag-layout", default=str(TAG_LAYOUT_PATH),
+                   help="AprilTag layout (default: Config/Scenarios/Maze/mazeTagLayout.cfg, the file the oracle reads)")
     args = p.parse_args(argv)
+    try:
+        layout = parse_tag_layout(Path(args.tag_layout).read_text(encoding="utf-8"))
+    except OSError as exc:
+        print(f"cannot read {args.tag_layout}: {exc.strerror}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"{args.tag_layout}: {exc}", file=sys.stderr)
+        return 1
     try:
         text = Path(args.maze).read_text(encoding="utf-8")
     except OSError as exc:
@@ -207,7 +334,7 @@ def main(argv=None):
         print(f"cannot read {args.maze}: not valid UTF-8 text", file=sys.stderr)
         return 1
     try:
-        scene = convert(text, args.maze)
+        scene = convert(text, args.maze, layout)
     except ValueError as exc:
         print(f"invalid maze {args.maze}: {exc}", file=sys.stderr)
         return 1
