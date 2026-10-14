@@ -16,7 +16,9 @@ is the +y side). Output is deterministic. Standard library only.
 """
 
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import generate_maze as gm
@@ -144,6 +146,53 @@ def convert(text, source):
     return "\n".join(out) + "\n"
 
 
+def _write_temp(directory, name, data):
+    """Writes `data` (bytes) to a new temp file in `directory` and returns its path."""
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=f".{name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return Path(tmp)
+
+
+def write_pair(scene_path, scene, maze_bytes):
+    """Writes the scene and the maze copy next to it so that they never disagree.
+
+    Both are written completely to temp files in the target directory first, so a full disk or a
+    permission error leaves the old pair untouched. Then the maze copy is replaced, and the scene
+    last (the scene is what the user opens, the copy follows it); if that second replace fails,
+    the previous maze copy is put back. Temp files are always removed. Raises OSError on failure.
+    """
+    scene_path = Path(scene_path)
+    maze_copy = scene_path.with_suffix(".maze")
+    scene_path.parent.mkdir(parents=True, exist_ok=True)
+    temps = []
+    try:
+        tmp_maze = _write_temp(scene_path.parent, maze_copy.name, maze_bytes)
+        temps.append(tmp_maze)
+        tmp_scene = _write_temp(scene_path.parent, scene_path.name, scene.encode("utf-8"))
+        temps.append(tmp_scene)
+        previous = maze_copy.read_bytes() if maze_copy.exists() else None
+        os.replace(tmp_maze, maze_copy)
+        try:
+            os.replace(tmp_scene, scene_path)
+        except OSError:
+            # Undo the first replace so the pair stays as it was.
+            if previous is None:
+                maze_copy.unlink(missing_ok=True)
+            else:
+                tmp_previous = _write_temp(scene_path.parent, maze_copy.name, previous)
+                temps.append(tmp_previous)
+                os.replace(tmp_previous, maze_copy)
+            raise
+    finally:
+        for tmp in temps:
+            tmp.unlink(missing_ok=True)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Convert a .maze file into a SimRobot .rsi2 include.")
     p.add_argument("maze", help="input .maze file")
@@ -164,13 +213,19 @@ def main(argv=None):
         return 1
     if args.out:
         out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(scene)
         # The oracle percepts (OracledMazePerceptsProvider) read the maze from next to the scene, so
         # one command switches both. Written only here, after a successful conversion.
         maze_copy = out.with_suffix(".maze")
-        if maze_copy != out:
-            maze_copy.write_bytes(Path(args.maze).read_bytes())
+        try:
+            if maze_copy == out:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(scene)
+            else:
+                write_pair(out, scene, Path(args.maze).read_bytes())
+        except OSError as exc:
+            print(f"cannot write {out} and its maze copy: {exc.strerror or exc}; "
+                  f"the previous files are unchanged", file=sys.stderr)
+            return 1
     else:
         sys.stdout.write(scene)
     return 0

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -164,6 +165,61 @@ class MainTest(unittest.TestCase):
             self.assertEqual(ms.main([str(bad), "--out", str(Path(tmp, "current.rsi2"))]), 1)
             self.assertFalse(Path(tmp, "current.maze").exists())
             self.assertFalse(Path(tmp, "current.rsi2").exists())
+
+    def _pair_fixture(self, tmp):
+        old, new = Path(tmp, "old.maze"), Path(tmp, "new.maze")
+        old.write_text(gm.generate(1))
+        new.write_text(gm.generate(2))
+        out = Path(tmp, "current.rsi2")
+        self.assertEqual(ms.main([str(old), "--out", str(out)]), 0)
+        return old, new, out
+
+    def test_failed_scene_replace_keeps_the_old_pair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new, out = self._pair_fixture(tmp)
+            scene_before = out.read_text()
+            real_replace = os.replace
+            calls = []
+
+            def replace(src, dst):
+                calls.append(dst)
+                if len(calls) == 2:  # the scene, after the maze copy went through
+                    raise PermissionError(13, "Permission denied")
+                return real_replace(src, dst)
+
+            err = io.StringIO()
+            with mock.patch.object(ms.os, "replace", replace), contextlib.redirect_stderr(err):
+                self.assertEqual(ms.main([str(new), "--out", str(out)]), 1)
+            self.assertIn("cannot write", err.getvalue())
+            self.assertEqual(out.read_text(), scene_before)
+            self.assertEqual(Path(tmp, "current.maze").read_bytes(), old.read_bytes())
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["current.maze", "current.rsi2", "new.maze", "old.maze"])
+
+    def test_failed_second_temp_write_changes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new, out = self._pair_fixture(tmp)
+            scene_before = out.read_text()
+            real_write = ms._write_temp
+
+            def write_temp(directory, name, data):
+                if name.endswith(".rsi2"):
+                    raise OSError(28, "No space left on device")
+                return real_write(directory, name, data)
+
+            with mock.patch.object(ms, "_write_temp", write_temp), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ms.main([str(new), "--out", str(out)]), 1)
+            self.assertEqual(out.read_text(), scene_before)
+            self.assertEqual(Path(tmp, "current.maze").read_bytes(), old.read_bytes())
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["current.maze", "current.rsi2", "new.maze", "old.maze"])
+
+    def test_failed_first_write_leaves_no_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp, "good.maze")
+            good.write_text(gm.generate(1))
+            out = Path(tmp, "sub", "current.rsi2")
+            with mock.patch.object(ms.os, "replace", side_effect=OSError(5, "I/O error")), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ms.main([str(good), "--out", str(out)]), 1)
+            self.assertEqual(list(Path(tmp, "sub").iterdir()), [])
 
     def test_copy_not_written_without_out(self):
         with tempfile.TemporaryDirectory() as tmp:

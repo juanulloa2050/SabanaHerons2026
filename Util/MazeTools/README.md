@@ -90,10 +90,13 @@ Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/Maze.ros2
 The input is validated with `generate_maze.py`; an invalid file prints the broken rule to stderr and
 exits with 1. Without `--out` the scene is printed to stdout. Output is deterministic and starts with
 a comment naming the source file. With `--out`, the converter also writes a byte-exact copy of the input
-maze next to it with the `.maze` suffix (`current.maze`), only after a successful conversion. The
+maze next to it with the `.maze` suffix (`current.maze`), only after a successful conversion. Both files
+are written to temp files first and then renamed into place, so a write error leaves the previous
+scene and copy unchanged and exits with 1. The
 oracle percepts (`OracledMazePerceptsProvider`, `mazeFile` parameter) read that copy, so this one
 command switches both the scene and the oracle percepts. Rerun it after changing the maze, then reopen
-the scene (the oracle reloads `current.maze` when the scene is opened again).
+the scene to see the new walls (the oracle notices a changed `current.maze` within a second and retries a missing or
+invalid one every second, so it needs no restart).
 
 - One `BoxGeometry` per `-` or `|` character, border included: 0.5 m cell side plus 1.5 cm overlap
   (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.
