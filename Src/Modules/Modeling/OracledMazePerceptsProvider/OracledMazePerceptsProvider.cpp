@@ -100,8 +100,7 @@ Maze::Oracle::Camera OracledMazePerceptsProvider::camera() const
 
 bool OracledMazePerceptsProvider::computeView(View& view) const
 {
-  const Pose2f robotInMaze(theGroundTruthRobotPose.rotation, theGroundTruthRobotPose.translation - mazeOriginOnField);
-  return Maze::Oracle::computeView(maze.graph, robotInMaze, camera(), maxRange, view);
+  return Maze::Oracle::computeView(maze.graph, Maze::Oracle::robotInMaze(theGroundTruthRobotPose, mazePoseOnField), camera(), maxRange, view);
 }
 
 bool OracledMazePerceptsProvider::observeTag(const View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const

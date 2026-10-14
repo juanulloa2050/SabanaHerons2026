@@ -325,3 +325,76 @@ GTEST_TEST(MazeOracle, GeneratedMazeDeadEnd)
   }
   EXPECT_TRUE(frontSeen);
 }
+
+namespace
+{
+  /** The maze pose for a first-team robot: SimRobot rotates its ground truth by pi. */
+  const Pose2f firstTeamMazePose(pi, Vector2f(2000.f, 2000.f));
+  /** The maze pose for a second-team robot: the ground truth is the simulator pose. */
+  const Pose2f secondTeamMazePose(0.f, Vector2f(-2000.f, -2000.f));
+
+  /** What the simulator reports for a robot of the first team standing at `simulatorPose`. */
+  Pose2f firstTeamGroundTruth(const Pose2f& simulatorPose)
+  {
+    return Pose2f(pi) + simulatorPose;
+  }
+
+  void expectCellAndHeading(const Pose2f& mazePose, const Pose2f& groundTruth, int row, int col, Maze::Heading heading)
+  {
+    View view;
+    ASSERT_TRUE(computeView(openMaze(), robotInMaze(groundTruth, mazePose), forwardCamera(), 2, view));
+    EXPECT_EQ(view.row, row);
+    EXPECT_EQ(view.col, col);
+    EXPECT_EQ(view.gaze, heading);
+  }
+}
+
+GTEST_TEST(MazeOracle, FirstTeamGroundTruthInAllCorners)
+{
+  // Simulator poses of the generated scene: the maze is centred on the origin, cell (0, 0) is at (-1750, 1750).
+  expectCellAndHeading(firstTeamMazePose, firstTeamGroundTruth(Pose2f(-pi / 2.f, -1750.f, 1750.f)), 0, 0, Maze::Heading::south);
+  expectCellAndHeading(firstTeamMazePose, firstTeamGroundTruth(Pose2f(0.f, 1750.f, 1750.f)), 0, 7, Maze::Heading::east);
+  expectCellAndHeading(firstTeamMazePose, firstTeamGroundTruth(Pose2f(pi / 2.f, -1750.f, -1750.f)), 7, 0, Maze::Heading::north);
+  expectCellAndHeading(firstTeamMazePose, firstTeamGroundTruth(Pose2f(pi, 1750.f, -1750.f)), 7, 7, Maze::Heading::west);
+}
+
+GTEST_TEST(MazeOracle, SecondTeamGroundTruthInAllCorners)
+{
+  expectCellAndHeading(secondTeamMazePose, Pose2f(-pi / 2.f, -1750.f, 1750.f), 0, 0, Maze::Heading::south);
+  expectCellAndHeading(secondTeamMazePose, Pose2f(0.f, 1750.f, 1750.f), 0, 7, Maze::Heading::east);
+  expectCellAndHeading(secondTeamMazePose, Pose2f(pi / 2.f, -1750.f, -1750.f), 7, 0, Maze::Heading::north);
+  expectCellAndHeading(secondTeamMazePose, Pose2f(pi, 1750.f, -1750.f), 7, 7, Maze::Heading::west);
+}
+
+GTEST_TEST(MazeOracle, RobotInMazeInverseOfMazePose)
+{
+  const Pose2f inMaze = robotInMaze(firstTeamGroundTruth(Pose2f(-pi / 2.f, -1750.f, 1750.f)), firstTeamMazePose);
+  EXPECT_NEAR(inMaze.translation.x(), 250.f, 0.01f);
+  EXPECT_NEAR(inMaze.translation.y(), 3750.f, 0.01f);
+  EXPECT_NEAR(Angle::normalize(inMaze.rotation - angleOf(Maze::Heading::south)), 0.f, 1e-4f);
+}
+
+GTEST_TEST(MazeOracle, GeneratedMazeStartCorridor)
+{
+  Maze::MazeDescription maze;
+  std::string error;
+  ASSERT_TRUE(Maze::MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/generated/maze_1.maze", maze, error)) << error;
+  ASSERT_EQ(maze.startCell, 0);
+
+  // maze_1: robot1 starts in cell 0 facing south; the simulator pose is (-1750, 1750), -90deg.
+  const Pose2f groundTruth = firstTeamGroundTruth(Pose2f(-pi / 2.f, -1750.f, 1750.f));
+  EXPECT_NEAR(groundTruth.translation.x(), 1750.f, 0.01f);
+  EXPECT_NEAR(groundTruth.translation.y(), -1750.f, 0.01f);
+  EXPECT_NEAR(Angle::normalize(groundTruth.rotation - pi / 2.f), 0.f, 1e-4f);
+
+  View view;
+  ASSERT_TRUE(computeView(maze.graph, robotInMaze(groundTruth, firstTeamMazePose), forwardCamera(), 3, view));
+  EXPECT_EQ(view.gaze, Maze::Heading::south);
+  ASSERT_EQ(view.cells.size(), 3u); // cells 0, 8 and 16; the south face of cell 16 is a wall
+  const int expected[3] = {0, 8, 16};
+  for(std::size_t i = 0; i < 3; ++i)
+    EXPECT_EQ(Maze::cellId(view.cells[i].row, view.cells[i].col), expected[i]);
+  EXPECT_EQ(view.cells[0].front, Maze::EdgeState::open);
+  EXPECT_EQ(view.cells[1].front, Maze::EdgeState::open);
+  EXPECT_EQ(view.cells[2].front, Maze::EdgeState::wall);
+}

@@ -75,6 +75,14 @@ namespace Maze
     [[nodiscard]] bool cellContaining(const Vector2f& mazePoint, int& row, int& col);
 
     /**
+     * The robot pose in the maze frame.
+     * @param groundTruthRobotPose The robot pose as the simulator reports it.
+     * @param mazePoseOnField Pose of the maze frame (origin in its south-west corner, x east, y north)
+     *                        in the frame of `groundTruthRobotPose`.
+     */
+    [[nodiscard]] Pose2f robotInMaze(const Pose2f& groundTruthRobotPose, const Pose2f& mazePoseOnField);
+
+    /**
      * Fills `view` for a robot at `robotInMaze`.
      * @param maxRange Cells ahead of the robot's cell that are walked.
      * @return Whether the robot is inside the maze.

@@ -62,6 +62,11 @@ namespace Maze
       return inside(row, col);
     }
 
+    Pose2f robotInMaze(const Pose2f& groundTruthRobotPose, const Pose2f& mazePoseOnField)
+    {
+      return mazePoseOnField.inverse() * groundTruthRobotPose;
+    }
+
     bool computeView(const MazeGraph& maze, const Pose2f& robotInMaze, const Camera& camera, int maxRange, View& view)
     {
       view.robot = robotInMaze.translation;

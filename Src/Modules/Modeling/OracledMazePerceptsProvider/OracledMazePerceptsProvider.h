@@ -11,8 +11,9 @@
  * Tags are seen on the wall faces of those cells when they are inside the horizontal field of view
  * and face the camera. The vertical field of view is ignored.
  *
- * Frames: maze frame mm + `mazeOriginOnField` = field (SimRobot world) mm; x is east, y is north
- * and a rotation of 0 looks east. The tag layout comes from `mazeTagLayout.cfg`.
+ * Frames: the maze frame is in mm, x is east, y is north and a rotation of 0 looks east. Its origin is
+ * the south-west corner of the maze. `mazePoseOnField` is the pose of that frame in the frame of the
+ * ground truth robot pose, which is not the SimRobot world for first-team robots (it is rotated by pi). The tag layout comes from `mazeTagLayout.cfg`.
  */
 
 #pragma once
@@ -41,7 +42,7 @@ MODULE(OracledMazePerceptsProvider,
   LOADS_PARAMETERS(
   {,
     (std::string) mazeFile,        /**< The maze, relative to the repository root. Written next to the scene by maze_to_scene.py. */
-    (Vector2f) mazeOriginOnField,  /**< Field position (mm) of the south-west corner of the maze. */
+    (Pose2f) mazePoseOnField,      /**< Pose of the maze frame (mm) in the frame of the ground truth robot pose. */
     (int) maxRange,                /**< Cells ahead of the robot's cell that are seen. */
     (float) dropoutRate,           /**< Probability to miss one observation (a tag, a cell, a segment); 1 gives empty percepts. */
     (float) tagPositionStdDev,     /**< Standard deviation of the tag position per axis in mm. */
