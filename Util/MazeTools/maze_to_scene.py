@@ -147,7 +147,7 @@ def convert(text, source):
 def main(argv=None):
     p = argparse.ArgumentParser(description="Convert a .maze file into a SimRobot .rsi2 include.")
     p.add_argument("maze", help="input .maze file")
-    p.add_argument("--out", help="output file (default: stdout)")
+    p.add_argument("--out", help="output file (default: stdout); a byte-exact copy of the maze is written next to it with the .maze suffix")
     args = p.parse_args(argv)
     try:
         text = Path(args.maze).read_text(encoding="utf-8")
@@ -166,6 +166,11 @@ def main(argv=None):
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(scene)
+        # The oracle percepts (OracledMazePerceptsProvider) read the maze from next to the scene, so
+        # one command switches both. Written only here, after a successful conversion.
+        maze_copy = out.with_suffix(".maze")
+        if maze_copy != out:
+            maze_copy.write_bytes(Path(args.maze).read_bytes())
     else:
         sys.stdout.write(scene)
     return 0

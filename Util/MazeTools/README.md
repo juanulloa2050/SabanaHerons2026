@@ -78,7 +78,7 @@ stderr and the exit code is 1.
 
 `maze_to_scene.py` turns a `.maze` file into `Config/Scenes/Includes/Maze/current.rsi2`, which
 `Config/Scenes/Maze.ros2` includes.
-`current.rsi2` is git-ignored: generate it once after cloning (first command below). Step-by-step
+`current.rsi2` and `current.maze` are git-ignored: generate them once after cloning (first command below). Step-by-step
 guide and console commands: `docs/maze/SIMULACION_LABERINTO.md`.
 
 ```bash
@@ -89,7 +89,11 @@ Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/Maze.ros2
 
 The input is validated with `generate_maze.py`; an invalid file prints the broken rule to stderr and
 exits with 1. Without `--out` the scene is printed to stdout. Output is deterministic and starts with
-a comment naming the source file. Regenerate `current.rsi2` after changing the maze, then reopen the scene.
+a comment naming the source file. With `--out`, the converter also writes a byte-exact copy of the input
+maze next to it with the `.maze` suffix (`current.maze`), only after a successful conversion. The
+oracle percepts (`OracledMazePerceptsProvider`, `mazeFile` parameter) read that copy, so this one
+command switches both the scene and the oracle percepts. Rerun it after changing the maze, then reopen
+the scene (the oracle reloads `current.maze` when the scene is opened again).
 
 - One `BoxGeometry` per `-` or `|` character, border included: 0.5 m cell side plus 1.5 cm overlap
   (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.

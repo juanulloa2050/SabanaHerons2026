@@ -1,5 +1,7 @@
 """Unit tests for maze_to_scene (run: python3 -m unittest discover -s Util/MazeTools -v)."""
 
+import contextlib
+import io
 import os
 import re
 import sys
@@ -136,6 +138,41 @@ class MainTest(unittest.TestCase):
             self.assertEqual(ms.main([str(bad), "--out", str(Path(tmp, "x.rsi2"))]), 1)
             self.assertFalse(Path(tmp, "x.rsi2").exists())
             self.assertEqual(ms.main([str(Path(tmp, "missing.maze"))]), 1)
+
+    def test_out_also_copies_the_maze_next_to_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp, "good.maze")
+            good.write_text(gm.generate(1))
+            out = Path(tmp, "sub", "current.rsi2")
+            self.assertEqual(ms.main([str(good), "--out", str(out)]), 0)
+            self.assertEqual(Path(tmp, "sub", "current.maze").read_bytes(), good.read_bytes())
+
+    def test_copy_follows_the_latest_maze(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first, second = Path(tmp, "a.maze"), Path(tmp, "b.maze")
+            first.write_text(gm.generate(1))
+            second.write_text(gm.generate(2))
+            out = Path(tmp, "current.rsi2")
+            self.assertEqual(ms.main([str(first), "--out", str(out)]), 0)
+            self.assertEqual(ms.main([str(second), "--out", str(out)]), 0)
+            self.assertEqual(Path(tmp, "current.maze").read_bytes(), second.read_bytes())
+
+    def test_copy_not_written_for_invalid_maze(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp, "bad.maze")
+            bad.write_text("nope\n")
+            self.assertEqual(ms.main([str(bad), "--out", str(Path(tmp, "current.rsi2"))]), 1)
+            self.assertFalse(Path(tmp, "current.maze").exists())
+            self.assertFalse(Path(tmp, "current.rsi2").exists())
+
+    def test_copy_not_written_without_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp, "good.maze")
+            good.write_text(gm.generate(1))
+            before = sorted(p.name for p in Path(tmp).iterdir())
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(ms.main([str(good)]), 0)
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), before)
 
 
 if __name__ == "__main__":
