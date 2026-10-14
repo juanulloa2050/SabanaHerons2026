@@ -9,7 +9,10 @@ if(MACOS)
   list(APPEND TESTS_SOURCES "${TESTS_ROOT_DIR}/Test.mm")
 endif()
 
-add_executable(Tests MACOSX_BUNDLE ${TESTS_SOURCES})
+file(GLOB MAZE_SOURCES CONFIGURE_DEPENDS
+    "${BHUMAN_PREFIX}/Src/Tools/Maze/*.cpp" "${BHUMAN_PREFIX}/Src/Tools/Maze/*.h")
+
+add_executable(Tests MACOSX_BUNDLE ${TESTS_SOURCES} ${MAZE_SOURCES})
 
 set_property(TARGET Tests PROPERTY RUNTIME_OUTPUT_DIRECTORY "${TESTS_OUTPUT_DIR}")
 set_property(TARGET Tests PROPERTY FOLDER Apps)
@@ -17,7 +20,7 @@ set_property(TARGET Tests PROPERTY MACOSX_BUNDLE_INFO_PLIST "${TESTS_ROOT_DIR}/I
 set_property(TARGET Tests PROPERTY XCODE_GENERATE_SCHEME ON)
 set_property(TARGET Tests PROPERTY XCODE_PRODUCT_TYPE "com.apple.product-type.bundle.unit-test")
 
-target_include_directories(Tests PRIVATE "${TESTS_ROOT_DIR}")
+target_include_directories(Tests PRIVATE "${TESTS_ROOT_DIR}" "${BHUMAN_PREFIX}/Src")
 
 if(MACOS)
   target_link_libraries(Tests PRIVATE ${APP_KIT_FRAMEWORK})
@@ -37,3 +40,4 @@ target_compile_definitions(Tests PRIVATE GTEST_DONT_DEFINE_FAIL GTEST_DONT_DEFIN
 target_link_libraries(Tests PRIVATE Flags::DebugInDevelop)
 
 source_group(TREE "${TESTS_ROOT_DIR}" FILES ${TESTS_SOURCES})
+source_group(TREE "${BHUMAN_PREFIX}/Src/Tools/Maze" PREFIX Maze FILES ${MAZE_SOURCES})

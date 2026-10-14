@@ -64,7 +64,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-008 | Vendor apriltag + CMake | Bryam | 0 | 3 | no | MZ-001 |
 | [x] | MZ-009 | Maze format + generator | Wilson | 0 | 2 | no | MZ-004 |
 | [x] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
-| [ ] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
+| [x] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
 | [x] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
@@ -420,7 +420,7 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 6 h |
 | Depends on | MZ-009 |
@@ -445,13 +445,13 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 3. Tests against `Config/Mazes/generated/expected.csv` (MZ-012). The test finds the files with `File::getBHDir()`.
 
 **Acceptance criteria**
-- [ ] On the 20 generated mazes, the optimal route of the planner matches `expected.csv` exactly: `cells`, `turns90`, `turns180` and `time_s`.
-- [ ] On the 20 generated mazes, the simulated exploration matches `expected.csv` exactly: `explore_cells`, `explore_turns` and `explore_time_s`.
-- [ ] Before comparing, the test checks `maze_sha` against the maze file and fails with "expected.csv is stale, run solve_maze.py --update" when they differ.
-- [ ] The heuristic is admissible: never above the true cost-to-go, checked on every state of the 20 mazes.
-- [ ] Rotating each maze by 90°, 180° and 270° in memory (the start moves to the other corners) gives the same optimal time and turn counts.
-- [ ] Replanning on an 8×8 maze takes <5 ms on the desktop (measured in the tests).
-- [ ] An unknown edge counts as open for exploration and as wall for the speed run (tested).
+- [x] On the 20 generated mazes, the optimal route of the planner matches `expected.csv` exactly: `cells`, `turns90`, `turns180` and `time_s`.
+- [x] On the 20 generated mazes, the simulated exploration matches `expected.csv` exactly: `explore_cells`, `explore_turns` and `explore_time_s`.
+- [x] Before comparing, the test checks `maze_sha` against the maze file and fails with "expected.csv is stale, run solve_maze.py --update" when they differ.
+- [x] The heuristic is admissible: never above the true cost-to-go, checked on every state of the 20 mazes.
+- [x] Rotating each maze by 90°, 180° and 270° in memory (the start moves to the other corners) gives the same optimal time and turn counts.
+- [x] Replanning on an 8×8 maze takes <5 ms on the desktop (measured in the tests).
+- [x] An unknown edge counts as open for exploration and as wall for the speed run (tested).
 
 ### MZ-012 — Reference solver and expected results
 
