@@ -11,46 +11,21 @@
 #include "Platform/File.h"
 #include <algorithm>
 #include <cmath>
+#include <system_error>
 
 MAKE_MODULE(OracledMazePerceptsProvider);
 
 namespace
 {
-  constexpr float halfCell = Maze::cellSizeMm / 2.f;
+  using namespace Maze::Oracle;
+
+  /**
+   * Decision margin of every oracle detection. The oracle has no image, so it reports the value of
+   * a clean detection, far above what a consumer can reasonably demand.
+   */
+  constexpr float perfectDecisionMargin = 100.f;
+
   constexpr float quarterTurn = pi / 2.f;
-
-  /** Unit vector of a heading in the maze frame (x east, y north). */
-  Vector2f directionOf(Maze::Heading heading)
-  {
-    switch(heading)
-    {
-      case Maze::Heading::north: return Vector2f(0.f, 1.f);
-      case Maze::Heading::east: return Vector2f(1.f, 0.f);
-      case Maze::Heading::south: return Vector2f(0.f, -1.f);
-      default: return Vector2f(-1.f, 0.f);
-    }
-  }
-
-  /** The heading closest to an angle in the maze frame (0 is east, counterclockwise). */
-  Maze::Heading snapToHeading(float angle)
-  {
-    const int quarters = ((static_cast<int>(std::lround(angle / quarterTurn)) % 4) + 4) % 4; // 0 east, 1 north, 2 west, 3 south
-    constexpr Maze::Heading byQuarter[4] = {Maze::Heading::east, Maze::Heading::north, Maze::Heading::west, Maze::Heading::south};
-    return byQuarter[quarters];
-  }
-
-  /** The angle of a heading in the maze frame. */
-  float angleOf(Maze::Heading heading)
-  {
-    const Vector2f direction = directionOf(heading);
-    return std::atan2(direction.y(), direction.x());
-  }
-
-  Vector2f cellCentreOf(int row, int col)
-  {
-    const Maze::CellCentre centre = Maze::cellCentre(row, col);
-    return Vector2f(centre.x, centre.y);
-  }
 
   float noisy(float value, float stdDev)
   {
@@ -71,100 +46,71 @@ bool OracledMazePerceptsProvider::dropped() const
 
 bool OracledMazePerceptsProvider::updateMaze()
 {
-  if(mazeFile == loadedMazeFile)
+  const bool pathChanged = mazeFile != loadedMazeFile;
+  if(!pathChanged && theFrameInfo.getTimeSince(lastLookTime) < static_cast<int>(reloadIntervalMs))
     return mazeAvailable;
+  lastLookTime = theFrameInfo.time;
+
+  const std::string path = std::string(File::getBHDir()) + "/" + mazeFile;
+  std::error_code code;
+  const std::filesystem::file_time_type writeTime = std::filesystem::last_write_time(path, code);
+  // A maze that was read and is unchanged stays; everything else (new path, new write, no maze yet) is read now.
+  if(!pathChanged && mazeAvailable && !code && writeTime == loadedWriteTime)
+    return true;
+
+  if(pathChanged)
+    warned = false;
   loadedMazeFile = mazeFile;
   std::string error;
-  mazeAvailable = Maze::MazeFile::load(std::string(File::getBHDir()) + "/" + mazeFile, maze, error);
-  if(!mazeAvailable)
+  Maze::MazeDescription loaded;
+  if(Maze::MazeFile::load(path, loaded, error))
   {
-    // Printed once per path: the path stays remembered, so the next frames do not try again.
-    OUTPUT_WARNING("OracledMazePerceptsProvider: " << mazeFile << " not found or invalid (" << error
-                   << "), run Util/MazeTools/maze_to_scene.py --out Config/Scenes/Includes/Maze/current.rsi2");
+    maze = loaded;
+    loadedWriteTime = writeTime;
+    mazeAvailable = true;
+    warned = false;
+  }
+  else if(!mazeAvailable || pathChanged)
+  {
+    // A failed reload of a changed file keeps the last good maze; with none, the oracle is silent.
+    mazeAvailable = false;
+    if(!warned)
+    {
+      // Once per failure episode: the file is looked at again every second, but not reported again.
+      OUTPUT_WARNING("OracledMazePerceptsProvider: " << mazeFile << " not found or invalid (" << error
+                     << "), run python3 Util/MazeTools/maze_to_scene.py Config/Mazes/generated/maze_<N>.maze --out "
+                     << std::filesystem::path(mazeFile).replace_extension(".rsi2").string());
+      warned = true;
+    }
+  }
+  else if(!warned)
+  {
+    OUTPUT_WARNING("OracledMazePerceptsProvider: " << mazeFile << " changed but is invalid (" << error
+                   << "), keeping the previous maze.");
+    warned = true;
   }
   return mazeAvailable;
 }
 
-Vector2f OracledMazePerceptsProvider::toRobot(const View& view, const Vector2f& mazePoint) const
+Maze::Oracle::Camera OracledMazePerceptsProvider::camera() const
 {
-  const float c = std::cos(-view.robotRotation), s = std::sin(-view.robotRotation);
-  const Vector2f d = mazePoint - view.robot;
-  return Vector2f(c * d.x() - s * d.y(), s * d.x() + c * d.y());
+  const Vector3f gazeInRobot = theCameraMatrix.rotation * Vector3f(1.f, 0.f, 0.f);
+  return {theCameraMatrix.translation.head<2>(), std::atan2(gazeInRobot.y(), gazeInRobot.x()), theCameraInfo.openingAngleWidth};
 }
 
 bool OracledMazePerceptsProvider::computeView(View& view) const
 {
-  const Pose2f& pose = theGroundTruthRobotPose;
-  view.robot = pose.translation - mazeOriginOnField;
-  view.robotRotation = pose.rotation;
-  const int col = static_cast<int>(std::floor(view.robot.x() / Maze::cellSizeMm));
-  const int row = Maze::size - 1 - static_cast<int>(std::floor(view.robot.y() / Maze::cellSizeMm));
-  if(view.robot.x() < 0.f || view.robot.y() < 0.f || !Maze::inside(row, col))
-    return false;
-  view.row = row;
-  view.col = col;
-
-  const float c = std::cos(view.robotRotation), s = std::sin(view.robotRotation);
-  const Vector2f cameraInRobot = theCameraMatrix.translation.head<2>();
-  view.camera = view.robot + Vector2f(c * cameraInRobot.x() - s * cameraInRobot.y(), s * cameraInRobot.x() + c * cameraInRobot.y());
-  const Vector3f gazeInRobot = theCameraMatrix.rotation * Vector3f(1.f, 0.f, 0.f);
-  view.cameraYaw = Angle::normalize(view.robotRotation + std::atan2(gazeInRobot.y(), gazeInRobot.x()));
-  view.gaze = snapToHeading(view.cameraYaw);
-
-  // Walk along the gaze: stop after a front wall or after maxRange cells ahead.
-  view.cells.clear();
-  int r = row, cl = col;
-  for(int ahead = 0; ahead <= maxRange; ++ahead)
-  {
-    LookAheadCell cell;
-    cell.ahead = ahead;
-    cell.row = r;
-    cell.col = cl;
-    cell.left = maze.graph.get(r, cl, Maze::turned(view.gaze, -1));
-    cell.right = maze.graph.get(r, cl, Maze::turned(view.gaze, 1));
-    cell.front = maze.graph.get(r, cl, view.gaze);
-    view.cells.push_back(cell);
-    if(cell.front != Maze::EdgeState::open)
-      break;
-    r += Maze::rowDelta[static_cast<std::size_t>(view.gaze)];
-    cl += Maze::colDelta[static_cast<std::size_t>(view.gaze)];
-    if(!Maze::inside(r, cl))
-      break;
-  }
-  return true;
+  const Pose2f robotInMaze(theGroundTruthRobotPose.rotation, theGroundTruthRobotPose.translation - mazeOriginOnField);
+  return Maze::Oracle::computeView(maze.graph, robotInMaze, camera(), maxRange, view);
 }
 
 bool OracledMazePerceptsProvider::observeTag(const View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const
 {
-  const Vector2f centre = cellCentreOf(Maze::cellRow(cell), Maze::cellCol(cell));
-  const Vector2f normal = -directionOf(face); // points into the cell, out of the wall
-  const Vector2f tag = centre + directionOf(face) * halfCell;
-
-  // Close enough, inside the horizontal field of view of the camera.
-  const Vector2f tagInRobot = toRobot(view, tag);
-  const Vector2f cameraInRobot = theCameraMatrix.translation.head<2>();
-  const Vector2f toTag = tagInRobot - cameraInRobot;
-  if(toTag.norm() > static_cast<float>(maxRange) * Maze::cellSizeMm + halfCell)
-    return false;
-  const Vector3f gazeInRobot = theCameraMatrix.rotation * Vector3f(1.f, 0.f, 0.f);
-  const float bearing = Angle::normalize(std::atan2(toTag.y(), toTag.x()) - std::atan2(gazeInRobot.y(), gazeInRobot.x()));
-  if(std::abs(bearing) > theCameraInfo.openingAngleWidth / 2.f)
+  Pose3f tagInRobot;
+  if(!Maze::Oracle::observeTag(view, camera(), maxRange, static_cast<float>(maxTagViewAngle), cell, face, layout.centreHeight, tagInRobot))
     return false;
 
-  // The tag faces the camera.
-  const Vector2f toCamera = view.camera - tag;
-  if(toCamera.norm() < 1.f || std::acos(std::clamp(normal.dot(toCamera.normalized()), -1.f, 1.f)) > static_cast<float>(maxTagViewAngle))
-    return false;
-
-  // Pose: x to the right and y up when looking at the tag, z along the normal.
-  const float c = std::cos(-view.robotRotation), s = std::sin(-view.robotRotation);
-  const Vector3f normalInRobot(c * normal.x() - s * normal.y(), s * normal.x() + c * normal.y(), 0.f);
-  const Vector3f right(-normalInRobot.y(), normalInRobot.x(), 0.f);
-  Matrix3f axes;
-  axes.col(0) = right;
-  axes.col(1) = Vector3f(0.f, 0.f, 1.f);
-  axes.col(2) = normalInRobot;
-  RotationMatrix rotation(axes);
+  RotationMatrix rotation(tagInRobot.rotation);
   rotation.rotateX(noisy(0.f, tagRotationStdDev));
   rotation.rotateY(noisy(0.f, tagRotationStdDev));
   rotation.rotateZ(noisy(0.f, tagRotationStdDev));
@@ -172,10 +118,10 @@ bool OracledMazePerceptsProvider::observeTag(const View& view, int cell, Maze::H
   detection.id = cell;
   detection.corners.clear();
   detection.tagInRobot.rotation = rotation;
-  detection.tagInRobot.translation = Vector3f(noisy(tagInRobot.x(), tagPositionStdDev),
-                                              noisy(tagInRobot.y(), tagPositionStdDev),
-                                              noisy(layout.centreHeight, tagPositionStdDev));
-  detection.decisionMargin = 100.f;
+  detection.tagInRobot.translation = Vector3f(noisy(tagInRobot.translation.x(), tagPositionStdDev),
+                                              noisy(tagInRobot.translation.y(), tagPositionStdDev),
+                                              noisy(tagInRobot.translation.z(), tagPositionStdDev));
+  detection.decisionMargin = perfectDecisionMargin;
   return true;
 }
 
@@ -183,10 +129,10 @@ void OracledMazePerceptsProvider::update(AprilTagPercept& aprilTagPercept)
 {
   aprilTagPercept.detections.clear();
   aprilTagPercept.timestamp = theFrameInfo.time;
-  View view;
+  Maze::Oracle::View view;
   if(dropoutRate >= 1.f || !updateMaze() || !computeView(view))
     return;
-  for(const LookAheadCell& cell : view.cells)
+  for(const Maze::Oracle::LookAheadCell& cell : view.cells)
   {
     const int id = Maze::cellId(cell.row, cell.col);
     for(int h = 0; h < Maze::headingCount; ++h)
@@ -206,7 +152,7 @@ void OracledMazePerceptsProvider::update(WallPercept& wallPercept)
   wallPercept.frontDistance = wallPercept.leftDistance = wallPercept.rightDistance = -1.f;
   wallPercept.lookAheadTurns = 0;
   wallPercept.timestamp = theFrameInfo.time;
-  View view;
+  Maze::Oracle::View view;
   if(dropoutRate >= 1.f || !updateMaze() || !computeView(view))
     return;
 
@@ -223,7 +169,7 @@ void OracledMazePerceptsProvider::update(WallPercept& wallPercept)
 
   const Vector2f forward = directionOf(view.gaze);
   const Maze::Heading leftHeading = Maze::turned(view.gaze, -1), rightHeading = Maze::turned(view.gaze, 1);
-  for(const LookAheadCell& cell : view.cells)
+  for(const Maze::Oracle::LookAheadCell& cell : view.cells)
   {
     const Vector2f centre = cellCentreOf(cell.row, cell.col);
     const bool last = &cell == &view.cells.back();
@@ -232,12 +178,12 @@ void OracledMazePerceptsProvider::update(WallPercept& wallPercept)
     if(cell.ahead == 0)
     {
       if(cell.left == Maze::EdgeState::wall && !dropped())
-        wallPercept.leftDistance = std::max(0.f, noisy((centre + directionOf(leftHeading) * halfCell - view.robot).dot(directionOf(leftHeading)), wallDistanceStdDev));
+        wallPercept.leftDistance = std::max(0.f, noisy((centre + directionOf(leftHeading) * halfCellMm - view.robot).dot(directionOf(leftHeading)), wallDistanceStdDev));
       if(cell.right == Maze::EdgeState::wall && !dropped())
-        wallPercept.rightDistance = std::max(0.f, noisy((centre + directionOf(rightHeading) * halfCell - view.robot).dot(directionOf(rightHeading)), wallDistanceStdDev));
+        wallPercept.rightDistance = std::max(0.f, noisy((centre + directionOf(rightHeading) * halfCellMm - view.robot).dot(directionOf(rightHeading)), wallDistanceStdDev));
     }
     if(last && cell.front == Maze::EdgeState::wall && !dropped())
-      wallPercept.frontDistance = std::max(0.f, noisy((centre + forward * halfCell - view.robot).dot(forward), wallDistanceStdDev));
+      wallPercept.frontDistance = std::max(0.f, noisy((centre + forward * halfCellMm - view.robot).dot(forward), wallDistanceStdDev));
 
     // The look-ahead entry of the cell.
     if(!dropped())
@@ -259,10 +205,10 @@ void OracledMazePerceptsProvider::update(WallPercept& wallPercept)
         continue;
       const Vector2f direction = directionOf(heading);
       const Vector2f along(-direction.y(), direction.x());
-      const Vector2f middle = centre + direction * halfCell;
+      const Vector2f middle = centre + direction * halfCellMm;
       WallPercept::Segment segment;
-      segment.start = toRobot(view, middle - along * halfCell);
-      segment.end = toRobot(view, middle + along * halfCell);
+      segment.start = toRobot(view, middle - along * halfCellMm);
+      segment.end = toRobot(view, middle + along * halfCellMm);
       wallPercept.segments.push_back(segment);
     }
   }

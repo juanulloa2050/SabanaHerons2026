@@ -25,9 +25,10 @@
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/MazePercepts/WallPercept.h"
 #include "Tools/Maze/MazeFile.h"
+#include "Tools/Maze/MazeOracle.h"
 #include "Tools/Maze/MazeTagLayout.h"
+#include <filesystem>
 #include <string>
-#include <vector>
 
 MODULE(OracledMazePerceptsProvider,
 {,
@@ -60,45 +61,33 @@ public:
   OracledMazePerceptsProvider();
 
 private:
-  /** One cell of the look-ahead. */
-  struct LookAheadCell
-  {
-    int ahead;                                /**< Cells between the robot's cell and this one. */
-    int row, col;                             /**< Position of the cell in the maze. */
-    Maze::EdgeState left, right, front;       /**< Edges relative to the gaze direction. */
-  };
-
-  /** The robot pose in the maze frame and the gaze it looks along. */
-  struct View
-  {
-    Vector2f robot;           /**< Robot position in the maze frame in mm. */
-    float robotRotation;      /**< Robot heading in the maze frame in rad, 0 is east. */
-    Vector2f camera;          /**< Camera position in the maze frame in mm. */
-    float cameraYaw;          /**< Camera gaze in the maze frame in rad. */
-    int row, col;             /**< The robot's cell. */
-    Maze::Heading gaze;       /**< The gaze snapped to a maze heading. */
-    std::vector<LookAheadCell> cells;
-  };
-
   void update(AprilTagPercept& aprilTagPercept) override;
   void update(WallPercept& wallPercept) override;
 
-  /** Loads the maze again if `mazeFile` changed. @return Whether a maze is available. */
+  /**
+   * Loads the maze if `mazeFile` changed, if the file was written since it was read or, while no
+   * maze is available, once per `reloadIntervalMs`. @return Whether a maze is available.
+   */
   bool updateMaze();
 
-  /** Fills `view`. @return Whether the robot is inside the maze. */
-  bool computeView(View& view) const;
+  /** The camera of the current frame as the oracle geometry needs it. */
+  Maze::Oracle::Camera camera() const;
 
-  /** Maze frame to robot frame (rotation and translation only). */
-  Vector2f toRobot(const View& view, const Vector2f& mazePoint) const;
+  /** Fills `view` from the ground truth. @return Whether the robot is inside the maze. */
+  bool computeView(Maze::Oracle::View& view) const;
 
-  /** Whether the tag on `face` of the cell is seen; fills `detection` if so. */
-  bool observeTag(const View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const;
+  /** Whether the tag on `face` of the cell is seen; fills `detection` (with noise) if so. */
+  bool observeTag(const Maze::Oracle::View& view, int cell, Maze::Heading face, AprilTagPercept::Detection& detection) const;
 
   bool dropped() const;
 
+  static constexpr unsigned reloadIntervalMs = 1000; /**< Time between two looks at the maze file. */
+
   Maze::MazeDescription maze;
   Maze::MazeTagLayout layout;
-  std::string loadedMazeFile;   /**< The path that `maze` was read from; empty if none. */
+  std::string loadedMazeFile;                   /**< The path that `maze` was read from; empty if none. */
+  std::filesystem::file_time_type loadedWriteTime; /**< Modification time of the file when it was read. */
+  unsigned lastLookTime = 0;                    /**< Frame time of the last look at the file. */
   bool mazeAvailable = false;
+  bool warned = false;                          /**< The failure of the current episode was reported. */
 };

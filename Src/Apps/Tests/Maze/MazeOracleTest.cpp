@@ -1,0 +1,327 @@
+#include "Tools/Maze/MazeOracle.h"
+#include "Tools/Maze/MazeFile.h"
+#include "Tools/Maze/MazeTagLayout.h"
+#include "Platform/File.h"
+#include "Streaming/FunctionList.h"
+#include "Streaming/InStreams.h"
+
+#include <gtest/gtest.h>
+#include <utility>
+#include <vector>
+
+namespace
+{
+  using namespace Maze::Oracle;
+
+  constexpr float opening = 1.f;     // rad, horizontal opening angle of the test camera
+  const float viewAngle = Angle::fromDegrees(70.f);
+
+  /** A maze without inner walls: only the border is a wall. */
+  Maze::MazeGraph openMaze()
+  {
+    Maze::MazeGraph graph;
+    for(int row = 0; row < Maze::size; ++row)
+      for(int col = 0; col < Maze::size; ++col)
+        for(int h = 0; h < Maze::headingCount; ++h)
+          graph.set(row, col, static_cast<Maze::Heading>(h), Maze::EdgeState::open);
+    return graph;
+  }
+
+  /** A camera at the robot origin looking forward. */
+  Camera forwardCamera()
+  {
+    return {Vector2f::Zero(), 0.f, opening};
+  }
+
+  /** The robot in the middle of a cell, looking east unless `rotation` says otherwise. */
+  Pose2f robotIn(int row, int col, float rotation = 0.f)
+  {
+    return Pose2f(rotation, Maze::Oracle::cellCentreOf(row, col));
+  }
+
+  View viewOf(const Maze::MazeGraph& graph, const Pose2f& pose, int maxRange = 2, const Camera& camera = forwardCamera())
+  {
+    View view;
+    EXPECT_TRUE(computeView(graph, pose, camera, maxRange, view));
+    return view;
+  }
+
+  /** Registers the streamable types (enums) once; the application does this at start-up. */
+  Maze::MazeTagLayout layoutFrom(const std::string& mode, const std::string& faces)
+  {
+    static const bool registered = (FunctionList::execute(), true);
+    (void) registered;
+    const std::string text = "mode = " + mode + "; faces = [" + faces + "]; walls = []; centreHeight = 300; size = 150;";
+    Maze::MazeTagLayout layout;
+    InMapMemory stream(text.c_str(), text.size());
+    stream >> layout;
+    return layout;
+  }
+
+  /** The (cell, face) pairs the oracle sees along the look-ahead, like the provider does without dropout. */
+  std::vector<std::pair<int, Maze::Heading>> seenTags(const Maze::MazeGraph& graph, const Maze::MazeTagLayout& layout, const View& view,
+                                                      int maxRange, float maxTagViewAngle, const Camera& camera = forwardCamera())
+  {
+    std::vector<std::pair<int, Maze::Heading>> seen;
+    for(const LookAheadCell& cell : view.cells)
+    {
+      const int id = Maze::cellId(cell.row, cell.col);
+      for(int h = 0; h < Maze::headingCount; ++h)
+      {
+        const Maze::Heading face = static_cast<Maze::Heading>(h);
+        Pose3f pose;
+        if(layout.hasTag(id, face, graph) && observeTag(view, camera, maxRange, maxTagViewAngle, id, face, layout.centreHeight, pose))
+          seen.emplace_back(id, face);
+      }
+    }
+    return seen;
+  }
+}
+
+GTEST_TEST(MazeOracle, PoseToCell)
+{
+  int row = -1, col = -1;
+  ASSERT_TRUE(cellContaining(Vector2f(250.f, 1750.f), row, col));
+  EXPECT_EQ(row, 4);
+  EXPECT_EQ(col, 0);
+  // The top-left cell holds the north-west corner of the maze; y grows towards the north.
+  ASSERT_TRUE(cellContaining(Vector2f(1.f, 3999.f), row, col));
+  EXPECT_EQ(row, 0);
+  EXPECT_EQ(col, 0);
+  ASSERT_TRUE(cellContaining(Vector2f(3999.f, 1.f), row, col));
+  EXPECT_EQ(row, Maze::size - 1);
+  EXPECT_EQ(col, Maze::size - 1);
+  // The centre of a cell converts back to the cell.
+  for(int r = 0; r < Maze::size; ++r)
+    for(int c = 0; c < Maze::size; ++c)
+    {
+      int backRow = -1, backCol = -1;
+      ASSERT_TRUE(cellContaining(cellCentreOf(r, c), backRow, backCol));
+      EXPECT_EQ(backRow, r);
+      EXPECT_EQ(backCol, c);
+    }
+}
+
+GTEST_TEST(MazeOracle, PoseOutsideTheMazeHasNoCell)
+{
+  int row = 0, col = 0;
+  EXPECT_FALSE(cellContaining(Vector2f(-1.f, 1000.f), row, col));
+  EXPECT_FALSE(cellContaining(Vector2f(1000.f, -1.f), row, col));
+  EXPECT_FALSE(cellContaining(Vector2f(4000.f, 1000.f), row, col));
+  EXPECT_FALSE(cellContaining(Vector2f(1000.f, 4000.f), row, col));
+
+  View view;
+  EXPECT_FALSE(computeView(openMaze(), Pose2f(0.f, Vector2f(-300.f, 1750.f)), forwardCamera(), 2, view));
+  EXPECT_FALSE(computeView(openMaze(), Pose2f(0.f, Vector2f(5000.f, 5000.f)), forwardCamera(), 2, view));
+}
+
+GTEST_TEST(MazeOracle, GazeIsSnappedToTheNearestHeading)
+{
+  EXPECT_EQ(snapToHeading(0.f), Maze::Heading::east);
+  EXPECT_EQ(snapToHeading(0.4f), Maze::Heading::east);
+  EXPECT_EQ(snapToHeading(1.2f), Maze::Heading::north);
+  EXPECT_EQ(snapToHeading(pi), Maze::Heading::west);
+  EXPECT_EQ(snapToHeading(-1.5f), Maze::Heading::south);
+  for(int h = 0; h < Maze::headingCount; ++h)
+    EXPECT_EQ(snapToHeading(angleOf(static_cast<Maze::Heading>(h))), static_cast<Maze::Heading>(h));
+
+  const Maze::MazeGraph graph = openMaze();
+  EXPECT_EQ(viewOf(graph, robotIn(4, 3, 0.3f)).gaze, Maze::Heading::east);
+  EXPECT_EQ(viewOf(graph, robotIn(4, 3, pi / 2.f + 0.2f)).gaze, Maze::Heading::north);
+  // The camera yaw adds to the robot rotation: a robot looking east with the head turned left looks north.
+  EXPECT_EQ(viewOf(graph, robotIn(4, 3), 2, Camera{Vector2f::Zero(), pi / 2.f, opening}).gaze, Maze::Heading::north);
+}
+
+GTEST_TEST(MazeOracle, LookAheadStopsAtMaxRange)
+{
+  const Maze::MazeGraph graph = openMaze();
+  const View view = viewOf(graph, robotIn(4, 0), 2);
+  EXPECT_EQ(view.row, 4);
+  EXPECT_EQ(view.col, 0);
+  ASSERT_EQ(view.cells.size(), 3u); // the robot's cell and two cells ahead
+  for(int ahead = 0; ahead < 3; ++ahead)
+  {
+    EXPECT_EQ(view.cells[static_cast<std::size_t>(ahead)].ahead, ahead);
+    EXPECT_EQ(view.cells[static_cast<std::size_t>(ahead)].row, 4);
+    EXPECT_EQ(view.cells[static_cast<std::size_t>(ahead)].col, ahead);
+  }
+  EXPECT_EQ(viewOf(graph, robotIn(4, 0), 0).cells.size(), 1u);
+  EXPECT_EQ(viewOf(graph, robotIn(4, 0), 5).cells.size(), 6u);
+}
+
+GTEST_TEST(MazeOracle, LookAheadStopsAtAWall)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  const View view = viewOf(graph, robotIn(4, 0), 5);
+  ASSERT_EQ(view.cells.size(), 2u);
+  EXPECT_EQ(view.cells[0].front, Maze::EdgeState::open);
+  EXPECT_EQ(view.cells[1].front, Maze::EdgeState::wall);
+  EXPECT_EQ(view.cells[1].col, 1);
+
+  // Looking at the border ends the walk at the last cell.
+  const View atBorder = viewOf(graph, robotIn(4, 7), 5);
+  ASSERT_EQ(atBorder.cells.size(), 1u);
+  EXPECT_EQ(atBorder.cells[0].front, Maze::EdgeState::wall);
+}
+
+GTEST_TEST(MazeOracle, EdgesAreRelativeToTheGaze)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 0, Maze::Heading::north, Maze::EdgeState::wall);
+  // Looking east, north is on the left.
+  const View east = viewOf(graph, robotIn(4, 0), 0);
+  EXPECT_EQ(east.cells[0].left, Maze::EdgeState::wall);
+  EXPECT_EQ(east.cells[0].right, Maze::EdgeState::open);
+  // Looking south, north is behind and east is on the left.
+  const View south = viewOf(graph, robotIn(4, 0, -pi / 2.f), 0);
+  EXPECT_EQ(south.gaze, Maze::Heading::south);
+  EXPECT_EQ(south.cells[0].left, Maze::EdgeState::open);
+  EXPECT_EQ(south.cells[0].right, Maze::EdgeState::wall); // west, the border
+}
+
+GTEST_TEST(MazeOracle, NothingIsSeenPastACorner)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 0, Maze::Heading::east, Maze::EdgeState::wall);
+  const View view = viewOf(graph, robotIn(4, 0), 3);
+  ASSERT_EQ(view.cells.size(), 1u);
+  const Maze::MazeTagLayout layout = layoutFrom("allFaces", "north, east, south, west");
+  // Only the wall in front is seen; the cells and tags behind it are not in the look-ahead.
+  const auto seen = seenTags(graph, layout, view, 3, viewAngle);
+  ASSERT_EQ(seen.size(), 1u);
+  EXPECT_EQ(seen[0], std::make_pair(Maze::cellId(4, 0), Maze::Heading::east));
+}
+
+GTEST_TEST(MazeOracle, SeesTheTagOnTheFrontWall)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  const View view = viewOf(graph, robotIn(4, 0), 2);
+
+  Pose3f pose;
+  const int cell = Maze::cellId(4, 1);
+  ASSERT_TRUE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, pose));
+  // The wall is 750 mm ahead of the robot's cell centre, 300 mm above the floor.
+  EXPECT_NEAR(pose.translation.x(), 750.f, 0.01f);
+  EXPECT_NEAR(pose.translation.y(), 0.f, 0.01f);
+  EXPECT_FLOAT_EQ(pose.translation.z(), 300.f);
+  // z points out of the wall towards the robot, y up, x to the right of an observer in front of the tag.
+  EXPECT_LT((pose.rotation * Vector3f(0.f, 0.f, 1.f) - Vector3f(-1.f, 0.f, 0.f)).norm(), 1e-4f);
+  EXPECT_LT((pose.rotation * Vector3f(0.f, 1.f, 0.f) - Vector3f(0.f, 0.f, 1.f)).norm(), 1e-4f);
+  EXPECT_LT((pose.rotation * Vector3f(1.f, 0.f, 0.f) - Vector3f(0.f, -1.f, 0.f)).norm(), 1e-4f);
+
+  const auto seen = seenTags(graph, layoutFrom("allFaces", "north, east, south, west"), view, 2, viewAngle);
+  ASSERT_EQ(seen.size(), 1u);
+  EXPECT_EQ(seen[0], std::make_pair(cell, Maze::Heading::east));
+}
+
+GTEST_TEST(MazeOracle, TagPoseFollowsTheRobotPose)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  // 100 mm north of the cell centre and turned to look south, with the camera turned to the left.
+  const Pose2f pose(-pi / 2.f, cellCentreOf(4, 1) + Vector2f(0.f, 100.f));
+  View view;
+  ASSERT_TRUE(computeView(graph, pose, Camera{Vector2f::Zero(), pi / 2.f, 2.f}, 2, view));
+  Pose3f tag;
+  ASSERT_TRUE(observeTag(view, Camera{Vector2f::Zero(), pi / 2.f, 2.f}, 2, viewAngle, Maze::cellId(4, 1), Maze::Heading::east, 300.f, tag));
+  // Robot looks south, so the east wall is 100 mm ahead and 250 mm to its left (+y).
+  EXPECT_NEAR(tag.translation.x(), 100.f, 0.01f);
+  EXPECT_NEAR(tag.translation.y(), 250.f, 0.01f);
+}
+
+GTEST_TEST(MazeOracle, TagOutsideTheFieldOfViewIsNotSeen)
+{
+  const Maze::MazeGraph graph = openMaze();
+  // Looking north from a cell whose east face is a wall: the tag is 90 degrees to the right.
+  const Pose2f pose = robotIn(4, 0, pi / 2.f);
+  const View view = viewOf(graph, pose, 2);
+  Pose3f tag;
+  const int cell = Maze::cellId(4, 0);
+  EXPECT_FALSE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+  // A wide enough camera would see it.
+  EXPECT_TRUE(observeTag(view, Camera{Vector2f::Zero(), 0.f, 3.2f}, 2, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+  // The camera yaw counts: turning the camera right brings it into view.
+  EXPECT_TRUE(observeTag(view, Camera{Vector2f::Zero(), -pi / 2.f, opening}, 2, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+}
+
+GTEST_TEST(MazeOracle, TagSeenTooObliquelyIsNotSeen)
+{
+  const Maze::MazeGraph graph = openMaze();
+  // In the cell south of the tag's cell, 490 mm from the wall in x, looking north: the angle between the tag
+  // normal and the direction to the camera is about 88.9 degrees.
+  const Pose2f pose(pi / 2.f, Vector2f(990.f, 1250.f));
+  const View view = viewOf(graph, pose, 2);
+  Pose3f tag;
+  const int cell = Maze::cellId(4, 1);
+  EXPECT_FALSE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+  EXPECT_TRUE(observeTag(view, forwardCamera(), 2, Angle::fromDegrees(120.f), cell, Maze::Heading::east, 300.f, tag));
+}
+
+GTEST_TEST(MazeOracle, TagBeyondTheMaximumRangeIsNotSeen)
+{
+  const Maze::MazeGraph graph = openMaze();
+  const View view = viewOf(graph, robotIn(4, 0), 1);
+  Pose3f tag;
+  // The east face of cell (4, 2) is 1250 mm from the camera; the limit is maxRange * 500 + 250.
+  const int cell = Maze::cellId(4, 2);
+  EXPECT_FALSE(observeTag(view, forwardCamera(), 1, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+  EXPECT_TRUE(observeTag(view, forwardCamera(), 2, viewAngle, cell, Maze::Heading::east, 300.f, tag));
+}
+
+GTEST_TEST(MazeOracle, NoTagsWhenTheLayoutHasNone)
+{
+  Maze::MazeGraph graph = openMaze();
+  graph.set(4, 1, Maze::Heading::east, Maze::EdgeState::wall);
+  const View view = viewOf(graph, robotIn(4, 0), 2);
+
+  // The only wall in sight is the east one, so a layout without the east face sees nothing.
+  EXPECT_TRUE(seenTags(graph, layoutFrom("faces", "north, south, west"), view, 2, viewAngle).empty());
+  EXPECT_TRUE(seenTags(graph, layoutFrom("faces", ""), view, 2, viewAngle).empty());
+  const auto east = seenTags(graph, layoutFrom("faces", "east"), view, 2, viewAngle);
+  ASSERT_EQ(east.size(), 1u);
+  EXPECT_EQ(east[0], std::make_pair(Maze::cellId(4, 1), Maze::Heading::east));
+}
+
+GTEST_TEST(MazeOracle, GeneratedMazeDeadEnd)
+{
+  Maze::MazeDescription maze;
+  std::string error;
+  ASSERT_TRUE(Maze::MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/generated/maze_1.maze", maze, error)) << error;
+
+  // The first cell (not a corner start) with a single opening is a dead end.
+  int deadEnd = -1;
+  Maze::Heading opening = Maze::Heading::north;
+  for(int cell = 0; cell < Maze::cellCount && deadEnd < 0; ++cell)
+  {
+    if(cell == maze.startCell)
+      continue;
+    int openSides = 0;
+    for(int h = 0; h < Maze::headingCount; ++h)
+      if(maze.graph.get(Maze::cellRow(cell), Maze::cellCol(cell), static_cast<Maze::Heading>(h)) == Maze::EdgeState::open)
+      {
+        ++openSides;
+        opening = static_cast<Maze::Heading>(h);
+      }
+    if(openSides == 1)
+      deadEnd = cell;
+  }
+  ASSERT_GE(deadEnd, 0);
+
+  // Standing in the dead end and looking at the wall opposite of the opening, the look-ahead is the
+  // cell alone and the tag on the wall in front is seen; the face towards the opening has no tag.
+  const Maze::Heading front = Maze::turned(opening, 2);
+  const View view = viewOf(maze.graph, Pose2f(angleOf(front), cellCentreOf(Maze::cellRow(deadEnd), Maze::cellCol(deadEnd))), 3);
+  ASSERT_EQ(view.cells.size(), 1u);
+  const auto seen = seenTags(maze.graph, layoutFrom("allFaces", "north, east, south, west"), view, 3, viewAngle);
+  ASSERT_FALSE(seen.empty());
+  bool frontSeen = false;
+  for(const auto& [id, face] : seen)
+  {
+    EXPECT_EQ(id, deadEnd);
+    EXPECT_NE(face, opening);
+    frontSeen = frontSeen || face == front;
+  }
+  EXPECT_TRUE(frontSeen);
+}
