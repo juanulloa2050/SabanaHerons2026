@@ -22,7 +22,12 @@ namespace
     return maze;
   }
 
-  /** Registers the streamable types (enums) once; the application does this at start-up. */
+  /**
+   * Registers the streamable types (enums) once. `FunctionList::execute()` runs the static registrations
+   * of the enum and streamable types; the application does this at start-up, and without it reading
+   * `mode` or a `TagFace` from text cannot resolve the enum names. Tests do not start the application,
+   * so every test that streams a layout calls this first.
+   */
   void registerTypes()
   {
     static const bool registered = (FunctionList::execute(), true);
