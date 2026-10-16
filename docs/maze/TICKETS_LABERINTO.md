@@ -1,6 +1,6 @@
 # Maze Challenge Tickets — Copa NAO CCM MX 2026
 
-This file lists every ticket (MZ-001 … MZ-044) for the Maze challenge. Each ticket says what it
+This file lists every ticket (MZ-001 … MZ-045) for the Maze challenge. Each ticket says what it
 builds, who owns it, how long it should take, what it depends on, which branch to use, and how to
 tell that it is done. Start with the summary tables, then open your sprint. The order is:
 scheduled software tickets by sprint, proposed software tickets, physical-robot tickets, backlog.
@@ -24,6 +24,7 @@ Notes:
 - **Review time is not tracked.** Cross review still happens (roadmap section 9), but it has no hours in any ticket.
 - Bryam's 40.75 h authoring = 40.25 h of own tickets + 0.5 h pairing on MZ-010.
 - Corridor look-ahead (seeing and mapping walls of cells ahead) added 1.5 h on 13 Oct: MZ-019 4 → 5 h, MZ-020 5 → 5.5 h.
+- MZ-038 (gyro heading) was merged into MZ-020 on 16 Oct, because the test floor makes the robot slip and the odometry heading is not reliable: MZ-020 5.5 → 7.5 h. The totals above do not include these 2 h yet; they come from the proposed hours.
 - Without the optional bench (MZ-014), Wilson's total is 36.25 h.
 - MZ-002 (branch protection) and MZ-005 (registration check) were removed as unnecessary. Their numbers are not reused.
 
@@ -87,7 +88,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
-| [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5.5 | no | MZ-011, MZ-013 |
+| [ ] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
 | [ ] | MZ-024 | HandleMaze state machine + skills | Bryam | 3 | 5 | no | MZ-011, MZ-020 |
@@ -103,12 +104,12 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 
 | ID | Title | Owner | Sprint | Author h | Lab | Depends on |
 |---|---|---|---|---|---|---|
-| MZ-038 | Gyro heading as the maze-north reference (proposed) | Bryam | Proposed | 2 | no (uses Lab 1 logs) | MZ-017*, MZ-020 |
 | MZ-039 | Decision log and run metrics (proposed) | Wilson | Proposed | 2 | no | MZ-024 |
 | MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
+| MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
 
-These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 5.0 h (47.75 → 52.75 h) and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-038 → MZ-042 → MZ-041 → MZ-039.
+These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 3.0 h, plus the 2 h of MZ-038 now inside MZ-020 (47.75 → 52.75 h), and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-042 → MZ-041 → MZ-039. MZ-045 (3 h, not in these numbers) is built only if the MZ-020 logs show the cell is lost between tag fixes.
 
 ### Physical robot tickets
 
@@ -321,7 +322,7 @@ git push -u origin Maze-Challenge
   | `headMiddle` ×1 | Reserved for *positioned at start* (MZ-041) |
 
   The full button map is in roadmap 3.4.
-- **Logger.** `logger.cfg` records `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `InertialData` (gyro drift, MZ-038), `FrameInfo`, and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
+- **Logger.** `logger.cfg` records `JPEGImage`, `CameraInfo`, `CameraMatrix`, `OdometryData`, `InertialData` (gyro drift, MZ-020), `FrameInfo`, and the maze representations once they exist. The logger records only outside *Initial* (`Src/Tools/Framework/BHLoggingController.cpp:33`), hence the 3-chest-tap start.
 
 **Acceptance criteria**
 - [x] `Make/Linux/compile Develop Nao` and `Make/Linux/compile Develop SimRobot` pass.
@@ -637,26 +638,34 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - [ ] The distance error at 0.5, 1.0, 1.5, 2.0 and 2.5 m is measured, standing and walking (Lab 1 logs, or rendered images if the logs do not exist), and written in the PR; `lookAheadRangeWalking`, `lookAheadRangeStanding` and `snapToleranceMm` are set from it.
 - [ ] With the floor and walls set to the same light colour in the simulation scene, wall present or absent is still ≥90 % correct for the 4 sides of visited cells (gradient check).
 
-### MZ-020 — Maze localizer and mapper ⚠️ TAG-DEP
+### MZ-020 — Maze localizer, mapper and gyro heading ⚠️ TAG-DEP
 
 | Field | Value |
 |---|---|
 | Done | [ ] |
 | Owner | Bryam |
-| Estimate | 5.5 h (5 h + 0.5 h look-ahead evidence) |
-| Depends on | MZ-011, MZ-013 |
+| Estimate | 7.5 h (5 h + 0.5 h look-ahead evidence + 2 h gyro heading, merged from MZ-038) |
+| Depends on | MZ-011, MZ-013, MZ-017* (gyro drift from the Lab 1 logs) |
 | Lab / robot | no |
 | Branch | `feat/MZ-020-localizer-mapper` |
-| Files | `Src/Modules/Modeling/MazeLocalizer/`, `Src/Modules/Modeling/MazeMapper/` (create); `Src/Representations/Modeling/MazeMap.h`, `Src/Representations/Modeling/MazeCellPose.h` (create); `Config/Scenarios/Maze/threads.cfg` (modify: `RobotPose` provided by `MazeLocalizer`, removed from `defaultRepresentations`) |
+| Files | `Src/Modules/Modeling/MazeLocalizer/`, `Src/Modules/Modeling/MazeMapper/` (create); `Src/Representations/Modeling/MazeMap.h`, `Src/Representations/Modeling/MazeCellPose.h` (create; `MazeCellPose` includes `headingSource` and `headingDrift`); `Config/Scenarios/Maze/threads.cfg` (modify: `RobotPose` provided by `MazeLocalizer`, removed from `defaultRepresentations`); `docs/maze/GYRO_HEADING.md` (create) |
 
 **Goal.** Know **where** the robot is (cell, heading, and a pose inside the cell) and **what** it has learned (the wall map), and keep that knowledge for the whole process.
 
 **Scope.**
-- **`MazeLocalizer`** replaces `SelfLocator` (useless in a maze). It provides `RobotPose` and `MazeCellPose`: odometry prediction, a tag fix (complementary filter, roadmap 4.5), and a heading snap on square-on tags. The gyro heading comes later in MZ-038. The face a seen tag is on comes from `MazeTagLayout::candidateFaces`, so no layout is hard-coded.
+- **`MazeLocalizer`** replaces `SelfLocator` (useless in a maze). It provides `RobotPose` and `MazeCellPose`: odometry prediction, a tag fix (complementary filter, roadmap 4.5), a heading snap on square-on tags, and the gyro heading below. The face a seen tag is on comes from `MazeTagLayout::candidateFaces`, so no layout is hard-coded.
+- **Gyro heading (merged from MZ-038).** The test floor makes the robot slip, so the odometry heading drifts; the gyro measures the real body rotation and does not slip. Store the yaw of `InertialData.orientation3D` at the *positioned at start* moment as the maze-north offset: `heading = snap90(yaw − offset)`. Re-align the offset on every square-on tag (walls are axis-aligned). Use the heading to infer the wall face of a seen tag, and to reject a tag whose normal does not match the heading (a false-positive filter). The NAO has no magnetometer, so the yaw drifts; the drift rate decides how often a tag fix is needed. `logger.cfg` already records `InertialData`.
 - **`MazeMapper`** provides `MazeMap`: fuses wall evidence per edge with hysteresis (3 consistent observations before `unknown → wall/open`). Evidence is accepted for **any edge in view**, not only the edges of the current cell: wall percepts already snapped to the grid (MZ-019) and tag detections (MZ-018), where the tag id names the cell and so the edge. The weight of a wall-percept observation drops with its distance (parameter); a decoded tag counts as full evidence at any distance it can be read. The map is a module member, so it **persists for the whole process**. The attempt counter increments on Standby → start.
 
+**Gyro steps (from MZ-038)**
+1. From the Lab 1 logs (or a simulated drifting gyro if they do not exist), plot the yaw drift over a 5 min stand and a corridor walk. Write the numbers in `GYRO_HEADING.md`.
+2. Implement the offset, the snap and the tag-based re-alignment. Unit-test the snap with ±44° and ±46° inputs.
+3. **Experiment:** put tags **only on the north face** (in simulation, `mode = faces; faces = [north];` in `mazeTagLayout.cfg`; on the bench, mount only north tags) and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
+
 **Acceptance criteria**
-- [ ] In simulation with noisy odometry, the pose error is ≤8 cm and ≤10° after 10 cells, and the cell estimate is 100 % correct.
+- [ ] In simulation with noisy odometry and a drifting gyro, the pose error is ≤8 cm and ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct.
+- [ ] The gyro drift rate (° per minute) is measured and recorded in `GYRO_HEADING.md`.
+- [ ] The north-face-only experiment is documented, with the coverage consequence.
 - [ ] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2.
 - [ ] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025).
 - [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11.
@@ -968,35 +977,11 @@ Plus the Lab 4 notes in `LAB_LOG.md`.
 
 ## Proposed (from the corrections review, not in the hour plan)
 
-These tickets turn the notes in `docs/CORRECCIONES.md` into work. They are small and mostly touch `HandleMaze` and the localizer, so they should be built after MZ-024. Suggested order: MZ-038 → MZ-042 → MZ-041 → MZ-039.
+These tickets turn the notes in `docs/CORRECCIONES.md` into work. They are small and mostly touch `HandleMaze` and the localizer, so they should be built after MZ-024. Suggested order: MZ-042 → MZ-041 → MZ-039.
 
-### MZ-038 — Gyro heading as the maze-north reference
+### MZ-038 — Gyro heading as the maze-north reference (merged into MZ-020)
 
-| Field | Value |
-|---|---|
-| Owner | Bryam |
-| Estimate | 2 h |
-| Depends on | MZ-017 (the Lab 1 log must include `InertialData`), MZ-020 |
-| Lab / robot | no (drift measured on the Lab 1 logs) |
-| Branch | `feat/MZ-038-gyro-heading` |
-| Files | `Src/Modules/Modeling/MazeLocalizer/` (modify); `Src/Representations/Modeling/MazeCellPose.h` (modify: `headingSource`, `headingDrift`); `Config/Scenarios/Maze/logger.cfg` (add `InertialData`); `docs/maze/GYRO_HEADING.md` (create) |
-
-**Goal and scope.** Make the robot always know where it faces (roadmap 4.5):
-- Store the yaw of `InertialData.orientation3D` at the *positioned at start* moment as the maze-north offset. `heading = snap90(yaw − offset)`.
-- Re-align the offset on every square-on tag (walls are axis-aligned).
-- Use the heading to infer the wall face of a seen tag, and to reject a tag whose normal does not match the heading (a false positive filter).
-- The NAO has no magnetometer, so the yaw drifts. The drift rate decides how often a tag fix is needed.
-
-**Steps**
-1. Add `InertialData` to the logger list, so Lab 1 logs carry it (a one-line change, do it before 13 Oct).
-2. From the Lab 1 logs, plot the yaw drift over a 5 min stand and a corridor walk. Write the numbers in `GYRO_HEADING.md`.
-3. Implement the offset, the snap and the tag-based re-alignment. Unit-test the snap with ±44° and ±46° inputs.
-4. **Experiment:** put tags **only on the north face** (in simulation, `mode = faces; faces = [north];` in `mazeTagLayout.cfg`; on the bench, mount only north tags) and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
-
-**Acceptance criteria**
-- [ ] The drift rate (° per minute) is measured and recorded.
-- [ ] In simulation with noisy odometry and a drifting gyro, the heading error stays ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct.
-- [ ] The north-face-only experiment is documented, with the coverage consequence.
+Merged into **MZ-020** on 16 Oct: the test floor makes the robot slip, so the gyro heading is needed from the first localizer, not after it. The scope, steps and acceptance criteria now live in MZ-020. The number is not reused.
 
 ### MZ-039 — Decision log and run metrics
 
@@ -1047,7 +1032,7 @@ fix that:
 Between the two, an optional **start-scan** pans the head from side to side for
 `startScan.durationMs` (default 5000 ms), reading the tags and walls already visible. Then the
 head looks ahead and the robot waits. It identifies the start corner (0/7/56/63) and the
-maze-north offset (MZ-038) there.
+maze-north offset (MZ-020) there.
 
 The scan is a parameter, because whether it is allowed depends on when the clock starts (Q11):
 - `startScan.enabled`, `startScan.durationMs`, `startScan.yawRangeDeg`, `startScan.pitchDeg` (the tag is low: ~30 cm up, ~25 cm away from the side walls, so the head must pitch down).
@@ -1091,6 +1076,37 @@ hold the head buttons between attempts.
 - [ ] After the reset, the robot explores as attempt 1.
 - [ ] The robot says "map cleared" when it sits. Check in step 1 that speech works while the robot is unstiff, and note the result in the PR.
 - [ ] The checklist item is in `docs/maze/COMPETITION_CHECKLIST.md` (MZ-030).
+
+### MZ-045 — Pose correction from wall distances
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | 3 h |
+| Depends on | MZ-019, MZ-020, MZ-017* (real-floor logs) |
+| Lab / robot | no (uses the Lab 1 logs) |
+| Branch | `feat/MZ-045-wall-pose-correction` |
+| Files | `Src/Modules/Modeling/MazeLocalizer/` (modify); `Src/Representations/Modeling/MazeCellPose.h` (modify: `wallFixRate`) |
+
+**Goal.** Correct the pose between tag fixes. The test floor makes the robot slip, so odometry
+loses distance and lateral position while no tag is in view. A wall seen by MZ-019 is an
+almost always visible reference, so it can correct what the gyro (heading) and the tags
+(occasional absolute fix) leave open.
+
+**Trigger.** Build this ticket only if the MZ-020 logs show that the cell estimate is lost, or
+the in-cell error grows past the MZ-020 limits, between two tag fixes. Otherwise it stays
+proposed.
+
+**Scope.**
+- **Side walls** of the current cell → lateral position in the corridor and the angle to the corridor axis.
+- **Front wall** of the current or next cell → longitudinal position, the error that slipping causes most.
+- Each correction is weighted by the distance error that MZ-019 measured at that range; walls past a parameter range (`wallFix.maxRangeMm`) are ignored.
+- Only walls that `MazeMap` already holds as `wall` are used, so an unconfirmed percept cannot move the pose.
+
+**Acceptance criteria**
+- [ ] In simulation with the oracle percepts, tags hidden (dropout 1.0) and noisy odometry, the cell estimate stays 100 % correct after 10 cells, and the in-cell error is at most the MZ-020 limits.
+- [ ] On the Lab 1 logs, the lateral and longitudinal error between tag fixes is lower with the wall fix than without it, and both numbers are written in the PR.
+- [ ] A percept of an edge the map holds as `open` or `unknown` never changes the pose (unit test).
 
 ---
 
@@ -1165,7 +1181,7 @@ Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → detector tuning (MZ-018.1) 
 | Branch | none (results committed in the PR of MZ-022) |
 | Files | `docs/maze/LAB_LOG.md` (created in MZ-022); logs in `Config/Logs/` and the shared drive |
 
-**Goal.** Record real camera, odometry and gyro logs, so the tag detector (MZ-018) and the wall perceptor (MZ-019) can be developed offline, and the gyro drift can be measured (MZ-038).
+**Goal.** Record real camera, odometry and gyro logs, so the tag detector (MZ-018) and the wall perceptor (MZ-019) can be developed offline, and the gyro drift can be measured (MZ-020).
 
 **Scope.** Two recordings with the robot booted in `-s Maze` (which also confirms MZ-007 on hardware): a **tag sweep** (one tag panel at 0.25, 0.5, 1.0, 1.5 and 2.0 m, each at 0°, 30° and 60°, 5 s per position) and a **corridor walk** (the 2-cell corridor, robot standing 5 s at both ends and in the middle, moved by hand). `InertialData` must be in the log.
 
