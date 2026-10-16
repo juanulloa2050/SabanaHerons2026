@@ -12,16 +12,16 @@ Only questions that affect a parameter. All are still pending (no official answe
 
 | Id | Question | Parameters affected |
 |---|---|---|
-| Q1 | Which walls carry tags (every face of every cell? only some?) and at what height is the tag centre? | `mode`, `faces`, `walls`, `centreHeight` in `mazeTagLayout.cfg` |
+| Q1 | Which walls carry tags (every face of every cell? only some?) and at what height is the tag centre? | `mode`, `faces`, `walls`, `centreHeight` in `mazeTagLayout.cfg` (and through it the tag-fix rate of the localizer) |
 | Q3 | Does the ≤2 min return to start (after attempt 1) count inside the 5 min of the attempt? Example: attempt 1 takes 4 min to reach the goal. Does the robot still get the full 2 min to return, or only the remaining 1 min? | `returnToStart.maxDurationMs`, `returnToStart.enabled` |
-| Q6 | Is the robot placed facing the open side of the start cell? | `start.cell` (deduction assumes it does) |
+| Q6 | Is the robot placed facing the open side of the start cell? | `start.cell` (deduction assumes it does); `startCell`, `startHeading` in `mazeLocalizer.cfg` and `startCell` in `mazeMapper.cfg` |
 | Q9 | Must the robot detect the goal by itself and start the return, or may a team member trigger the return with a robot button once the judge stops the clock? | `returnToStart.trigger`, `returnToStart.enabled`, `returnToStart.delayMs` |
 | Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | `startScan.enabled` (and the other `startScan.*` values) |
 | Q13 | What colour and material is the maze floor (outside the goal block)? The rules say light walls and a matte uniform floor, but not the floor colour. If the floor is also light, the wall base is hard to see. | Possible colour threshold of the wall perceptor (not a parameter yet, MZ-019); simulation colours `WALL_COLOR`, `FLOOR_COLOR`, `GOAL_COLOR` |
 
 ## 1. Tag layout
 
-File: `Config/Scenarios/Maze/mazeTagLayout.cfg` (and `MazeSafe`). Ticket: MZ-013. Status: **exists**. Read by the oracle, the detector (tag size), the localizer (MZ-020) and `Util/MazeTools/maze_to_scene.py`. After a change, regenerate the scene (`maze_to_scene.py`) so the drawn tags match.
+File: `Config/Scenarios/Maze/mazeTagLayout.cfg` (and `MazeSafe`). Ticket: MZ-013. Status: **exists**. Read by the oracle, the detector (tag size), the localizer and mapper (MZ-020) and `Util/MazeTools/maze_to_scene.py`. After a change, regenerate the scene (`maze_to_scene.py`) so the drawn tags match.
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
@@ -92,14 +92,42 @@ Q13 does not change these values. The boundary is found by brightness gradient, 
 
 ## 6. Localizer and mapper
 
-File: not created yet (modules `MazeLocalizer`, `MazeMapper`). Ticket: MZ-020. Status: **planned in MZ-020**. The ticket gives these behaviours but names no config keys.
+Files: `Config/Scenarios/Maze/mazeLocalizer.cfg` and `mazeMapper.cfg` (and `MazeSafe`, identical). Modules `MazeLocalizer`, `MazeMapper` (Cognition). Ticket: MZ-020. Status: **exists** (offline-tested defaults; SimRobot run and the real gyro drift pending). Background: [GYRO_HEADING.md](GYRO_HEADING.md).
+
+### `mazeLocalizer.cfg`
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| Hysteresis count (unnamed) | Consistent observations needed before an edge goes `unknown → wall/open`. | `3` (roadmap 6) | — |
-| Distance weight (unnamed) | How fast the weight of a wall-percept observation drops with distance. | not set yet (MZ-020) | — |
-| Complementary-filter gain (unnamed) | Blend of odometry and tag fix in the pose (roadmap 4.5). | not set yet (MZ-020) | — |
-| Square-on tag threshold for heading snap (unnamed) | How square-on a tag must be to re-align the gyro offset. | not set yet (MZ-020) | — |
+| `startCell` | Cell the robot is placed in at every transition into `playing`. MZ-024 (`start.cell`, section 8) replaces it. | `0` | Q6 |
+| `startHeading` | Heading at the start: `north`, `east`, `south` or `west`. Default is the only open side of the start cell of `current.maze`. MZ-024 replaces it. | `south` | Q6 |
+| `useGyro` | `true`: heading from the gyro yaw, re-aligned by square-on tags; `false`: odometry rotation. | `true` | — |
+| `maxFaceAngleError` | Largest angle between the measured and the expected tag normal; a tag beyond it is rejected (false-positive filter). Keep equal to the mapper's. | `45deg` | Q1 (through the layout) |
+| `translationGain` | Share of the position error that a tag fix corrects at zero distance. | `0.5` | — |
+| `farDistance` | Tag distance at which the gain is scaled by `farGainScale`, in mm. | `2000` | — |
+| `farGainScale` | Gain factor at `farDistance`. | `0.4` | — |
+| `rotationGain` | Share of the heading error that a square-on fix corrects. | `0.5` | — |
+| `squareOnAngle` | Largest angle between the camera ray and the tag normal for the heading correction. | `25deg` | — |
+| `superbMaxTime` / `superbMaxDistance` | `RobotPose.quality` is superb up to this time (ms) and distance (mm) since the last tag fix. | `10000` / `1500` | — |
+| `okayMaxTime` / `okayMaxDistance` | Same for okay; beyond it the quality is poor (MZ-025 reads it). | `30000` / `4000` | — |
+| `injectedGyroDriftPerMinute` | **Simulation only.** Degrees per minute added to the gyro yaw. Leave at 0 on the robot. | `0` | — |
+| `injectedOdometryTranslationNoise` | **Simulation only.** Std. dev. of the relative error of each odometry translation delta (0.05 = 5 %). | `0` | — |
+| `injectedOdometryRotationNoise` | **Simulation only.** Std. dev. of the rotation error per metre walked; only matters with `useGyro = false`. | `0deg` | — |
+
+The localizer reads `mazeTagLayout.cfg` (section 1) to know which faces carry tags, so a different layout is a config change only.
+
+### `mazeMapper.cfg`
+
+| Parameter | Meaning | Default | Depends on question |
+|---|---|---|---|
+| `startCell` | Cell the attempts start in; same value as the localizer's. MZ-024 replaces it. | `0` | Q6 |
+| `threshold` | Consistent observations of full weight before an edge leaves `unknown`; flipping a decided edge needs the same amount of contrary evidence (hysteresis). | `3` | — |
+| `fullWeightDistance` | Wall observations up to this distance have full weight, in mm. | `500` | — |
+| `zeroWeightDistance` | Wall observations from this distance on have no weight (linear in between), in mm. | `2500` | — |
+| `tagWeight` | Weight of a decoded tag, which counts as a wall at any distance. | `1` | Q1 (through the layout) |
+| `maxFaceAngleError` | Same filter as the localizer's; keep both equal. | `45deg` | Q1 (through the layout) |
+| `worstAcceptedQuality` | The map only learns while the localizer quality is at least this good (`superb`, `okay`, `poor`); `poor` accepts everything. | `poor` | — |
+
+The map learns only while the game state is `playing`, and survives pick-up and Standby (the attempt counter increments on each transition into `playing`).
 
 ## 7. Planner costs
 

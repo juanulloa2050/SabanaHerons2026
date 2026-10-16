@@ -141,6 +141,28 @@ To change one for this session only, run `get parameters:OracledMazePerceptsProv
 `set parameters:OracledMazePerceptsProvider …` line, edit the value (e.g. `dropoutRate = 1;` gives empty
 percepts) and run it.
 
+### Localizer and mapper (what the robot believes)
+
+`MazeLocalizer` gives the pose in the maze frame (`RobotPose`, `MazeCellPose`) and `MazeMapper` the wall map (`MazeMap`). Both run in Cognition, from the oracle percepts. Background: `GYRO_HEADING.md`; every key: `PARAMETROS_LABERINTO.md`, section 6.
+
+| Command | Shows |
+|---|---|
+| `vfd worldState representation:MazeMap` | The believed walls: decided edges as wall or open, `unknown` edges left empty. |
+| `vfd worldState module:MazeLocalizer:pose` | The estimated pose (cell and heading) in the maze frame. |
+| `vfd worldState module:MazeMapper:lookAhead` | The cells and edges currently seen along the gaze. |
+| `get representation:MazeCellPose` | One snapshot: cell, heading, `headingSource`, `headingDrift`. |
+| `get representation:RobotPose` | One snapshot: pose in mm (maze frame) and `quality`. |
+
+`RobotPose` is in the maze frame, not in the SimRobot field frame, so compare it with the maze, not with the ground-truth robot position.
+
+- **Start cell and heading:** edit `startCell` and `startHeading` in `Config/Scenarios/Maze/mazeLocalizer.cfg` (and `startCell` in `mazeMapper.cfg`; keep both equal). The defaults are cell 0 facing south, which matches the generated mazes. If you generate a maze with `--start 7`, `56` or `63`, change them too. The start pose is taken on every transition into `playing`.
+- **Inject drift and noise** (SimRobot has none): set `injectedGyroDriftPerMinute`, `injectedOdometryTranslationNoise` (0.05 = 5 %) or `injectedOdometryRotationNoise` in `mazeLocalizer.cfg`. To change them for this session only, run `get parameters:MazeLocalizer`, copy the printed `set parameters:MazeLocalizer …` line, edit the value and run it.
+- **Hide the tags** to see the quality drop: set `dropoutRate = 1;` as shown above, then watch `quality` in `RobotPose` go from superb to okay to poor.
+- **Other layouts:** change `mazeTagLayout.cfg` and regenerate the scene (step 3). The localizer needs no change.
+- The map learns only in `playing`, and a pick-up (Standby) does not clear it.
+
+Not run in SimRobot yet: these commands and drawing ids are taken from the code (`DEBUG_DRAWING` and the module names), and the offline results are in `GYRO_HEADING.md`.
+
 ## 6. Real robot: see the AprilTags (RemoteRobot)
 
 The detector (`AprilTagDetector`) runs on the upper camera of the NAO, only in the `Maze` scenario.
