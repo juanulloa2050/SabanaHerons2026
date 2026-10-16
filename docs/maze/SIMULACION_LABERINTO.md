@@ -122,8 +122,9 @@ one unless the start corridor is long enough. A step that does not finish within
 
 ### Maze perception (what the robot sees)
 
-Until the real detectors exist (MZ-018, MZ-019), `OracledMazePerceptsProvider` computes the tags and walls
-the robot would see from its true pose and `current.maze`. It does not use the camera image.
+In simulation, `OracledMazePerceptsProvider` computes the tags and walls the robot would see from its true
+pose and `current.maze`. It does not use the camera image. On the real robot the tags come from the camera
+(`AprilTagDetector`, MZ-018), see step 6.
 
 | Command | Shows |
 |---|---|
@@ -140,6 +141,46 @@ To change one for this session only, run `get parameters:OracledMazePerceptsProv
 `set parameters:OracledMazePerceptsProvider …` line, edit the value (e.g. `dropoutRate = 1;` gives empty
 percepts) and run it.
 
+## 6. Real robot: see the AprilTags (RemoteRobot)
+
+The detector (`AprilTagDetector`) runs on the upper camera of the NAO, only in the `Maze` scenario.
+
+1. Build and deploy with the `Maze` scenario:
+
+   ```bash
+   Make/Linux/compile Develop Nao
+   Make/Common/deploy Develop <robot-ip> -s Maze
+   ```
+
+2. Open the remote scene and connect to the robot (the dialog asks for its IP):
+
+   ```bash
+   Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/RemoteRobot.ros2
+   ```
+
+3. In the console, type:
+
+   ```
+   call Includes/AprilTagViews
+   ```
+
+   | Command (run by `AprilTagViews`) | Shows |
+   |---|---|
+   | `vid upper module:AprilTagDetector:tags` | Each detected tag in the `upper` image: green outline and `id N`. |
+   | `vf aprilTags` + `vfd aprilTags representation:AprilTagPercept:field` | A field view `aprilTags` with the tags around the robot (bar = tag, arrow = its normal, which must point back at the robot). |
+   | `for Upper get representation:AprilTagPercept` | One snapshot: `id`, `corners` (pixels), `tagInRobot` (mm: x ahead, y left, z up) and `decisionMargin`. `detections = []` means none. |
+
+4. Run `for Upper get representation:AprilTagPercept` again for a new snapshot. For a live view,
+   double-click `representation:AprilTagPercept` under the robot's `data` → `Upper` entry in the scene tree.
+
+Without the computer: a single `headRear` tap makes the robot say "tag <id>" for the best tag seen in the
+last 2 s, or "no tag" (the robot must be in playing: three chest-button taps).
+
+Detector parameters live in `Config/Scenarios/Maze/aprilTagDetector.cfg` (what each one does: ticket
+MZ-018.1 in `TICKETS_LABERINTO.md`). To change one for this session only, run
+`for Upper get parameters:AprilTagDetector`, edit the printed `set parameters:AprilTagDetector …` line and
+run it. The time per image is in the robot's `timing` → `Upper` view, row `AprilTagDetector` (target ≤ 20 ms).
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -150,3 +191,6 @@ percepts) and run it.
 | No speech | Speech muted in simulation | `dr unmute on`. |
 | Tags on screen differ from `get representation:AprilTagPercept` | `mazeTagLayout.cfg` changed without regenerating the scene | Run step 3, reopen the scene. |
 | Percepts always empty | `dropoutRate = 1`, or `current.maze` missing (warning in the console) | Reset `dropoutRate`; run step 3. |
+| RemoteRobot: no green outlines, `get` on `AprilTagDetector` fails | The robot runs another scenario | Deploy again with `-s Maze` (step 6). |
+| RemoteRobot: the `upper` image is empty | The image is not streamed | `for Upper Lower mr JPEGImage CameraProvider`. |
+| RemoteRobot: a tag is visible but not detected | Too far, too dark or filtered by `minDecisionMargin` | Move closer; check `decisionMargin` and the parameters (step 6). |
