@@ -11,6 +11,12 @@
 #include "Tools/Maze/MazeSession.h"
 #include <algorithm>
 
+// The quality gate casts RobotPose::LocalizationQuality to Maze::LocalizationQuality, so both must share the order.
+static_assert(static_cast<int>(RobotPose::superb) == static_cast<int>(Maze::LocalizationQuality::superb) &&
+              static_cast<int>(RobotPose::okay) == static_cast<int>(Maze::LocalizationQuality::okay) &&
+              static_cast<int>(RobotPose::poor) == static_cast<int>(Maze::LocalizationQuality::poor),
+              "RobotPose::LocalizationQuality and Maze::LocalizationQuality must have the same order");
+
 MAKE_MODULE(MazeMapper);
 
 namespace
