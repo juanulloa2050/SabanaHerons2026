@@ -4,6 +4,10 @@
  * The AprilTags (tag36h11) that the robot sees in the current frame. The id of a tag is the index
  * of the maze cell it marks (row * 8 + column). In simulation the percept comes from
  * OracledMazePerceptsProvider, on the robot from the AprilTag detector.
+ *
+ * In the Cognition thread, the same detections can repeat over several frames: tags only come from
+ * the upper camera and Cognition always provides the newest upper result, even if it skips the
+ * upper frame. Consumers must compare `timestamp` to tell a new observation from a repeat.
  */
 
 #pragma once

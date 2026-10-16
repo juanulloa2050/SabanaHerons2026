@@ -20,6 +20,7 @@
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
 #include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include "Representations/Perception/ImagePreprocessing/FieldBoundary.h"
+#include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 
 MAKE_MODULE(PerceptionImageCoordinateSystemProvider);
@@ -36,6 +37,19 @@ void PerceptionImageCoordinateSystemProvider::update(ImageCoordinateSystem& theI
     theImageCoordinateSystem = theLowerImageCoordinateSystem;
     theImageCoordinateSystem.cameraInfo = theCameraInfo;
   }
+}
+
+// AprilTags are only detected in the upper camera thread. Cognition may skip an upper frame
+// (see Cognition.cpp: it drops frames older than the last accepted one, and a slow upper thread
+// loses against a fast, idle lower thread), but the data of that frame is still received and
+// stored in UpperAprilTagPercept. Therefore, always copy the newest upper result, in every frame
+// and independent of Cognition::isUpper. As a consequence, the same detections may repeat over
+// several Cognition frames; consumers distinguish them by the timestamp.
+MAKE_MODULE(PerceptionAprilTagPerceptProvider);
+
+void PerceptionAprilTagPerceptProvider::update(AprilTagPercept& theAprilTagPercept)
+{
+  theAprilTagPercept = theUpperAprilTagPercept;
 }
 
 // Define a module that updates a representation with the newer one of both aliases

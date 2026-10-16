@@ -47,6 +47,7 @@
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Representations/MotionControl/OdometryData.h"
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
+#include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
@@ -67,6 +68,8 @@ class SkillBehaviorControl;
 
 MODULE(SkillBehaviorControl,
 {,
+  // USES, not REQUIRES: only the maze scenarios provide it; elsewhere it stays empty.
+  USES(AprilTagPercept),
   REQUIRES(BallModel),
   REQUIRES(BallSpecification),
   REQUIRES(BehaviorParameters),
