@@ -68,7 +68,8 @@ class SkillBehaviorControl;
 
 MODULE(SkillBehaviorControl,
 {,
-  REQUIRES(AprilTagPercept),
+  // USES, not REQUIRES: only the maze scenarios provide it; elsewhere it stays empty.
+  USES(AprilTagPercept),
   REQUIRES(BallModel),
   REQUIRES(BallSpecification),
   REQUIRES(BehaviorParameters),
