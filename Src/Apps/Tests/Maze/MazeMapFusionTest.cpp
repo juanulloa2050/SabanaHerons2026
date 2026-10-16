@@ -1,0 +1,205 @@
+/**
+ * @file MazeMapFusionTest.cpp
+ *
+ * Tests of the evidence based wall map: thresholds, hysteresis, distance weights, look-ahead mapping,
+ * tags, attempts and the timestamp filter.
+ */
+
+#include "Tools/Maze/MazeLocalization.h"
+#include "Tools/Maze/MazeMapFusion.h"
+
+#include <gtest/gtest.h>
+
+namespace
+{
+  using namespace Maze;
+
+  /** Observes the same edge `count` times with full weight; returns whether the last one changed it. */
+  bool observeTimes(MazeMapFusion& fusion, int row, int col, Heading heading, bool isWall, int count)
+  {
+    bool changed = false;
+    for(int i = 0; i < count; ++i)
+      changed = fusion.observe(row, col, heading, isWall, 1.f);
+    return changed;
+  }
+}
+
+GTEST_TEST(MazeMapFusion, TwoObservationsKeepUnknownThreeDecide)
+{
+  MazeMapFusion fusion;
+  EXPECT_FALSE(observeTimes(fusion, 2, 2, Heading::east, true, 2));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::unknown);
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, true, 1.f));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  // The neighbour reads the same edge.
+  EXPECT_EQ(fusion.graph.get(2, 3, Heading::west), EdgeState::wall);
+
+  EXPECT_FALSE(observeTimes(fusion, 4, 4, Heading::north, false, 2));
+  EXPECT_TRUE(fusion.observe(4, 4, Heading::north, false, 1.f));
+  EXPECT_EQ(fusion.graph.get(4, 4, Heading::north), EdgeState::open);
+  EXPECT_EQ(fusion.graph.get(3, 4, Heading::south), EdgeState::open);
+}
+
+GTEST_TEST(MazeMapFusion, SharedEdgeAccumulatesFromBothSides)
+{
+  MazeMapFusion fusion;
+  fusion.observe(2, 2, Heading::east, true, 1.f);
+  fusion.observe(2, 3, Heading::west, true, 1.f);
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, true, 1.f));
+}
+
+GTEST_TEST(MazeMapFusion, FlipNeedsThreeContraryObservations)
+{
+  MazeMapFusion fusion;
+  observeTimes(fusion, 2, 2, Heading::east, true, 10); // Lots of confirmation must not make the wall harder to flip.
+  ASSERT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  EXPECT_FALSE(observeTimes(fusion, 2, 2, Heading::east, false, 2));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, false, 1.f));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::open);
+}
+
+GTEST_TEST(MazeMapFusion, ConfirmationCancelsContraryEvidence)
+{
+  MazeMapFusion fusion;
+  observeTimes(fusion, 2, 2, Heading::east, true, 3);
+  observeTimes(fusion, 2, 2, Heading::east, false, 2);
+  observeTimes(fusion, 2, 2, Heading::east, true, 2);
+  EXPECT_FALSE(observeTimes(fusion, 2, 2, Heading::east, false, 2));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+}
+
+GTEST_TEST(MazeMapFusion, BorderCannotBeOpened)
+{
+  MazeMapFusion fusion;
+  EXPECT_FALSE(observeTimes(fusion, 0, 0, Heading::north, false, 10));
+  EXPECT_EQ(fusion.graph.get(0, 0, Heading::north), EdgeState::wall);
+  EXPECT_FALSE(observeTimes(fusion, 7, 7, Heading::east, false, 10));
+  EXPECT_EQ(fusion.graph.get(7, 7, Heading::east), EdgeState::wall);
+}
+
+GTEST_TEST(MazeMapFusion, DistanceWeightDropsLinearly)
+{
+  MazeMapFusion fusion;
+  EXPECT_FLOAT_EQ(fusion.wallWeight(0.f), 1.f);
+  EXPECT_FLOAT_EQ(fusion.wallWeight(fusion.parameters.fullWeightDistance), 1.f);
+  EXPECT_FLOAT_EQ(fusion.wallWeight(1500.f), 0.5f);
+  EXPECT_FLOAT_EQ(fusion.wallWeight(fusion.parameters.zeroWeightDistance), 0.f);
+  EXPECT_FLOAT_EQ(fusion.wallWeight(9000.f), 0.f);
+
+  // Far observations need twice as many to decide.
+  for(int i = 0; i < 5; ++i)
+    EXPECT_FALSE(fusion.observe(3, 3, Heading::south, true, fusion.wallWeight(1500.f)));
+  EXPECT_TRUE(fusion.observe(3, 3, Heading::south, true, fusion.wallWeight(1500.f)));
+  // Without weight nothing is learned.
+  EXPECT_FALSE(observeTimes(fusion, 5, 5, Heading::east, true, 0));
+  EXPECT_FALSE(fusion.observe(5, 5, Heading::east, true, fusion.wallWeight(5000.f)));
+}
+
+GTEST_TEST(MazeMapFusion, TagIsFullEvidenceForAWall)
+{
+  MazeMapFusion fusion;
+  const int cell = cellId(2, 5);
+  EXPECT_FALSE(fusion.observeTag(cell, Heading::north));
+  EXPECT_FALSE(fusion.observeTag(cell, Heading::north));
+  EXPECT_TRUE(fusion.observeTag(cell, Heading::north));
+  EXPECT_EQ(fusion.graph.get(2, 5, Heading::north), EdgeState::wall);
+  EXPECT_FALSE(fusion.observeTag(-1, Heading::north));
+  EXPECT_FALSE(fusion.observeTag(cellCount, Heading::north));
+}
+
+GTEST_TEST(MazeMapFusion, CellsAheadAreMappedForEveryGaze)
+{
+  for(int g = 0; g < headingCount; ++g)
+  {
+    const Heading gaze = static_cast<Heading>(g);
+    MazeMapFusion fusion;
+    fusion.parameters.threshold = 1.f;
+    // Two cells ahead of (4, 4): left wall at the robot's cell, right open and front wall at cell 1.
+    std::vector<CellObservation> cells(2);
+    cells[0].ahead = 0;
+    cells[0].left = EdgeState::wall;
+    cells[0].right = EdgeState::open;
+    cells[0].distance = 100.f;
+    cells[1].ahead = 1;
+    cells[1].front = EdgeState::wall;
+    cells[1].distance = 400.f;
+    EXPECT_EQ(fusion.observeCellsAhead(4, 4, gaze, cells), 3);
+
+    const std::size_t i = static_cast<std::size_t>(gaze);
+    EXPECT_EQ(fusion.graph.get(4, 4, turned(gaze, -1)), EdgeState::wall) << g;
+    EXPECT_EQ(fusion.graph.get(4, 4, turned(gaze, 1)), EdgeState::open) << g;
+    EXPECT_EQ(fusion.graph.get(4, 4, gaze), EdgeState::unknown) << g;
+    EXPECT_EQ(fusion.graph.get(4 + rowDelta[i], 4 + colDelta[i], gaze), EdgeState::wall) << g;
+    EXPECT_EQ(fusion.graph.get(4 + rowDelta[i], 4 + colDelta[i], turned(gaze, -1)), EdgeState::unknown) << g;
+  }
+}
+
+GTEST_TEST(MazeMapFusion, CellsAheadLeftAndRightFollowTheCompass)
+{
+  MazeMapFusion fusion;
+  fusion.parameters.threshold = 1.f;
+  std::vector<CellObservation> cells(1);
+  cells[0].left = EdgeState::wall;
+  cells[0].right = EdgeState::open;
+  // Looking east, the left side is north.
+  fusion.observeCellsAhead(4, 4, Heading::east, cells);
+  EXPECT_EQ(fusion.graph.get(4, 4, Heading::north), EdgeState::wall);
+  EXPECT_EQ(fusion.graph.get(4, 4, Heading::south), EdgeState::open);
+}
+
+GTEST_TEST(MazeMapFusion, CellsOutsideTheMazeAreSkipped)
+{
+  MazeMapFusion fusion;
+  fusion.parameters.threshold = 1.f;
+  std::vector<CellObservation> cells(3);
+  for(int i = 0; i < 3; ++i)
+  {
+    cells[static_cast<std::size_t>(i)].ahead = i;
+    cells[static_cast<std::size_t>(i)].front = EdgeState::open;
+    cells[static_cast<std::size_t>(i)].distance = 100.f;
+  }
+  // Cell 0 ends at the east border, which cannot be opened; cells 1 and 2 are outside.
+  EXPECT_EQ(fusion.observeCellsAhead(0, 7, Heading::east, cells), 0);
+  EXPECT_EQ(fusion.graph.get(0, 7, Heading::east), EdgeState::wall);
+}
+
+GTEST_TEST(MazeMapFusion, NewAttemptKeepsTheMap)
+{
+  MazeMapFusion fusion;
+  observeTimes(fusion, 2, 2, Heading::east, true, 3);
+  fusion.markVisited(2, 2);
+  MazeMapFusion before = fusion;
+  EXPECT_EQ(fusion.attempt, 1);
+  fusion.newAttempt();
+  EXPECT_EQ(fusion.attempt, 2);
+  EXPECT_TRUE(fusion == before);
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  EXPECT_TRUE(fusion.visited(2, 2));
+  EXPECT_FALSE(fusion.visited(2, 3));
+  fusion.markVisited(2, 3);
+  EXPECT_FALSE(fusion == before);
+}
+
+GTEST_TEST(MazeMapFusion, GoalCells)
+{
+  int goals = 0;
+  for(int id = 0; id < cellCount; ++id)
+    if(isGoal(cellRow(id), cellCol(id)))
+      ++goals;
+  EXPECT_EQ(goals, 4);
+  EXPECT_TRUE(isGoal(cellRow(27), cellCol(27)));
+  EXPECT_TRUE(isGoal(cellRow(36), cellCol(36)));
+}
+
+GTEST_TEST(MazeMapFusion, TimestampFilterIgnoresRepeatedPercepts)
+{
+  TimestampFilter filter;
+  EXPECT_TRUE(filter.accept(0));
+  EXPECT_FALSE(filter.accept(0));
+  EXPECT_TRUE(filter.accept(100));
+  EXPECT_FALSE(filter.accept(100));
+  EXPECT_TRUE(filter.accept(133));
+  filter.reset();
+  EXPECT_TRUE(filter.accept(133));
+}
