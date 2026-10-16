@@ -9,6 +9,7 @@
 #include "Debugging/Stopwatch.h"
 #include "Platform/BHAssert.h"
 #include "Streaming/Output.h"
+#include "Tools/Maze/AprilTagGeometry.h"
 #include <algorithm>
 #include <apriltag/apriltag.h>
 #include <apriltag/apriltag_pose.h>
@@ -39,19 +40,6 @@ AprilTagDetector::~AprilTagDetector()
   tag36h11_destroy(family);
 }
 
-Pose3f AprilTagDetector::toRobotFrame(const Matrix3f& rotation, const Vector3f& translation, const Pose3f& cameraMatrix)
-{
-  // Optical frame (x right, y down, z forward) -> B-Human camera frame (x forward, y left, z up).
-  static const Matrix3f opticalToCamera = (Matrix3f() << 0.f, 0.f, 1.f,
-                                                         -1.f, 0.f, 0.f,
-                                                         0.f, -1.f, 0.f).finished();
-  // apriltag tag frame (x right, y down, z into the wall) -> percept tag frame (x right, y up, z out of the wall).
-  static const Matrix3f tagToPercept = Vector3f(1.f, -1.f, -1.f).asDiagonal();
-
-  const Pose3f tagInCamera(RotationMatrix(opticalToCamera * rotation * tagToPercept), opticalToCamera * translation * 1000.f);
-  return cameraMatrix * tagInCamera;
-}
-
 void AprilTagDetector::update(AprilTagPercept& aprilTagPercept)
 {
   DECLARE_DEBUG_DRAWING("module:AprilTagDetector:tags", "drawingOnImage");
@@ -66,6 +54,12 @@ void AprilTagDetector::update(AprilTagPercept& aprilTagPercept)
     return;
 
   detector->quad_decimate = quadDecimate; // parameters can change at runtime
+  Maze::AprilTagGeometry::Filter filter;
+  filter.minDecisionMargin = minDecisionMargin;
+  filter.maxHamming = maxHamming;
+  filter.sizeTolerance = sizeTolerance;
+  filter.maxDistance = maxDistance;
+  filter.maxId = maxId;
 
   STOPWATCH("AprilTagDetector")
   {
@@ -79,7 +73,7 @@ void AprilTagDetector::update(AprilTagPercept& aprilTagPercept)
       apriltag_detection_t* tag;
       zarray_get(found, i, &tag);
 
-      if(tag->id < 0 || tag->id > maxId || tag->hamming > maxHamming || tag->decision_margin < minDecisionMargin)
+      if(!Maze::AprilTagGeometry::acceptsDecoding(tag->id, tag->hamming, tag->decision_margin, filter))
         continue;
 
       apriltag_detection_info_t info;
@@ -114,14 +108,13 @@ void AprilTagDetector::update(AprilTagPercept& aprilTagPercept)
         longestEdge = std::max(longestEdge, (detection.corners[c] - Vector2f(static_cast<float>(tag->p[(c + 1) % 4][0]),
                                                                               static_cast<float>(tag->p[(c + 1) % 4][1]))).norm());
       }
-      const float distance = translation.norm() * 1000.f;
-      const float expectedDistance = theCameraInfo.focalLength * tagSize * 1000.f / std::max(longestEdge, 1.f);
-      if(distance > maxDistance || std::abs(distance / expectedDistance - 1.f) > sizeTolerance)
+      if(!Maze::AprilTagGeometry::acceptsDistance(translation.norm() * 1000.f, longestEdge, theCameraInfo.focalLength,
+                                                  tagSize * 1000.f, filter))
         continue;
 
       detection.id = tag->id;
       detection.decisionMargin = tag->decision_margin;
-      detection.tagInRobot = toRobotFrame(rotation, translation, theCameraMatrix);
+      detection.tagInRobot = Maze::AprilTagGeometry::toRobotFrame(rotation, translation, theCameraMatrix);
       aprilTagPercept.detections.push_back(detection);
     }
     apriltag_detections_destroy(found);

@@ -5,14 +5,8 @@
  * them as AprilTagPercept: id, the four corners in the image, the decision margin and the pose of
  * the tag in the robot frame.
  *
- * Frames. The apriltag library returns the pose of the tag in the camera optical frame
- * (x right, y down, z forward) and the tag frame has x right, y down and z into the wall.
- * B-Human's camera frame has x forward, y left and z up. The pose is converted in three steps:
- *   1. optical -> B-Human camera: (x, y, z)optical = (-y, -z, x)camera, i.e. the matrix
- *      [0 0 1; -1 0 0; 0 -1 0] applied to the optical vector;
- *   2. tag frame -> AprilTagPercept tag frame (z out of the wall, x right, y up when looking at the
- *      tag): a rotation of pi around the tag's x-axis, diag(1, -1, -1);
- *   3. camera -> robot with the CameraMatrix. Millimetres everywhere after the conversion.
+ * Frames and filters. The pose conversion from the apriltag conventions to the AprilTagPercept
+ * conventions and the plausibility filters live in Tools/Maze/AprilTagGeometry.h (unit tested).
  *
  * The image has the resolution of CameraInfo (the ECImage is full size), so the intrinsics of
  * CameraInfo are used unscaled. Lens distortion and the rolling shutter are not corrected.
@@ -68,15 +62,6 @@ public:
   AprilTagDetector();
   ~AprilTagDetector();
 
-  /**
-   * Converts a tag pose from the apriltag conventions to the AprilTagPercept conventions.
-   * @param rotation Rotation of the tag in the camera optical frame (apriltag convention).
-   * @param translation Position of the tag in the camera optical frame in metres.
-   * @param cameraMatrix Pose of the B-Human camera frame in the robot frame (mm).
-   * @return The pose of the tag in the robot frame in mm, with z the normal out of the wall.
-   */
-  static Pose3f toRobotFrame(const Matrix3f& rotation, const Vector3f& translation, const Pose3f& cameraMatrix);
-
 private:
   void update(AprilTagPercept& aprilTagPercept) override;
 
@@ -93,10 +78,15 @@ private:
  */
 MODULE(EmptyAprilTagProvider,
 {,
+  REQUIRES(FrameInfo),
   PROVIDES(AprilTagPercept),
 });
 
 class EmptyAprilTagProvider : public EmptyAprilTagProviderBase
 {
-  void update(AprilTagPercept& aprilTagPercept) override { aprilTagPercept.detections.clear(); }
+  void update(AprilTagPercept& aprilTagPercept) override
+  {
+    aprilTagPercept.detections.clear();
+    aprilTagPercept.timestamp = theFrameInfo.time;
+  }
 };
