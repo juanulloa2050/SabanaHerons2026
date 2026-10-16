@@ -85,7 +85,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [x] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
-| [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
+| [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
 | [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5.5 | no | MZ-011, MZ-013 |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
@@ -579,13 +579,13 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 5 h |
 | Depends on | MZ-008, MZ-017 (soft: Lab 1 logs) |
 | Lab / robot | no (validated on Lab 1 logs; rendered simulation images otherwise) |
 | Branch | `feat/MZ-018-apriltag-detector` |
-| Files | `Src/Modules/Perception/AprilTagDetector/AprilTagDetector.{h,cpp}` (create); `Src/Modules/Infrastructure/InterThreadProviders/PerceptionProviders.{h,cpp}` (modify: `ALIAS(AprilTagPercept)`); `Config/Scenarios/Maze/threads.cfg`, `Config/Scenarios/Maze/aprilTagDetector.cfg` (modify / create) |
+| Files | `Src/Modules/Perception/AprilTagDetector/AprilTagDetector.{h,cpp}` (create); `Src/Tools/Maze/AprilTagGeometry.{h,cpp}` and `Src/Apps/Tests/Maze/AprilTagGeometryTest.cpp` (create); `Src/Modules/Infrastructure/InterThreadProviders/PerceptionProviders.{h,cpp}` (modify: `PerceptionAprilTagPerceptProvider`); `Config/Scenarios/{Maze,MazeSafe}/threads.cfg` and `aprilTagDetector.cfg` (modify / create); `Config/Scenes/Includes/AprilTagViews.con` (create); `HandleMaze.h`, `SkillBehaviorControl.h` (modify) |
 
 **Goal.** Read the maze's `tag36h11` tags from the upper camera and publish, for each one, its id and its pose in the robot frame. This is how the robot knows which cell it is in.
 
@@ -597,11 +597,16 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - Self-test: on the robot, a single `headRear` tap says the last seen tag id ("tag 11"), or "no tag".
 - The values of `aprilTagDetector.cfg` are explained and tuned on the real robot in the subtask MZ-018.1 (Wilson).
 
+**Delivered beyond the original scope.**
+- `call Includes/AprilTagViews` in the `RemoteRobot` scene shows the detections live (see `SIMULACION_LABERINTO.md`, step 6).
+- Cognition always takes the newest upper-camera percept. In the Maze scenario Cognition drops an upper frame that arrives after a newer lower frame, which lost every tag when 2 or more were in view. The same tag can therefore repeat over several Cognition frames; consumers (MZ-020) tell repeats apart by `timestamp`.
+- Frame conversion and filters are unit-tested (`AprilTagGeometryTest`).
+
 **Acceptance criteria**
-- [ ] Ids are correct on ≥95 % of Lab 1 frames between 0.25 and 1.5 m.
-- [ ] On the NAO, `STOPWATCH("AprilTagDetector")` averages ≤20 ms per upper frame. If it does not, detect every 2nd frame (parameter).
-- [ ] No detections with a wrong id on the whole log (false-positive check).
-- [ ] On the robot, a single `headRear` tap says the last seen tag id (used in Lab 2 and in the 5-minute calibration).
+- [x] ~~Ids are correct on ≥95 % of Lab 1 frames between 0.25 and 1.5 m.~~ Moved to MZ-022, which measures the detector on the Lab 1 logs (decision, 16 Oct).
+- [x] ~~On the NAO, `STOPWATCH("AprilTagDetector")` averages ≤20 ms per upper frame.~~ Moved to MZ-018.1, together with the `frameSkip` parameter that fixes it (decision, 16 Oct).
+- [x] ~~No detections with a wrong id on the whole log (false-positive check).~~ Moved to MZ-022 (decision, 16 Oct).
+- [x] On the robot, a single `headRear` tap says the last seen tag id. Checked on the NAO on 16 Oct with one tag and with several tags in view.
 
 ### MZ-019 — Wall perceptor and corridor look-ahead
 
@@ -714,6 +719,8 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Acceptance criteria**
 - [ ] All 15 positions are in the table.
 - [ ] The summary states whether the MZ-018 targets are met (≥95 % detection, ≤5 % distance error up to 1.5 m).
+- [ ] Ids are correct on ≥95 % of Lab 1 frames between 0.25 and 1.5 m (moved from MZ-018).
+- [ ] No detection with a wrong id on the whole log (false-positive check, moved from MZ-018).
 
 ---
 
@@ -1180,7 +1187,7 @@ Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → detector tuning (MZ-018.1) 
 
 ### MZ-018.1 — Tune the AprilTag detector on the real robot ⚠️ TAG-DEP
 
-Subtask of MZ-018. The detector is merged with untuned defaults; this ticket sets them from real images.
+Subtask of MZ-018. The detector is merged with untuned defaults; this ticket only sets the parameters from real images. The direction of the pose and the `headRear` self-test were already checked on the robot in MZ-018.
 
 | Field | Value |
 |---|---|
@@ -1215,18 +1222,14 @@ Subtask of MZ-018. The detector is merged with untuned defaults; this ticket set
    ```
 2. Open `Config/Scenes/RemoteRobot.ros2`, connect to the robot, and type `call Includes/AprilTagViews`. The `upper` image shows each tag with a green outline and its id. `for Upper get representation:AprilTagPercept` prints the id, the pose in the robot frame and the `decisionMargin`.
 3. **Sweep with the defaults.** Place one tag at 0.25, 0.5, 1.0, 1.5 and 2.0 m from the robot, each at 0°, 30° and 60°, with the tag centre at 30 cm height. For each position write: whether the id was read, the id, the `decisionMargin`, the reported distance (the norm of the x and y of `tagInRobot`) against the tape, and the time in the `timing` view.
-4. **Direction check (once).** With the tag straight in front at 1.0 m, the field view `aprilTags` must show the tag about 1000 mm ahead with its arrow (the normal) pointing back at the robot. If the arrow points away or the tag appears to the side, stop and tell Bryam: the frame conversion is wrong.
-5. **False positives.** Turn the robot (or the head) towards the room without any tag for 1 minute: lights, windows, chairs, posters. Write down every detection and its `decisionMargin`.
-6. **Tune.** Change one value at a time (the table above, from top to bottom), repeating the positions that the change affects.
-7. **headRear.** At 0.5, 1.0 and 1.5 m, a single `headRear` tap must say the right id ("tag 11"), and "no tag" when no tag is seen.
-8. Write the results table and the chosen values in `docs/maze/LAB_LOG.md` (section *MZ-018.1*), copy the values into both `aprilTagDetector.cfg` files, and open a PR from `chore/MZ-018.1-tag-detector-tuning`.
+4. **False positives.** Turn the robot (or the head) towards the room without any tag for 1 minute: lights, windows, chairs, posters. Write down every detection and its `decisionMargin`.
+5. **Tune.** Change one value at a time (the table above, from top to bottom), repeating the positions that the change affects.
+6. Write the results table and the chosen values in `docs/maze/LAB_LOG.md` (section *MZ-018.1*), copy the values into both `aprilTagDetector.cfg` files, and open a PR from `chore/MZ-018.1-tag-detector-tuning`.
 
 **Acceptance criteria**
 - [ ] The sweep table (5 distances × 3 angles) is in `LAB_LOG.md` with id, `decisionMargin`, reported vs. measured distance and time.
-- [ ] The direction check passed (tag ahead, normal pointing at the robot).
 - [ ] With the chosen values, ids are read at 0.25–1.5 m at 0° and 30°, and there is no wrong id in the whole session, including the false-positive minute.
 - [ ] The average `AprilTagDetector` time is ≤ 20 ms, or `frameSkip = 2` is set.
-- [ ] The `headRear` tap says the right id at 0.5, 1.0 and 1.5 m.
 - [ ] Both `aprilTagDetector.cfg` files have the chosen values, each changed value with a one-line comment giving its reason.
 
 ### MZ-023 — Lab 2 (Tue 20 Oct, 2 h): calibration of motion costs
