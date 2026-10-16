@@ -84,7 +84,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
 | [x] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
 | [x] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
-| [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
+| [x] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
 | [ ] | MZ-020 | Localizer + mapper ⚠️ | Bryam | 2 | 5.5 | no | MZ-011, MZ-013 |
@@ -539,17 +539,17 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 3 h |
 | Depends on | MZ-007, MZ-010 |
 | Lab / robot | no |
 | Branch | `config/MZ-016-walk-profile` |
-| Files | `Config/Scenarios/Maze/walkingEngine.cfg`, `Config/Scenarios/Maze/walkingEngineCommon.cfg`, `Config/Scenarios/MazeSafe/walkingEngine.cfg`, `Config/Scenarios/MazeSafe/walkingEngineCommon.cfg` (create as copies) |
+| Files | `Config/Scenarios/Maze/walkingEngine.cfg`, `Config/Scenarios/Maze/walkingEngineCommon.cfg`, `Config/Scenarios/MazeSafe/walkingEngine.cfg`, `Config/Scenarios/MazeSafe/walkingEngineCommon.cfg` (create as copies); `Config/Robots/Nao/Nao/walkingEngine.cfg` (remove so scenario profiles load in SimRobot) |
 
 **Goal.** A conservative walk for the 48 cm corridor: slower, with the arms closer to the body so they do not touch the walls. `Maze` uses 60 % of the default speed and `MazeSafe` 40 %.
 
-**Scope.** The profiles are copies of the defaults with only a few values changed. A scenario file overrides `Config/Robots/Default/` (roadmap 3.6), so the **whole file** is copied, not only the changed lines.
+**Scope.** The profiles are copies of the defaults with only a few values changed. A scenario file overrides `Config/Robots/Default/` (roadmap 3.6), so the **whole file** is copied, not only the changed lines. SimRobot searches `Config/Robots/Nao/Nao/` before the scenario folder, so its `walkingEngine.cfg` took precedence and hid both scenario speed profiles. That robot-specific file was removed so Maze and MazeSafe limits apply in simulation. The accepted side effect is that other SimRobot scenes use `Robots/Default` walking speeds instead of the Nao-specific 300/230 mm/s profile.
 - `walkingEngine.cfg`: `maxSpeed` and `minSpeed` at 60 % (`Maze`) or 40 % (`MazeSafe`), for translation x, y and rotation.
 - `walkingEngineCommon.cfg`, under `armParameters`: `armShoulderRoll` 7deg → 4deg, `armShoulderRollIncreaseFactor` 2 → 1, `armShoulderPitchFactor` 6 → 3.
 
@@ -560,12 +560,13 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
    cp Config/Robots/Default/walkingEngine.cfg Config/Robots/Default/walkingEngineCommon.cfg Config/Scenarios/MazeSafe/
    ```
 2. Apply the values above.
-3. Run 5 times in SimRobot on the 8-cell straight corridor of `Config/Mazes/generated/maze_2.maze` and record in the PR: the time to cross 4 cells, whether any wall was touched (watch the arms in the 3D view), and the minimum arm-to-wall distance (visual estimate).
+3. Remove `Config/Robots/Nao/Nao/walkingEngine.cfg` so SimRobot loads the selected scenario's speed profile.
+4. Run 5 times per scenario in SimRobot on the same 8-cell straight corridor of `Config/Mazes/generated/maze_2.maze`. Record in the PR the time to cross 4 cells, whether any wall was touched, and the visual estimate of minimum arm-to-wall distance.
 
 **Acceptance criteria**
-- [ ] Both scenarios build and the robot walks in simulation without falling (5/5 runs).
-- [ ] 0 wall touches in 5 runs, and the times are recorded in the PR.
-- [ ] Only the parameters listed above differ from `Config/Robots/Default/` (check with `diff`).
+- [x] Both scenarios load in SimRobot and the robot walks without falling (5/5 runs per scenario).
+- [x] 0 wall touches in 5 runs per scenario, and the times are recorded in the PR.
+- [x] Only the listed speed and arm parameters differ from `Config/Robots/Default/` in the four scenario files (checked with `diff`).
 
 ---
 
