@@ -1,0 +1,14 @@
+# AprilTag detection views for the maze (MZ-018). In the RemoteRobot scene, type:
+#   call Includes/AprilTagViews
+# Needs the robot to run the Maze scenario and the "upper" image view of RemoteRobot (Includes/JPEGImageViews).
+
+# Tag outline and id on the upper camera image.
+vid upper module:AprilTagDetector:tags
+
+# Tags in the robot frame (bar = tag, arrow = its normal) in a field view, with the number as text.
+vf aprilTags
+vfd aprilTags representation:AprilTagPercept:field
+
+# Print the current detections (id, corners, pose in the robot frame, decision margin) once.
+# Repeat this line to see the tags again, or: for Upper get representation:AprilTagPercept
+for Upper get representation:AprilTagPercept
