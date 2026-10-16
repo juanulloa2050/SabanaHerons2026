@@ -119,6 +119,7 @@ Bodies are in the section *Physical robot tickets*, after the proposed tickets. 
 | MZ-014 | Build the partial bench (**optional**) | Wilson | 1 | 3.5 (optional) | no | – |
 | MZ-015 | Print and mount tags ⚠️ | Wilson | 1 | 1 | no | MZ-014 |
 | MZ-017 | Lab 1: log capture ⚠️ | Wilson | 1 | 2 | **yes** | MZ-007, MZ-014, MZ-015 |
+| MZ-018.1 | Tune the AprilTag detector on the robot ⚠️ (subtask of MZ-018) | Wilson | 2 | 1.5 | **yes** | MZ-018, MZ-015 |
 | MZ-023 | Lab 2: calibration of motion costs | Wilson | 2 | 2 | **yes** | MZ-016, MZ-018 |
 | MZ-027 | Lab 3: integrated bench run (pairing) | Bryam + Wilson | 3 | 2.5 + 2.5 | **yes** | MZ-024 |
 | MZ-031 | Lab 4: competition rehearsal (pairing) | Bryam + Wilson | 4 | 2.5 + 2.5 | **yes** | MZ-029, MZ-030 |
@@ -594,6 +595,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - A decision-margin threshold and a size-versus-distance consistency check in `aprilTagDetector.cfg`.
 - The tag size for pose estimation comes from `MazeTagLayout.size` (150 mm). The detector does not depend on which walls carry tags.
 - Self-test: on the robot, a single `headRear` tap says the last seen tag id ("tag 11"), or "no tag".
+- The values of `aprilTagDetector.cfg` are explained and tuned on the real robot in the subtask MZ-018.1 (Wilson).
 
 **Acceptance criteria**
 - [ ] Ids are correct on ≥95 % of Lab 1 frames between 0.25 and 1.5 m.
@@ -1090,7 +1092,7 @@ These tickets need the NAO, the lab or a physical maze. We are **not sure how we
 
 If a lab session is lost, the fallback is: keep the code frozen on simulation results, use the `Maze` conservative defaults, and treat the competition's 5-minute calibration zone (roadmap section 7) as the first real test.
 
-Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → Lab 2 (MZ-023) → Lab 3 (MZ-027) → Lab 4 (MZ-031) → Lab 5 (MZ-033), then the proposed and backlog tickets that need the robot (MZ-040, MZ-044).
+Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → detector tuning (MZ-018.1) → Lab 2 (MZ-023) → Lab 3 (MZ-027) → Lab 4 (MZ-031) → Lab 5 (MZ-033), then the proposed and backlog tickets that need the robot (MZ-040, MZ-044).
 
 ### MZ-014 — Build the partial bench (optional)
 
@@ -1175,6 +1177,57 @@ Order: bench (MZ-014, MZ-015) → Lab 1 (MZ-017) → Lab 2 (MZ-023) → Lab 3 (M
 - [ ] At least 15 tag positions are recorded (5 distances × 3 angles) with their timestamps.
 - [ ] The logs open in SimRobot with `Config/Scenes/ReplayRobot.ros2` (check one before leaving the lab).
 - [ ] The robot booted with `-s Maze` and the chest flow worked (this confirms MZ-007 on the real robot).
+
+### MZ-018.1 — Tune the AprilTag detector on the real robot ⚠️ TAG-DEP
+
+Subtask of MZ-018. The detector is merged with untuned defaults; this ticket sets them from real images.
+
+| Field | Value |
+|---|---|
+| Owner | Wilson (Bryam on call by phone) |
+| Estimate | 1.5 h (robot) |
+| Depends on | MZ-018, MZ-015 (printed tags; one tag on a box or wall is enough if the bench is not built) |
+| Lab / robot | **yes** (robot available now, 16 Oct) |
+| Branch | `chore/MZ-018.1-tag-detector-tuning` |
+| Files | `Config/Scenarios/Maze/aprilTagDetector.cfg` and `Config/Scenarios/MazeSafe/aprilTagDetector.cfg` (same values in both); results in `docs/maze/LAB_LOG.md` (section *MZ-018.1*) |
+
+**Goal.** Choose the values of `aprilTagDetector.cfg` from measurements on the NAO, so that tags are read at the distances the maze needs (0.25 to 1.5 m) without wrong ids and within the time budget.
+
+**What each value does.** The tag size (150 mm) is not here; it comes from `mazeTagLayout.cfg`. The filters run in this order: id, hamming and margin first, then the pose, then distance and size.
+
+| Parameter | Default | What it does | Raise it → | Lower it → | How to choose it |
+|---|---|---|---|---|---|
+| `minDecisionMargin` | 30 | Confidence of the decoding: how clearly the bits of the tag differ from the threshold. Good, close tags score far above 50; far, blurred or dark tags score less. | Fewer false positives, but far or dark tags disappear. | More far tags, more risk of noise being read as a tag. | Write down the `decisionMargin` of every correct detection and of every false one. Use a value below the smallest correct margin at 1.5 m and above every false one. |
+| `maxHamming` | 0 | How many bits the library may correct to read an id (it corrects up to 2). 0 accepts only perfect reads. | 1–2: more reads of blurred tags, but a damaged tag can be read as another id. | – (0 is the minimum). | Keep 0 unless tags are lost at 1.0–1.5 m while walking. Try 1 only then, and check that no wrong id appears. A wrong id is worse than a missed tag: it puts the robot in the wrong cell. |
+| `sizeTolerance` | 0.5 | Consistency check: the distance from the pose must match the distance implied by the tag's size in the image (±50 %). It drops poses that the library got wrong. | Accepts more poses, including bad ones. | Rejects bad poses, but may drop correct tags seen at an angle or near the image border. | At 30° and 60°, check that no correct tag is dropped (the tag is drawn in the image but missing from the percept). Then lower it in steps of 0.1 while that stays true. |
+| `frameSkip` | 1 | Run the detector on every n-th upper image only (1 = every image). The percept is empty on the skipped images. | Less CPU, fewer detections per second. | – (1 is the minimum). | Read the time in the `timing` view of the Upper thread (`AprilTagDetector`). Keep 1 if the average is ≤ 20 ms; otherwise use 2. |
+| `maxDistance` | 3000 mm | Tags farther than this are dropped, because a far pose is less precise. | Far tags are used. | Far tags are ignored. | Measure the distance error (reported vs. tape) at 0.5, 1.0, 1.5 and 2.0 m. Set it to the largest distance where the error is ≤ 5 cm. |
+| `maxId` | 63 | The maze uses ids 0–63 (row × 8 + column); a larger id is a false positive. | – | – | Do not tune. Change it only if the maze grid changes. |
+| `quadDecimate` | 2 | The image is shrunk by this factor to find the tag squares (the id is still read at full size). 1 = no shrink. | Faster, but small (far) tags are lost. | Detects smaller, farther tags, but costs much more time (1 is about 3–4× slower than 2). | Compare 1, 2 and 3: the farthest distance where the tag is still read, and the time. Keep the largest value that still reads tags at 1.5 m. |
+
+**Changing a value live.** The values can be changed without redeploying. In the RemoteRobot console, `for Upper get parameters:AprilTagDetector` prints a `set ...` line with all the values. Edit the number and press Enter. These changes are lost on restart, so copy the final values into both `.cfg` files.
+
+**Steps**
+1. Deploy and start the robot standing, with the head still:
+   ```bash
+   Make/Linux/compile Develop Nao
+   Make/Common/deploy Develop <robot-ip> -s Maze
+   ```
+2. Open `Config/Scenes/RemoteRobot.ros2`, connect to the robot, and type `call Includes/AprilTagViews`. The `upper` image shows each tag with a green outline and its id. `for Upper get representation:AprilTagPercept` prints the id, the pose in the robot frame and the `decisionMargin`.
+3. **Sweep with the defaults.** Place one tag at 0.25, 0.5, 1.0, 1.5 and 2.0 m from the robot, each at 0°, 30° and 60°, with the tag centre at 30 cm height. For each position write: whether the id was read, the id, the `decisionMargin`, the reported distance (the norm of the x and y of `tagInRobot`) against the tape, and the time in the `timing` view.
+4. **Direction check (once).** With the tag straight in front at 1.0 m, the field view `aprilTags` must show the tag about 1000 mm ahead with its arrow (the normal) pointing back at the robot. If the arrow points away or the tag appears to the side, stop and tell Bryam: the frame conversion is wrong.
+5. **False positives.** Turn the robot (or the head) towards the room without any tag for 1 minute: lights, windows, chairs, posters. Write down every detection and its `decisionMargin`.
+6. **Tune.** Change one value at a time (the table above, from top to bottom), repeating the positions that the change affects.
+7. **headRear.** At 0.5, 1.0 and 1.5 m, a single `headRear` tap must say the right id ("tag 11"), and "no tag" when no tag is seen.
+8. Write the results table and the chosen values in `docs/maze/LAB_LOG.md` (section *MZ-018.1*), copy the values into both `aprilTagDetector.cfg` files, and open a PR from `chore/MZ-018.1-tag-detector-tuning`.
+
+**Acceptance criteria**
+- [ ] The sweep table (5 distances × 3 angles) is in `LAB_LOG.md` with id, `decisionMargin`, reported vs. measured distance and time.
+- [ ] The direction check passed (tag ahead, normal pointing at the robot).
+- [ ] With the chosen values, ids are read at 0.25–1.5 m at 0° and 30°, and there is no wrong id in the whole session, including the false-positive minute.
+- [ ] The average `AprilTagDetector` time is ≤ 20 ms, or `frameSkip = 2` is set.
+- [ ] The `headRear` tap says the right id at 0.5, 1.0 and 1.5 m.
+- [ ] Both `aprilTagDetector.cfg` files have the chosen values, each changed value with a one-line comment giving its reason.
 
 ### MZ-023 — Lab 2 (Tue 20 Oct, 2 h): calibration of motion costs
 
