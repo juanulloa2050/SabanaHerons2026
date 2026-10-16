@@ -5,7 +5,8 @@
  * robot stands still and reacts to single and double head button taps:
  *
  *   headFront  x1  says "start"
- *   headRear   x1  says "maze ready"
+ *   headRear   x1  says the id of the last seen AprilTag ("tag 11"), or "no tag" if none was seen
+ *                  in the last 2 s (self-test of the AprilTag detector, MZ-018)
  *   headMiddle x2  says "motion test" and runs the motion test sequence
  *   headMiddle x1  reserved for "positioned at start" (MZ-041)
  *
@@ -37,6 +38,9 @@ static constexpr int motionTestPauseTime = 2000;
 /** The time the robot waits after announcing something until it accepts the next tap (in ms). */
 static constexpr int mazeAnnouncementTime = 1500;
 
+/** A tag that was last seen longer ago than this is announced as "no tag" (in ms). */
+static constexpr int tagMemoryTime = 2000;
+
 /** The maximum time the walking step of the motion test may take before the test is aborted (in ms). */
 static constexpr int motionTestWalkTimeout = 30000;
 
@@ -48,6 +52,32 @@ static constexpr int motionTestNumOfSteps = 4;
 
 /** The sound that is played between the steps of the motion test (in Config/Sounds). */
 static constexpr const char* motionTestBeep = "mazeBeep.wav";
+
+int lastTagId = -1; /**< The id of the tag with the best decision margin in the last frame that showed a tag; -1 if none yet. */
+unsigned lastTagTime = 0; /**< The time of that frame. */
+std::string tagAnnouncement; /**< What the robot says when announcing the last seen tag. */
+
+/** Remembers the best tag of the current frame, if there is one. */
+void updateLastTag()
+{
+  const AprilTagPercept::Detection* best = nullptr;
+  for(const AprilTagPercept::Detection& detection : theAprilTagPercept.detections)
+    if(!best || detection.decisionMargin > best->decisionMargin)
+      best = &detection;
+  if(best)
+  {
+    lastTagId = best->id;
+    lastTagTime = theFrameInfo.time;
+  }
+}
+
+/** @return What to say about the last seen tag: "tag <id>" or "no tag". */
+std::string currentTagAnnouncement() const
+{
+  if(lastTagId >= 0 && theFrameInfo.getTimeSince(lastTagTime) <= tagMemoryTime)
+    return "tag " + std::to_string(lastTagId);
+  return "no tag";
+}
 
 int motionTestStep = 0; /**< The step of the motion test that is currently executed (or the next one during a pause). */
 Pose2f motionTestStartOdometry; /**< The odometry when the current step of the motion test started. */
@@ -84,6 +114,7 @@ option(HandleMaze)
 {
   common_transition
   {
+    updateLastTag();
     if(theGameState.isPlaying())
       goto playing;
     else
@@ -117,13 +148,19 @@ option(HandleMazeButtons)
       DEBUG_RESPONSE_ONCE("option:HandleMaze:headFront")
         goto announceStart;
       DEBUG_RESPONSE_ONCE("option:HandleMaze:headRear")
-        goto announceMazeReady;
+      {
+        tagAnnouncement = currentTagAnnouncement();
+        goto announceTag;
+      }
       DEBUG_RESPONSE_ONCE("option:HandleMaze:headMiddleTwice")
         goto announceMotionTest;
       if(theEnhancedKeyStates.hitStreak[KeyStates::headFront] == 1)
         goto announceStart;
       else if(theEnhancedKeyStates.hitStreak[KeyStates::headRear] == 1)
-        goto announceMazeReady;
+      {
+        tagAnnouncement = currentTagAnnouncement();
+        goto announceTag;
+      }
       else if(theEnhancedKeyStates.hitStreak[KeyStates::headMiddle] == 2)
         goto announceMotionTest;
       // headMiddle x1 is reserved for "positioned at start" (MZ-041).
@@ -150,7 +187,7 @@ option(HandleMazeButtons)
     }
   }
 
-  state(announceMazeReady)
+  state(announceTag)
   {
     transition
     {
@@ -161,7 +198,7 @@ option(HandleMazeButtons)
     {
       theLookForwardSkill();
       theStandSkill();
-      theSaySkill({.text = "maze ready"});
+      theSaySkill({.text = tagAnnouncement});
     }
   }
 

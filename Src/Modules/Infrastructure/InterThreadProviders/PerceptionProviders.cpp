@@ -20,6 +20,7 @@
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
 #include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include "Representations/Perception/ImagePreprocessing/FieldBoundary.h"
+#include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 
 MAKE_MODULE(PerceptionImageCoordinateSystemProvider);
@@ -65,6 +66,7 @@ void PerceptionImageCoordinateSystemProvider::update(ImageCoordinateSystem& theI
   ALIAS_MODULE(Representation)
 
 ALIAS_MODULE(FrameInfo);
+ALIAS(AprilTagPercept);
 ALIAS(BallPercept);
 ALIAS(BodyContour);
 ALIAS(CameraInfo);

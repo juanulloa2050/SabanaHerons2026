@@ -315,7 +315,7 @@ git push -u origin Maze-Challenge
   | Gesture | Stub behaviour |
   |---|---|
   | `headFront` ×1 | Says "start" (replaced by the *State announcements* of MZ-024) |
-  | `headRear` ×1 | Says "maze ready" (later: the last seen tag id, MZ-018) |
+  | `headRear` ×1 | Says the last seen tag id ("tag 11") or "no tag" (MZ-018) |
   | `headMiddle` ×2 | Says "motion test" and runs the **motion test sequence** used in Lab 2: 4 cells forward, stop, turn 90° left, 90° right, 180°, each separated by a 2 s pause and a beep |
   | `headMiddle` ×1 | Reserved for *positioned at start* (MZ-041) |
 

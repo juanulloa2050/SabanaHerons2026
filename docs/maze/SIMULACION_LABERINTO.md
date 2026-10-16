@@ -112,7 +112,7 @@ The robot must be in playing.
 | Command | Same as | Expected result |
 |---|---|---|
 | `dr option:HandleMaze:headFront on` | `headFront` ×1 | Says "start". |
-| `dr option:HandleMaze:headRear on` | `headRear` ×1 | Says "maze ready". |
+| `dr option:HandleMaze:headRear on` | `headRear` ×1 | Says "tag <id>" for the last seen AprilTag (within 2 s), else "no tag". |
 | `dr option:HandleMaze:headMiddleTwice on` | `headMiddle` ×2 | Says "motion test", walks about 2 m (4 cells) forward, then turns 90° left, 90° right and 180°, with a beep in each pause. |
 | `dr option:HandleMaze:abortMotionTest on` | Any head button during the test | Says "motion test aborted" and stops the test. |
 
