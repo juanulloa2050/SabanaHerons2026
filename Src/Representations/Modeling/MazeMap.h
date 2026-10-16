@@ -17,6 +17,7 @@
 
 #include "Streaming/AutoStreamable.h"
 #include "Streaming/Enum.h"
+#include "Tools/Maze/MazeEdgeIndex.h"
 #include "Tools/Maze/MazeGraph.h"
 #include <array>
 
@@ -30,13 +31,13 @@ STREAMABLE(MazeMap,
     wall,    /**< A wall. */
   });
 
-  static constexpr int horizontalCount = (Maze::size + 1) * Maze::size; /**< Edges above the cells, including the bottom border. */
-  static constexpr int verticalCount = Maze::size * (Maze::size + 1);   /**< Edges left of the cells, including the right border. */
+  static constexpr int horizontalCount = Maze::EdgeIndex::horizontalCount; /**< Edges above the cells, including the bottom border. */
+  static constexpr int verticalCount = Maze::EdgeIndex::verticalCount;     /**< Edges left of the cells, including the right border. */
 
-  /** The edge on side `heading` of cell (row, col); the neighbour on that side reads the same edge. */
+  /** The edge on side `heading` of cell (row, col); the neighbour on that side reads the same edge. `unknown` outside the maze. */
   Edge get(int row, int col, Maze::Heading heading) const;
 
-  /** Sets the edge on side `heading` of cell (row, col). Unlike `Maze::MazeGraph::set` this also writes the border. */
+  /** Sets the edge on side `heading` of cell (row, col). Unlike `Maze::MazeGraph::set` this also writes the border; ignored outside the maze. */
   void set(int row, int col, Maze::Heading heading, Edge edge);
 
   /** Copies the edges of a graph, including the border. */

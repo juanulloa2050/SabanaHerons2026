@@ -1,80 +1,35 @@
 /**
  * @file MazeMap.cpp
  *
- * Access to the flat edge arrays, conversion to `Maze::MazeGraph` and drawing of the map.
+ * Access to the flat edge arrays (the indexing is in Tools/Maze/MazeEdgeIndex.h), conversion to `Maze::MazeGraph` and drawing of the map.
  */
 
 #include "MazeMap.h"
 #include "Debugging/DebugDrawings.h"
 
-namespace
-{
-  /** Index into the flat edge arrays of the edge on side `heading` of (row, col). */
-  struct EdgeSlot
-  {
-    bool horizontal;
-    std::size_t index;
-  };
-
-  EdgeSlot slotOf(int row, int col, Maze::Heading heading)
-  {
-    switch(heading)
-    {
-      case Maze::Heading::north: return {true, static_cast<std::size_t>(row * Maze::size + col)};
-      case Maze::Heading::south: return {true, static_cast<std::size_t>((row + 1) * Maze::size + col)};
-      case Maze::Heading::west: return {false, static_cast<std::size_t>(row * (Maze::size + 1) + col)};
-      default: return {false, static_cast<std::size_t>(row * (Maze::size + 1) + col + 1)};
-    }
-  }
-}
-
 MazeMap::Edge MazeMap::get(int row, int col, Maze::Heading heading) const
 {
-  const EdgeSlot slot = slotOf(row, col, heading);
-  return slot.horizontal ? horizontal[slot.index] : vertical[slot.index];
+  return Maze::EdgeIndex::get(horizontal, vertical, row, col, heading);
 }
 
 void MazeMap::set(int row, int col, Maze::Heading heading, Edge edge)
 {
-  const EdgeSlot slot = slotOf(row, col, heading);
-  (slot.horizontal ? horizontal[slot.index] : vertical[slot.index]) = edge;
+  Maze::EdgeIndex::set(horizontal, vertical, row, col, heading, edge);
 }
 
 void MazeMap::setEdges(const Maze::MazeGraph& graph)
 {
-  for(int row = 0; row < Maze::size; ++row)
-    for(int col = 0; col < Maze::size; ++col)
-      for(int h = 0; h < Maze::headingCount; ++h)
-      {
-        const Maze::Heading heading = static_cast<Maze::Heading>(h);
-        set(row, col, heading, static_cast<Edge>(static_cast<int>(graph.get(row, col, heading))));
-      }
+  Maze::EdgeIndex::setEdges(horizontal, vertical, graph);
 }
 
 Maze::MazeGraph MazeMap::toGraph() const
 {
-  Maze::MazeGraph graph;
-  for(int row = 0; row < Maze::size; ++row)
-    for(int col = 0; col < Maze::size; ++col)
-      for(int h = 0; h < Maze::headingCount; ++h)
-      {
-        const Maze::Heading heading = static_cast<Maze::Heading>(h);
-        graph.set(row, col, heading, static_cast<Maze::EdgeState>(static_cast<int>(get(row, col, heading))));
-      }
-  return graph;
+  return Maze::EdgeIndex::toGraph(horizontal, vertical);
 }
 
 int MazeMap::unknownEdges() const
 {
-  int count = 0;
-  for(int row = 0; row < Maze::size; ++row)
-    for(int col = 0; col < Maze::size; ++col)
-    {
-      // Count each shared edge once: the north and west side of every cell, plus the south and east border (always walls).
-      count += get(row, col, Maze::Heading::north) == Edge::unknown ? 1 : 0;
-      count += get(row, col, Maze::Heading::west) == Edge::unknown ? 1 : 0;
-    }
-  return count;
+  return Maze::EdgeIndex::unknownCount(horizontal, vertical);
 }
 
 void MazeMap::draw() const

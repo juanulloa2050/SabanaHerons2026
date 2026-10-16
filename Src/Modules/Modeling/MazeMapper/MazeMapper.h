@@ -30,6 +30,7 @@
 #include "Representations/Perception/MazePercepts/WallPercept.h"
 #include "Tools/Maze/MazeLocalization.h"
 #include "Tools/Maze/MazeMapFusion.h"
+#include "Tools/Maze/MazeSession.h"
 #include "Tools/Maze/MazeTagLayout.h"
 #include <vector>
 
@@ -76,8 +77,7 @@ private:
   Maze::MazeTagLayout layout;
   Maze::TimestampFilter wallFilter;
   Maze::TimestampFilter tagFilter;
-  bool wasPlaying = false;
-  bool hasPlayed = false;           /**< The first attempt has started. */
+  Maze::PlayingTracker session;     /**< Decides when a new attempt starts. */
   unsigned changeCounter = 0;
   unsigned lastChangeTime = 0;
   std::vector<int> lastObservedCells; /**< Cells of the last look-ahead, for the drawing. */

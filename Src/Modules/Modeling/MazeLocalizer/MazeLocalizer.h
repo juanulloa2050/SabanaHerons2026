@@ -31,6 +31,7 @@
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Sensing/InertialData.h"
 #include "Tools/Maze/MazeLocalization.h"
+#include "Tools/Maze/MazeSession.h"
 #include "Tools/Maze/MazeTagLayout.h"
 
 MODULE(MazeLocalizer,
@@ -93,8 +94,7 @@ private:
   Maze::TimestampFilter tagFilter;
   Pose2f lastOdometry;
   bool hasLastOdometry = false;
-  bool wasPlaying = false;
-  bool started = false;           /**< The pose was reset at least once. */
+  Maze::PlayingTracker session;   /**< Decides when the robot is positioned at the start. */
   bool stepped = false;           /**< `step` ran for `lastStepTime`. */
   unsigned lastStepTime = 0;
   float injectedGyroDrift = 0.f;  /**< Accumulated injected drift in rad. */

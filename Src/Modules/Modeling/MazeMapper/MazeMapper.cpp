@@ -8,6 +8,7 @@
 #include "Debugging/DebugDrawings.h"
 #include "Debugging/Debugging.h"
 #include "Tools/Maze/MazeHeading.h"
+#include "Tools/Maze/MazeSession.h"
 #include <algorithm>
 
 MAKE_MODULE(MazeMapper);
@@ -82,23 +83,17 @@ void MazeMapper::update(MazeMap& mazeMap)
   fusion.startCell = std::clamp(startCell, 0, Maze::cellCount - 1);
 
   const bool playing = theGameState.isPlaying();
-  if(playing && !wasPlaying)
-  {
-    if(hasPlayed)
-      fusion.newAttempt();
-    hasPlayed = true;
-  }
-  wasPlaying = playing;
+  if(session.update(playing).newAttempt)
+    fusion.newAttempt();
 
-  if(playing && theMazeCellPose.insideMaze)
-  {
+  const Maze::MapActions actions = Maze::mapActions(playing, theMazeCellPose.insideMaze,
+                                                    Maze::qualityAccepted(static_cast<Maze::LocalizationQuality>(static_cast<int>(theMazeCellPose.quality)),
+                                                                          static_cast<Maze::LocalizationQuality>(static_cast<int>(worstAcceptedQuality))));
+  if(actions.markVisited)
     fusion.markVisited(theMazeCellPose.row, theMazeCellPose.col);
-    int changes = 0;
-    if(theMazeCellPose.quality <= worstAcceptedQuality)
-    {
-      changes += observeWalls();
-      changes += observeTags();
-    }
+  if(actions.observe)
+  {
+    const int changes = observeWalls() + observeTags();
     if(changes > 0)
     {
       ++changeCounter;

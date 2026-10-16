@@ -51,7 +51,6 @@ void MazeLocalizer::resetToStart(float yaw)
   tagFilter.reset();
   ++resets;
   timestampLastJump = theFrameInfo.time;
-  started = true;
 }
 
 void MazeLocalizer::step()
@@ -70,10 +69,8 @@ void MazeLocalizer::step()
   const float yaw = gyroYaw();
 
   // Positioned at start: on the first frame and whenever the game switches into playing.
-  const bool playing = theGameState.isPlaying();
-  if(!started || (playing && !wasPlaying))
+  if(session.update(theGameState.isPlaying()).resetPose())
     resetToStart(yaw);
-  wasPlaying = playing;
 
   // The odometry delta in the robot frame of the last frame, with the optional simulated noise.
   Pose2f delta;
