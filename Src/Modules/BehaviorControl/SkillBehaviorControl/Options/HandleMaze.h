@@ -67,7 +67,7 @@ void updateLastTag()
   if(best)
   {
     lastTagId = best->id;
-    lastTagTime = theFrameInfo.time;
+    lastTagTime = theAprilTagPercept.timestamp; // the percept can repeat over frames, so use its own time
   }
 }
 

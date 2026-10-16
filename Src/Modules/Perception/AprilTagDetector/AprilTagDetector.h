@@ -70,23 +70,3 @@ private:
   float tagSize = 0.15f;                 /**< Edge of the black square in metres, from the tag layout. */
   unsigned frameCounter = 0;             /**< Counts the images for `frameSkip`. */
 };
-
-/**
- * @class EmptyAprilTagProvider
- * Provides an empty AprilTagPercept in the thread of the camera that does not detect tags. The
- * alias module of the Cognition thread requires the percept from both camera threads.
- */
-MODULE(EmptyAprilTagProvider,
-{,
-  REQUIRES(FrameInfo),
-  PROVIDES(AprilTagPercept),
-});
-
-class EmptyAprilTagProvider : public EmptyAprilTagProviderBase
-{
-  void update(AprilTagPercept& aprilTagPercept) override
-  {
-    aprilTagPercept.detections.clear();
-    aprilTagPercept.timestamp = theFrameInfo.time;
-  }
-};

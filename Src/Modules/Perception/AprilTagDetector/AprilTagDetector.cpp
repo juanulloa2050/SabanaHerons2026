@@ -18,7 +18,6 @@
 #include <cmath>
 
 MAKE_MODULE(AprilTagDetector);
-MAKE_MODULE(EmptyAprilTagProvider);
 
 AprilTagDetector::AprilTagDetector()
 {
