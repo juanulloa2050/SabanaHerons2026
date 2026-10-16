@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <cmath>
+#include <limits>
 
 namespace
 {
@@ -267,4 +268,83 @@ GTEST_TEST(MazeLocalization, PoseOutsideTheMazeIsFlaggedAndClamped)
   EXPECT_FALSE(localization.cell(row, col));
   EXPECT_EQ(row, 0);
   EXPECT_EQ(col, 0);
+}
+
+GTEST_TEST(MazeLocalization, NonFiniteTagPoseIsRejectedAndKeepsThePoseFinite)
+{
+  MazeLocalization localization;
+  const int cell = cellId(3, 2);
+  Pose3f tag;
+  ASSERT_TRUE(tagSeenFrom(truthIn(3, 2, 0.f, 0.f, 0.f), cell, Heading::east, tag));
+  localization.reset(cell, Heading::east, 0.f);
+  const Pose2f poseBefore = localization.pose;
+
+  Pose3f nanTranslation = tag;
+  nanTranslation.translation.x() = std::numeric_limits<float>::quiet_NaN();
+  Pose3f infTranslation = tag;
+  infTranslation.translation.y() = std::numeric_limits<float>::infinity();
+  Pose3f nanRotation = tag;
+  nanRotation.rotation(0, 2) = std::numeric_limits<float>::quiet_NaN();
+  for(const Pose3f& bad : {nanTranslation, infTranslation, nanRotation})
+    EXPECT_FALSE(localization.fixWithTag(cell, bad, 10u, MazeTagLayout()).accepted);
+
+  EXPECT_EQ(localization.pose.translation, poseBefore.translation);
+  EXPECT_EQ(localization.pose.rotation, poseBefore.rotation);
+  EXPECT_EQ(localization.lastFixTime, 0u);
+  EXPECT_TRUE(localization.fixWithTag(cell, tag, 10u, MazeTagLayout()).accepted);
+  EXPECT_TRUE(localization.pose.translation.allFinite());
+}
+
+GTEST_TEST(MazeLocalization, QualityIgnoresAClockThatWentBackwards)
+{
+  MazeLocalization localization;
+  localization.reset(cellId(3, 2), Heading::east, 0.f, 50000u);
+  // now < lastFixTime must not wrap around to a huge elapsed time.
+  EXPECT_EQ(localization.quality(1000u), LocalizationQuality::superb);
+  EXPECT_EQ(localization.quality(0u), LocalizationQuality::superb);
+}
+
+GTEST_TEST(MazeLocalization, ChooseFacePicksTheCandidateClosestToTheNormal)
+{
+  const int cell = cellId(3, 2);
+  Pose3f tag;
+  ASSERT_TRUE(tagSeenFrom(truthIn(3, 2, 0.f, 0.f, 0.f), cell, Heading::east, tag));
+
+  FaceChoice choice = chooseFace(cell, 0.f, tag, MazeTagLayout());
+  ASSERT_TRUE(choice.found);
+  EXPECT_EQ(choice.face, Heading::east);
+  EXPECT_NEAR(choice.angleError, 0.f, deg(1.f));
+
+  // A robot that thinks it points elsewhere gets an error, not a different face when the layout has no other.
+  MazeTagLayout northOnly;
+  northOnly.mode = TagLayoutMode::faces;
+  northOnly.faces = {TagFace::north};
+  choice = chooseFace(cell, 0.f, tag, northOnly);
+  ASSERT_TRUE(choice.found);
+  EXPECT_EQ(choice.face, Heading::north);
+  EXPECT_GT(choice.angleError, deg(45.f));
+
+  EXPECT_FALSE(chooseFace(-1, 0.f, tag, MazeTagLayout()).found);
+  Pose3f degenerate = tag;
+  degenerate.rotation = RotationMatrix(Matrix3f::Zero());
+  EXPECT_FALSE(chooseFace(cell, 0.f, degenerate, MazeTagLayout()).found);
+}
+
+GTEST_TEST(MazeHeading, GazeTurnsCounterclockwiseWhileHeadingTurnsClockwise)
+{
+  // Facing north, one quarter turn counterclockwise (left) looks west; three look east.
+  EXPECT_EQ(gazeHeading(Heading::north, 0), Heading::north);
+  EXPECT_EQ(gazeHeading(Heading::north, 1), Heading::west);
+  EXPECT_EQ(gazeHeading(Heading::north, 2), Heading::south);
+  EXPECT_EQ(gazeHeading(Heading::north, 3), Heading::east);
+  EXPECT_EQ(gazeHeading(Heading::east, 1), Heading::north);
+  EXPECT_EQ(gazeHeading(Heading::south, -1), Heading::west);
+  EXPECT_EQ(gazeHeading(Heading::west, 5), Heading::south);
+  // Consistent with the angles: a counterclockwise quarter turn adds pi/2 to the maze angle.
+  for(int h = 0; h < headingCount; ++h)
+    for(int turns = -5; turns <= 5; ++turns)
+    {
+      const Heading heading = static_cast<Heading>(h);
+      EXPECT_EQ(headingOf(angleOf(heading) + static_cast<float>(turns) * deg(90.f)), gazeHeading(heading, turns));
+    }
 }

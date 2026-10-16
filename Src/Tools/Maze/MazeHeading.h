@@ -39,4 +39,13 @@ namespace Maze
       default: return pi;
     }
   }
+
+  /**
+   * The maze heading of a gaze. `quarterTurnsLeft` counts quarter turns counterclockwise from the robot's
+   * x-axis (`WallPercept::lookAheadTurns`), while `Heading` turns clockwise, so the turn is subtracted.
+   */
+  [[nodiscard]] constexpr Heading gazeHeading(Heading robotHeading, int quarterTurnsLeft)
+  {
+    return turned(robotHeading, -quarterTurnsLeft);
+  }
 }

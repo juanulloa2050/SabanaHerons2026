@@ -63,6 +63,22 @@ namespace Maze
     bool headingCorrected = false; /**< Whether the tag was square-on and corrected the heading. */
   };
 
+  /** The outcome of `chooseFace`. */
+  struct FaceChoice
+  {
+    bool found = false;            /**< Whether the tag has a usable normal and the layout offers a face for the cell. */
+    Heading face = Heading::north; /**< The candidate face whose expected normal is closest to the measured one. */
+    float angleError = 0.f;        /**< Angle between the measured and the expected normal in rad; only valid if `found`. */
+  };
+
+  /**
+   * Which face of cell `id` a tag detection belongs to: the candidate face of the layout whose expected
+   * normal (out of the wall, into the cell) is closest to the measured normal, seen from a robot that
+   * points `robotRotation` in the maze frame. The filter and the mapper share this choice. It does not
+   * apply an error limit; callers compare `angleError` with `LocalizationParameters::maxFaceAngleError`.
+   */
+  [[nodiscard]] FaceChoice chooseFace(int id, float robotRotation, const Pose3f& tagInRobot, const MazeTagLayout& layout);
+
   /** Ignores a percept whose timestamp equals the one processed last (Cognition repeats percepts). */
   struct TimestampFilter
   {

@@ -12,6 +12,30 @@
 
 namespace Maze
 {
+  FaceChoice chooseFace(int id, float robotRotation, const Pose3f& tagInRobot, const MazeTagLayout& layout)
+  {
+    FaceChoice choice;
+    if(id < 0 || id >= cellCount)
+      return choice;
+    const Vector2f normalInRobot = tagInRobot.rotation.col(2).head<2>();
+    if(!normalInRobot.allFinite() || normalInRobot.norm() < 1e-3f)
+      return choice;
+
+    // Which face is it? The one whose expected normal, into the cell, is closest to the measured normal.
+    const float measuredNormalAngle = robotRotation + std::atan2(normalInRobot.y(), normalInRobot.x());
+    for(const Heading face : layout.candidateFaces(id))
+    {
+      const float error = std::abs(Angle::normalize(measuredNormalAngle - angleOf(turned(face, 2))));
+      if(!choice.found || error < choice.angleError)
+      {
+        choice.found = true;
+        choice.angleError = error;
+        choice.face = face;
+      }
+    }
+    return choice;
+  }
+
   void MazeLocalization::reset(int startCell, Heading startHeading, float gyroYaw, unsigned now)
   {
     pose = Pose2f(angleOf(startHeading), Oracle::cellCentreOf(cellRow(startCell), cellCol(startCell)));
@@ -45,29 +69,17 @@ namespace Maze
     TagFix fix;
     if(id < 0 || id >= cellCount)
       return fix;
+    // A non-finite pose would poison the filter for good.
+    if(!tagInRobot.translation.allFinite() || !tagInRobot.rotation.allFinite())
+      return fix;
 
+    const FaceChoice choice = chooseFace(id, pose.rotation, tagInRobot, layout);
+    if(!choice.found)
+      return fix;
     const Vector2f normalInRobot = tagInRobot.rotation.col(2).head<2>();
     const Vector2f positionInRobot = tagInRobot.translation.head<2>();
-    if(normalInRobot.norm() < 1e-3f)
-      return fix;
-
-    // Which face is it? The one whose expected normal, into the cell, is closest to the measured normal.
-    const float measuredNormalAngle = pose.rotation + std::atan2(normalInRobot.y(), normalInRobot.x());
-    float bestError = pi;
-    Heading bestFace = Heading::north;
-    bool found = false;
-    for(const Heading face : layout.candidateFaces(id))
-    {
-      const float error = std::abs(Angle::normalize(measuredNormalAngle - angleOf(turned(face, 2))));
-      if(!found || error < bestError)
-      {
-        found = true;
-        bestError = error;
-        bestFace = face;
-      }
-    }
-    if(!found)
-      return fix;
+    const float bestError = choice.angleError;
+    const Heading bestFace = choice.face;
     fix.faceAngleError = bestError;
     if(bestError > parameters.maxFaceAngleError)
       return fix;
@@ -103,7 +115,8 @@ namespace Maze
 
   LocalizationQuality MazeLocalization::quality(unsigned now) const
   {
-    const float elapsed = static_cast<float>(now - lastFixTime);
+    // A clock that went backwards counts as no time elapsed instead of wrapping around.
+    const float elapsed = now >= lastFixTime ? static_cast<float>(now - lastFixTime) : 0.f;
     if(elapsed <= parameters.superbMaxTime && distanceSinceFix <= parameters.superbMaxDistance)
       return LocalizationQuality::superb;
     if(elapsed <= parameters.okayMaxTime && distanceSinceFix <= parameters.okayMaxDistance)
