@@ -78,7 +78,7 @@ stderr and the exit code is 1.
 
 `maze_to_scene.py` turns a `.maze` file into `Config/Scenes/Includes/Maze/current.rsi2`, which
 `Config/Scenes/Maze.ros2` includes.
-`current.rsi2` is git-ignored: generate it once after cloning (first command below). Step-by-step
+`current.rsi2` and `current.maze` are git-ignored: generate them once after cloning (first command below). Step-by-step
 guide and console commands: `docs/maze/SIMULACION_LABERINTO.md`.
 
 ```bash
@@ -89,7 +89,14 @@ Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/Maze.ros2
 
 The input is validated with `generate_maze.py`; an invalid file prints the broken rule to stderr and
 exits with 1. Without `--out` the scene is printed to stdout. Output is deterministic and starts with
-a comment naming the source file. Regenerate `current.rsi2` after changing the maze, then reopen the scene.
+a comment naming the source file. With `--out`, the converter also writes a byte-exact copy of the input
+maze next to it with the `.maze` suffix (`current.maze`), only after a successful conversion. Both files
+are written to temp files first and then renamed into place, so a write error leaves the previous
+scene and copy unchanged and exits with 1. The
+oracle percepts (`OracledMazePerceptsProvider`, `mazeFile` parameter) read that copy, so this one
+command switches both the scene and the oracle percepts. Rerun it after changing the maze, then reopen
+the scene to see the new walls (the oracle notices a changed `current.maze` within a second and retries a missing or
+invalid one every second, so it needs no restart).
 
 - One `BoxGeometry` per `-` or `|` character, border included: 0.5 m cell side plus 1.5 cm overlap
   (`0.515m x 0.015m x 0.6m`), centred at z = 0.3 m.
@@ -104,6 +111,18 @@ a comment naming the source file. Regenerate `current.rsi2` after changing the m
   `current.rsi2`. Tests read the colours from those constants.
 - The maze is centred on the simulator origin. Cell (row, col) is centred at
   `x = (col - 3.5) * 0.5 m`, `y = (3.5 - row) * 0.5 m`, so row 0 (top of the file) is the +y side.
+- AprilTags: for every wall face that the layout `Config/Scenarios/Maze/mazeTagLayout.cfg` selects (`--tag-layout`
+  overrides the file) and that has a wall, the `maze` compound gets one textured `ComplexAppearance` quad
+  (appearance only, no collision). It sits at the place the oracle assumes: centred on the face of the cell,
+  `centreHeight` above the floor, 1 mm in front of the wall surface, upright and readable from inside the cell.
+  The black outer square is `size` mm wide; the texture adds the white ring, so the quad is `size * 10 / 8` wide.
+  The tag id is the cell index (`row * 8 + col`); the texture is `tag36_11_<id>.png`. The oracle reads the layout
+  when the scene is opened, but the visuals are baked into `current.rsi2`: after editing `mazeTagLayout.cfg`,
+  rerun `maze_to_scene.py` as well, or the simulated tags and the oracle disagree.
+- Tag textures: `make_tag_textures.py` draws the 64 tag36h11 images (ids 0..63, 16 px per module, RGB PNG) exactly
+  like `apriltag_to_image`, from `Util/apriltag/src/tag36h11.c`, into `Config/Scenes/Textures/AprilTags/`. They are
+  committed, so SimRobot needs no generation step; rerun the script only if the tag family changes. SimRobot
+  filters textures with mipmaps, so tags blur a little at long range, like on a real camera.
 - The robot (`mazeRobots` compound, placed in the `robots` group by `Maze.ros2`) stands at the centre of `S`
   at z = 320 mm, heading towards the single open side: +x = 0, +y = 90, -x = 180, -y = -90 degrees.
 - SimRobot shows the ground-truth pose in the team frame, which is the world frame rotated by 180 degrees.

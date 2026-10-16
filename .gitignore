@@ -64,3 +64,4 @@ Thumbs.db
 
 # Generated maze scene (Util/MazeTools/maze_to_scene.py); each person creates it locally.
 /Config/Scenes/Includes/Maze/current.rsi2
+/Config/Scenes/Includes/Maze/current.maze

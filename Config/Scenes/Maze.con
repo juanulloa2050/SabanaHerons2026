@@ -1,4 +1,8 @@
 call Includes/Normal
+# Fake maze perception from the ground truth pose until the real detectors exist (MZ-018, MZ-019).
+# The maze comes from Config/Scenes/Includes/Maze/current.maze, written by maze_to_scene.py next to the scene.
+for Cognition mr AprilTagPercept OracledMazePerceptsProvider
+for Cognition mr WallPercept OracledMazePerceptsProvider
 # Hide the game clock and score board: no game time or goals in the maze.
 dr debugDrawing3d:representation:GameState off
 call Includes/Views

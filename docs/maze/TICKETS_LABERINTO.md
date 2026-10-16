@@ -83,7 +83,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-010 | Maze → SimRobot scene converter | Wilson (+Bryam 0.5 pairing) | 0 | 2.5 | no | MZ-007, MZ-009 |
 | [x] | MZ-011 | Maze library + time-weighted planner + tests | Bryam | 1 | 6 | no | MZ-009 |
 | [x] | MZ-012 | Reference solver + expected results | Wilson | 1 | 1.5 | no | MZ-009 |
-| [ ] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
+| [x] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [ ] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [ ] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
@@ -514,23 +514,25 @@ Goal of the sprint: a maze library and planner proven by unit tests, oracle perc
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 2 h |
 | Depends on | MZ-010, MZ-011 |
 | Lab / robot | no |
 | Branch | `feat/MZ-013-oracle-percepts` |
-| Files | `Src/Modules/Modeling/OracledMazePerceptsProvider/` (create); `Src/Representations/Perception/MazePercepts/{AprilTagPercept,WallPercept}.h` (create); `Src/Tools/Maze/MazeTagLayout.{h,cpp}`, `Config/Scenarios/Maze/mazeTagLayout.cfg`, `Src/Apps/Tests/Maze/MazeTagLayoutTest.cpp` (create); `Config/Scenarios/Maze/threads.cfg` (sim variant) |
+| Files | `Src/Modules/Modeling/OracledMazePerceptsProvider/` (create); `Src/Representations/Perception/MazePercepts/{AprilTagPercept,WallPercept}.h` (create); `Src/Tools/Maze/MazeTagLayout.{h,cpp}`, `Config/Scenarios/Maze/mazeTagLayout.cfg`, `Src/Apps/Tests/Maze/MazeTagLayoutTest.cpp` (create); `Config/Scenes/Maze.con` (sim variant, `mr` the oracle); `Src/Tools/Maze/MazeOracle.{h,cpp}` (oracle geometry, unit-tested); `Util/MazeTools/{maze_to_scene,make_tag_textures}.py`, `Config/Scenes/Textures/AprilTags/` (visible tags) |
 
 **Goal.** Fake perception for simulation: publish the tags and walls the robot *would* see, computed from ground truth. Behaviour, planning and mapping can then be built and tested before the real detectors (MZ-018, MZ-019) exist.
 
 **Scope.** `OracledMazePerceptsProvider` (Cognition, simulation only) builds `AprilTagPercept` and `WallPercept` from `GroundTruthRobotPose` and the loaded `.maze` file. Parameters: Gaussian noise, dropout rate and maximum range. Tag placement comes from `MazeTagLayout` (see *Tag layout switch* above), which this ticket creates; the default is one tag on every wall face, centre at 30 cm. `WallPercept` also carries the walls of the cells ahead along the gaze, up to the maximum range, in the same format as MZ-019, so look-ahead mapping (MZ-020) can be tested before the real perceptor exists.
 
+**Delivered beyond the original scope.** The oracle follows whichever of the 20 mazes the scene was generated from (`maze_to_scene.py` writes `current.maze` next to `current.rsi2`). It reports every tag in range, fully inside the horizontal field of view, facing the camera and not hidden by a wall, not only the tags of the gaze corridor. The generated scene shows the tags (tag36h11 textures, same layout as the oracle), so the real detector (MZ-018) can also be tried in simulation.
+
 **Acceptance criteria**
-- [ ] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
-- [ ] Dropout = 1.0 produces empty percepts, which is used later by the safe-mode tests.
-- [ ] `MazeTagLayoutTest` passes: with `allFaces` every wall face has a tag; with `faces = [east]` only east wall faces do; with `walls` only the listed pairs do; and no tag is ever placed where the maze has no wall.
-- [ ] Changing `mode` in `mazeTagLayout.cfg` changes the oracle tags in SimRobot without recompiling.
+- [x] In SimRobot, the representation view shows the correct tag ids and walls for 3 mazes.
+- [x] Dropout = 1.0 produces empty percepts, which is used later by the safe-mode tests.
+- [x] `MazeTagLayoutTest` passes: with `allFaces` every wall face has a tag; with `faces = [east]` only east wall faces do; with `walls` only the listed pairs do; and no tag is ever placed where the maze has no wall.
+- [x] Changing `mode` in `mazeTagLayout.cfg` changes the oracle tags in SimRobot without recompiling.
 
 ### MZ-016 — Corridor walk profile in simulation
 
