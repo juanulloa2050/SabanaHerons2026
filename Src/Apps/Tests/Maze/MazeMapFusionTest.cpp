@@ -203,3 +203,50 @@ GTEST_TEST(MazeMapFusion, TimestampFilterIgnoresRepeatedPercepts)
   filter.reset();
   EXPECT_TRUE(filter.accept(133));
 }
+
+GTEST_TEST(MazeMapFusion, AnEdgeTakesOneTimedObservationPerInterval)
+{
+  MazeMapFusion fusion; // 250 ms
+  // 60 Hz frames for 400 ms: only t = 1000 and t = 1264 count (the first frame 250 ms or more later), so the edge stays unknown.
+  for(unsigned t = 1000; t <= 1400; t += 16)
+    fusion.observe(2, 2, Heading::east, true, 1.f, t);
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::unknown);
+  // A third observation, 250 ms after the second, decides it.
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, true, 1.f, 1520));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  // The neighbour shares the edge and its interval.
+  EXPECT_FALSE(fusion.observe(2, 3, Heading::west, false, 1.f, 1600)); // 80 ms after the last one
+}
+
+GTEST_TEST(MazeMapFusion, ARepeatedFrameCannotFlipADecidedWall)
+{
+  MazeMapFusion fusion;
+  observeTimes(fusion, 2, 2, Heading::east, true, 3);
+  ASSERT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  for(unsigned t = 5000; t < 5240; t += 16)
+    fusion.observe(2, 2, Heading::east, false, 1.f, t);
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+}
+
+GTEST_TEST(MazeMapFusion, TheIntervalAppliesToTagsAndSurvivesAClockThatWentBack)
+{
+  MazeMapFusion fusion;
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 100));
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 150)); // too soon: dropped
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 350));
+  EXPECT_TRUE(fusion.observeTag(cellId(2, 2), Heading::east, 600));
+  fusion.parameters.minObservationInterval = 250.f;
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 10)); // the clock went back: accepted (no change, the wall is decided)
+  fusion.parameters.minObservationInterval = 0.f;
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 10)); // no interval: never too soon
+}
+
+GTEST_TEST(MazeMapFusion, NearCellCentreIsMeasuredPerAxis)
+{
+  const CellCentre centre = cellCentre(2, 3);
+  EXPECT_TRUE(nearCellCentre(centre.x, centre.y, 2, 3, 150.f));
+  EXPECT_TRUE(nearCellCentre(centre.x + 149.f, centre.y - 149.f, 2, 3, 150.f));
+  EXPECT_FALSE(nearCellCentre(centre.x + 151.f, centre.y, 2, 3, 150.f));
+  EXPECT_FALSE(nearCellCentre(centre.x, centre.y - 151.f, 2, 3, 150.f));
+  EXPECT_FALSE(nearCellCentre(centre.x, centre.y, 2, 4, 150.f));
+}

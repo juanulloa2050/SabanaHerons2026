@@ -20,6 +20,7 @@ All angles are in the maze frame: counterclockwise from east, maze north = +90°
 | Rotation | `rotation = startAngle + (yaw − offset)` |
 | Heading | `heading = snap90(rotation)`: the nearest of north, east, south, west. ±44° snaps to the same heading, ±46° to the next one (unit-tested). |
 | Re-alignment | A tag seen with an angle ≤ `squareOnAngle` (25° by default) between the camera ray and the tag normal (`squareOnAngle`) corrects the heading by `rotationGain` (0.5) and moves `offset` so that the gyro agrees with the corrected pose. Walls are axis-aligned, so a square-on tag gives the true heading. |
+| Drift | `MazeCellPose.headingDrift` is the net drift of the gyro offset since the last reset: `offset` now minus `offset` right after the reset, normalized to [−180°, 180°], positive when the gyro runs ahead of the truth. Corrections that cancel out do not add up, and the arbitrary gyro reference does not show. |
 | Quality | `RobotPose.quality` grows worse with the time and the distance since the last tag fix (`superbMax*`, `okayMax*`); MZ-025 reads it. |
 
 `useGyro = false` uses the odometry rotation instead (for comparison).
@@ -52,8 +53,8 @@ Method: `Src/Apps/Tests/Maze/MazeLocalizerAcceptanceTest.cpp` with `Src/Apps/Tes
 
 | Run | Gyro drift | Odometry error | Tag dropout | Final error | Cell | Fixes |
 |---|---|---|---|---|---|---|
-| Nominal | 3 °/min | 5 % (plus 2°/m rotation) | 0 | 4-5 mm, 0.4-0.8° (checkpoint max 8.7-12.5 mm) | 11/11 | 383 (8.9/s, 35 per cell, 92 % of vision frames) |
-| Harsh | 15 °/min | +10 % bias | 0.17 | 2 mm, 0.8° | 11/11 | — |
+| Nominal | 3 °/min | 5 % (plus 2°/m rotation) | 0 | 2-3 mm, 0.3° (checkpoint max 8.2-13.1 mm) | 11/11 | 383 (8.9/s, 35 per cell, 92 % of vision frames) |
+| Harsh | 15 °/min | +10 % bias | 0.17 | 7 mm, 0.4° | 11/11 | 324 (7.5/s) |
 | No tags | 3 °/min | 5 % | 1.0 | 143 mm, 2.1° | — | 0 |
 
 Quality without tags: `okay` after 9.3 s / 1504 mm, `poor` after 30.06 s (3867 mm), as designed.
@@ -66,9 +67,9 @@ Same route, nominal noise.
 
 | `mazeTagLayout.cfg` | Fixes per second | Fixes per cell | Final error |
 |---|---|---|---|
-| `allFaces` | 8.9 | 35 | 5 mm |
-| `faces = [north]` | 1.9 | 7.6 | 55 mm |
-| `walls` (checkerboard) | 7.0 | 27.6 | 3 mm |
+| `allFaces` | 8.9 | 35 | 3 mm |
+| `faces = [north]` | 1.9 | 7.6 | 40 mm |
+| `walls` (checkerboard) | 7.0 | 27.6 | 9 mm |
 
 ## 6. Pending: real drift rate (needs Lab 1 logs, MZ-017)
 
@@ -104,9 +105,9 @@ Method: offline simulation as in section 5 with `mode = faces; faces = [north];`
 
 Results:
 
-- **North corridor** (6 cells facing north): the cell estimate is correct 6/6 and the final error is 3 mm.
-- **South corridor** (same corridor walked south): 0 fixes, 147 mm drift at the end. The estimate holds only by odometry and gyro.
-- **Whole route:** 1.9 fixes/s instead of 8.9/s, final error 55 mm instead of 5 mm.
+- **North corridor** (6 cells facing north): the cell estimate is correct 6/6 and the final error is 2.5 mm.
+- **South corridor** (same corridor walked south): 0 fixes, 137 mm drift at the end. The estimate holds only by odometry and gyro.
+- **Whole route:** 1.9 fixes/s instead of 8.9/s, final error 40 mm instead of 3 mm.
 - **Head scan** of ±60°: east rises from 13 % to 28 %, but north falls from 90 % to 58 % (the head spends time looking sideways). A scan helps the weak headings and hurts the strong one. The trade-off was printed by the test; it does not assert on it.
 
-Consequence for the competition: if only the north faces carry tags (Q1), the robot gets almost no fixes while it faces south and few while it faces east. In the 6-cell corridor walked south the error grew to 147 mm (measured offline), past the 8 cm limit of MZ-020. Options, each costing time: turn to face north at a corridor end to get a fix, scan the head (weak gain, see above), or rely on wall corrections (MZ-045). The answer to Q1 decides which layout is real; the localizer needs only a config change for any of them.
+Consequence for the competition: if only the north faces carry tags (Q1), the robot gets almost no fixes while it faces south and few while it faces east. In the 6-cell corridor walked south the error grew to 137 mm (measured offline), past the 8 cm limit of MZ-020. Options, each costing time: turn to face north at a corridor end to get a fix, scan the head (weak gain, see above), or rely on wall corrections (MZ-045). The answer to Q1 decides which layout is real; the localizer needs only a config change for any of them.

@@ -152,7 +152,24 @@ GTEST_TEST(MazeLocalization, GyroDriftShowsUntilASquareOnTagRealigns)
   }
   EXPECT_NEAR(localization.pose.rotation, 0.f, deg(1.f));
   EXPECT_EQ(localization.headingSource, HeadingSource::gyro); // predict ran after the last fix
-  EXPECT_NEAR(localization.headingDrift, drift, deg(1.f));
+  EXPECT_NEAR(localization.headingDrift(), drift, deg(1.f));
+}
+
+GTEST_TEST(MazeLocalization, HeadingDriftIsTheNetChangeOfTheGyroOffsetSinceReset)
+{
+  MazeLocalization localization;
+  const int cell = cellId(3, 2);
+  const float reference = deg(170.f); // The gyro reference is arbitrary: a reset near +-pi must not show as drift.
+  localization.reset(cell, Heading::east, reference);
+  EXPECT_EQ(localization.headingDrift(), 0.f);
+  localization.predict(Pose2f(0.f, Vector2f::Zero()), reference, true);
+  EXPECT_NEAR(localization.headingDrift(), 0.f, 1e-4f);
+
+  // The gyro yaw wraps over +-pi while it drifts by 15 degrees; the offset does the same, the net drift stays 15 degrees.
+  localization.gyroOffset = Angle::normalize(localization.gyroOffset + deg(15.f));
+  EXPECT_NEAR(localization.headingDrift(), deg(15.f), 1e-4f);
+  localization.gyroOffset = Angle::normalize(localization.gyroOffset - deg(40.f));
+  EXPECT_NEAR(localization.headingDrift(), deg(-25.f), 1e-4f);
 }
 
 GTEST_TEST(MazeLocalization, TagFixesConvergeToTheTruth)
@@ -227,7 +244,7 @@ GTEST_TEST(MazeLocalization, ObliqueTagCorrectsOnlyThePosition)
   const TagFix fix = localization.fixWithTag(cell, tag, 10u, MazeTagLayout());
   ASSERT_TRUE(fix.accepted);
   EXPECT_FALSE(fix.headingCorrected);
-  EXPECT_EQ(localization.headingDrift, 0.f);
+  EXPECT_EQ(localization.headingDrift(), 0.f);
   EXPECT_NE(localization.headingSource, HeadingSource::tag);
 }
 

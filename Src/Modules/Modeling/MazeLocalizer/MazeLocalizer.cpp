@@ -105,7 +105,7 @@ void MazeLocalizer::step()
     RECTANGLE("module:MazeLocalizer:pose", centre.x - half, centre.y - half, centre.x + half, centre.y + half, 10, Drawings::dashedPen,
               inside ? ColorRGBA::blue : ColorRGBA::red);
     DRAW_TEXT("module:MazeLocalizer:pose", localization.pose.translation.x() + 120.f, localization.pose.translation.y() + 120.f, 60, ColorRGBA::blue,
-              "fixes " << tagFixes << " drift " << Angle(localization.headingDrift).toDegrees() << "deg");
+              "fixes " << tagFixes << " drift " << Angle(localization.headingDrift()).toDegrees() << "deg");
   }
 }
 
@@ -144,7 +144,7 @@ void MazeLocalizer::update(MazeCellPose& mazeCellPose)
     default: mazeCellPose.quality = RobotPose::LocalizationQuality::poor; break;
   }
   mazeCellPose.headingSource = static_cast<MazeCellPose::HeadingSource>(static_cast<int>(localization.headingSource));
-  mazeCellPose.headingDrift = localization.headingDrift;
+  mazeCellPose.headingDrift = localization.headingDrift();
   mazeCellPose.lastTagFixTime = localization.lastFixTime;
   mazeCellPose.tagFixes = tagFixes;
   mazeCellPose.tagRejections = tagRejections;

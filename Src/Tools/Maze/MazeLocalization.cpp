@@ -44,7 +44,7 @@ namespace Maze
     lastFixTime = now;
     distanceSinceFix = 0.f;
     headingSource = HeadingSource::gyro;
-    headingDrift = 0.f;
+    gyroOffsetAtReset = gyroOffset;
   }
 
   void MazeLocalization::predict(const Pose2f& odometryDelta, float gyroYaw, bool useGyro)
@@ -103,7 +103,6 @@ namespace Maze
       const float correction = parameters.rotationGain * Angle::normalize(measuredRotation - pose.rotation);
       pose.rotation = Angle::normalize(pose.rotation + correction);
       gyroOffset = Angle::normalize(lastGyroYaw - pose.rotation);
-      headingDrift += std::abs(correction);
       headingSource = HeadingSource::tag;
       fix.headingCorrected = true;
     }

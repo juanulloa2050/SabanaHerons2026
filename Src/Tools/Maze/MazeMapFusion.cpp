@@ -30,14 +30,25 @@ namespace Maze
     return static_cast<std::size_t>(cellId(row, col) * headingCount + static_cast<int>(heading));
   }
 
-  bool MazeMapFusion::observe(int row, int col, Heading heading, bool isWall, float weight)
+  bool MazeMapFusion::observe(int row, int col, Heading heading, bool isWall, float weight, unsigned time)
   {
     if(!inside(row, col) || weight <= 0.f)
       return false;
     if(!inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
       return false; // The border is a wall and stays one.
 
-    float& score = evidence[index(row, col, heading)];
+    const std::size_t edge = index(row, col, heading);
+    if(time != untimed)
+    {
+      // A clock that went backwards (new session) does not block the edge.
+      const bool tooSoon = hasObservation[edge] && time >= lastObservation[edge] && static_cast<float>(time - lastObservation[edge]) < parameters.minObservationInterval;
+      if(tooSoon)
+        return false;
+      hasObservation[edge] = true;
+      lastObservation[edge] = time;
+    }
+
+    float& score = evidence[edge];
     const EdgeState state = graph.get(row, col, heading);
     score += isWall ? weight : -weight;
     switch(state)
@@ -64,7 +75,7 @@ namespace Maze
     return true;
   }
 
-  int MazeMapFusion::observeCellsAhead(int robotRow, int robotCol, Heading gaze, const std::vector<CellObservation>& cells)
+  int MazeMapFusion::observeCellsAhead(int robotRow, int robotCol, Heading gaze, const std::vector<CellObservation>& cells, unsigned time)
   {
     int changes = 0;
     const std::size_t g = static_cast<std::size_t>(gaze);
@@ -76,17 +87,17 @@ namespace Maze
       const float weight = wallWeight(cell.distance);
       const std::array<std::pair<Heading, EdgeState>, 3> edges = {{{turned(gaze, -1), cell.left}, {turned(gaze, 1), cell.right}, {gaze, cell.front}}};
       for(const auto& [heading, state] : edges)
-        if(state != EdgeState::unknown && observe(row, col, heading, state == EdgeState::wall, weight))
+        if(state != EdgeState::unknown && observe(row, col, heading, state == EdgeState::wall, weight, time))
           ++changes;
     }
     return changes;
   }
 
-  bool MazeMapFusion::observeTag(int cell, Heading face)
+  bool MazeMapFusion::observeTag(int cell, Heading face, unsigned time)
   {
     if(cell < 0 || cell >= cellCount)
       return false;
-    return observe(cellRow(cell), cellCol(cell), face, true, parameters.tagWeight);
+    return observe(cellRow(cell), cellCol(cell), face, true, parameters.tagWeight, time);
   }
 
   void MazeMapFusion::markVisited(int row, int col)

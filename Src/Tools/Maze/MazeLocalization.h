@@ -145,6 +145,12 @@ namespace Maze
     unsigned lastFixTime = 0;     /**< Time of the last tag fix or of the reset. */
     float distanceSinceFix = 0.f; /**< Distance walked since the last fix in mm. */
     HeadingSource headingSource = HeadingSource::odometry;
-    float headingDrift = 0.f;     /**< Sum of the absolute heading corrections by tags in rad. */
+    float gyroOffsetAtReset = 0.f; /**< `gyroOffset` right after the last `reset`. */
+
+    /**
+     * Net drift of the gyro since the last `reset` in rad, in [-pi, pi]: how far the tags had to move the gyro offset (positive when
+     * the gyro runs ahead of the truth). Corrections that cancel out do not add up.
+     */
+    [[nodiscard]] float headingDrift() const { return Angle::normalize(gyroOffset - gyroOffsetAtReset); }
   };
 }

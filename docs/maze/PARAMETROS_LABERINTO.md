@@ -124,8 +124,12 @@ The localizer reads `mazeTagLayout.cfg` (section 1) to know which faces carry ta
 | `fullWeightDistance` | Wall observations up to this distance have full weight, in mm. | `500` | — |
 | `zeroWeightDistance` | Wall observations from this distance on have no weight (linear in between), in mm. | `2500` | — |
 | `tagWeight` | Weight of a decoded tag, which counts as a wall at any distance. | `1` | Q1 (through the layout) |
+| `minObservationInterval` | An edge accepts at most one observation (wall percept or tag) per this many ms. Cognition repeats the scene at about 60 Hz, which is not independent evidence; without this limit 3 frames (50 ms) decided or flipped an edge. With `3` observations and 250 ms an edge needs at least 0.5 s of consistent evidence. | `250` | — |
+| `maxOffsetFromCentre` | The wall look-ahead is used only while the estimated position is within this distance (mm, per axis) of the centre of its estimated cell. The oracle (and later the camera) describes the cell the robot is really in; near a boundary the estimated cell may be the neighbour and the percept would be written on the wrong cell. Tags are not gated (the id names the cell). A cell is 500 mm, so `150` skips a band of 200 mm around every boundary. | `150` | — |
 | `maxFaceAngleError` | Same filter as the localizer's; keep both equal. | `45deg` | Q1 (through the layout) |
 | `worstAcceptedQuality` | The map only learns while the localizer quality is at least this good (`superb`, `okay`, `poor`); `poor` accepts everything. | `poor` | — |
+
+A decided edge flips only after the same evidence again, now spread over at least 0.5 s. An estimate that stays in the wrong cell (a robot dragged in the scene with no tag in view) is not protected by either key: it is corrected by the first tag fix, and the map there stays wrong until the localizer recovers.
 
 The map learns only while the game state is `playing`, and survives pick-up and Standby (the attempt counter increments on each transition into `playing`).
 

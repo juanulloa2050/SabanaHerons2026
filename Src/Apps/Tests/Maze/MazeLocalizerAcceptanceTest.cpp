@@ -383,9 +383,10 @@ GTEST_TEST(MazeLocalizerAcceptance, FramesToCloseTheDeadEndFromCell10)
     frames = static_cast<int>(run.stats.perceptFrames);
   }
   note("standing in cell 10 facing east, cell 11 is seen closed to the east and south after " + std::to_string(frames) +
-       " vision frames (threshold 3, wall distance noise 10 mm)");
+       " vision frames (threshold 3, one observation per edge every 250 ms, wall distance noise 10 mm)");
   EXPECT_TRUE(closed());
-  EXPECT_LE(frames, 5);
+  // An edge takes one observation per 250 ms (minObservationInterval): 3 observations at 10 Hz are frames 1, 4 and 7, so 0.6 s.
+  EXPECT_LE(frames, 7);
 }
 
 GTEST_TEST(MazeLocalizerAcceptance, TagFixRateForEveryLayoutMode)

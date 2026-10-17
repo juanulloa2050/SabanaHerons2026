@@ -43,6 +43,9 @@ int MazeMapper::observeWalls()
   if(!wallFilter.accept(theWallPercept.timestamp))
     return 0;
   lastObservedCells.clear();
+  lookAheadSkipped = !Maze::nearCellCentre(theRobotPose.translation.x(), theRobotPose.translation.y(), theMazeCellPose.row, theMazeCellPose.col, maxOffsetFromCentre);
+  if(lookAheadSkipped)
+    return 0; // The oracle shows the true cell, which may be the neighbour of the estimated one.
   const Maze::Heading robotHeading = static_cast<Maze::Heading>(static_cast<int>(theMazeCellPose.heading));
   const Maze::Heading gaze = Maze::gazeHeading(robotHeading, theWallPercept.lookAheadTurns);
 
@@ -62,7 +65,7 @@ int MazeMapper::observeWalls()
     if(Maze::inside(row, col))
       lastObservedCells.push_back(Maze::cellId(row, col));
   }
-  return fusion.observeCellsAhead(theMazeCellPose.row, theMazeCellPose.col, gaze, cells);
+  return fusion.observeCellsAhead(theMazeCellPose.row, theMazeCellPose.col, gaze, cells, theWallPercept.timestamp);
 }
 
 int MazeMapper::observeTags()
@@ -74,7 +77,7 @@ int MazeMapper::observeTags()
   {
     // The same face the localizer picks; a detection it would reject says nothing about the map.
     const Maze::FaceChoice choice = Maze::chooseFace(detection.id, theRobotPose.rotation, detection.tagInRobot, layout);
-    if(choice.found && choice.angleError <= static_cast<float>(maxFaceAngleError) && fusion.observeTag(detection.id, choice.face))
+    if(choice.found && choice.angleError <= static_cast<float>(maxFaceAngleError) && fusion.observeTag(detection.id, choice.face, theAprilTagPercept.timestamp))
       ++changes;
   }
   return changes;
@@ -86,6 +89,7 @@ void MazeMapper::update(MazeMap& mazeMap)
   fusion.parameters.fullWeightDistance = fullWeightDistance;
   fusion.parameters.zeroWeightDistance = zeroWeightDistance;
   fusion.parameters.tagWeight = tagWeight;
+  fusion.parameters.minObservationInterval = minObservationInterval;
   fusion.startCell = std::clamp(startCell, 0, Maze::cellCount - 1);
 
   const bool playing = theGameState.isPlaying();
@@ -124,6 +128,13 @@ void MazeMapper::update(MazeMap& mazeMap)
       const float half = Maze::cellSizeMm / 2.f - 60.f;
       FILLED_RECTANGLE("module:MazeMapper:lookAhead", centre.x - half, centre.y - half, centre.x + half, centre.y + half,
                        10, Drawings::solidPen, ColorRGBA::orange, Drawings::solidBrush, ColorRGBA(255, 165, 0, 60));
+    }
+    if(lookAheadSkipped)
+    {
+      // The estimate is too close to a cell boundary: the look-ahead is not used.
+      const Maze::CellCentre centre = Maze::cellCentre(theMazeCellPose.row, theMazeCellPose.col);
+      const float half = Maze::cellSizeMm / 2.f - 60.f;
+      RECTANGLE("module:MazeMapper:lookAhead", centre.x - half, centre.y - half, centre.x + half, centre.y + half, 10, Drawings::dashedPen, ColorRGBA::red);
     }
   }
 }

@@ -7,12 +7,18 @@
  * Once decided, contrary evidence has to reach the threshold again to flip it (hysteresis): the evidence
  * of a decided edge only counts what speaks against it, and confirmations cancel that again.
  * The outer border is always a wall and never changes.
+ *
+ * Independence: Cognition repeats the same scene at 60 Hz, so consecutive frames are not independent evidence.
+ * Timed observations are rate-limited per edge: an edge takes at most one observation every
+ * `minObservationInterval` ms, the others are dropped, not accumulated.
  */
 
 #pragma once
 
 #include "MazeGraph.h"
 #include <array>
+#include <cmath>
+#include <limits>
 #include <vector>
 
 namespace Maze
@@ -23,7 +29,21 @@ namespace Maze
     float fullWeightDistance = 500.f; /**< Wall observations up to this distance (mm) have full weight. */
     float zeroWeightDistance = 2500.f; /**< Wall observations from this distance (mm) have no weight; linear in between. */
     float tagWeight = 1.f;            /**< Weight of a decoded tag at any distance. */
+    float minObservationInterval = 250.f; /**< An edge accepts at most one timed observation per this many ms (wall percepts and tags alike). */
   };
+
+  /** The `time` of an observation that is not subject to the per-edge rate limit. */
+  constexpr unsigned untimed = std::numeric_limits<unsigned>::max();
+
+  /**
+   * Whether a position (maze frame, mm) is within `maxOffset` of the centre of cell (`row`, `col`), measured per axis. Near a cell
+   * boundary the cell of the estimate is ambiguous, so what the oracle or the camera shows may belong to the neighbour.
+   */
+  [[nodiscard]] inline bool nearCellCentre(float x, float y, int row, int col, float maxOffset)
+  {
+    const CellCentre centre = cellCentre(row, col);
+    return std::abs(x - centre.x) <= maxOffset && std::abs(y - centre.y) <= maxOffset;
+  }
 
   /** One cell of a look-ahead, the plain equivalent of `WallPercept::CellAhead`. */
   struct CellObservation
@@ -45,9 +65,10 @@ namespace Maze
 
     /**
      * Adds one observation of the edge on side `heading` of a cell.
+     * @param time Time of the observation in ms; `untimed` skips the rate limit of the edge.
      * @return Whether the state of the edge changed (the planner has to replan).
      */
-    bool observe(int row, int col, Heading heading, bool isWall, float weight);
+    bool observe(int row, int col, Heading heading, bool isWall, float weight, unsigned time = untimed);
 
     /**
      * Adds a look-ahead. Cell k ahead is the robot's cell moved k steps along `gaze`; "left" is
@@ -55,10 +76,10 @@ namespace Maze
      * outside the maze are skipped.
      * @return The number of edges whose state changed.
      */
-    int observeCellsAhead(int robotRow, int robotCol, Heading gaze, const std::vector<CellObservation>& cells);
+    int observeCellsAhead(int robotRow, int robotCol, Heading gaze, const std::vector<CellObservation>& cells, unsigned time = untimed);
 
     /** A decoded tag on `face` of `cell` means that this face is a wall. */
-    bool observeTag(int cell, Heading face);
+    bool observeTag(int cell, Heading face, unsigned time = untimed);
 
     void markVisited(int row, int col);
     [[nodiscard]] bool visited(int row, int col) const;
@@ -79,6 +100,8 @@ namespace Maze
     [[nodiscard]] static std::size_t index(int row, int col, Heading heading);
 
     std::array<float, cellCount * headingCount> evidence = {}; /**< Per edge: unknown, signed total; decided, only the contrary part. */
+    std::array<unsigned, cellCount * headingCount> lastObservation = {}; /**< Per edge: time of the last accepted timed observation. */
+    std::array<bool, cellCount * headingCount> hasObservation = {};
     std::array<bool, cellCount> visitedCells = {};
   };
 }

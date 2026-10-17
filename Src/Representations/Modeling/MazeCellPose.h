@@ -47,7 +47,7 @@ STREAMABLE(MazeCellPose,
   (bool)(false) insideMaze,                           /**< Whether the pose is inside the maze; if not, row and col are clamped. */
   (RobotPose::LocalizationQuality)(RobotPose::poor) quality,     /**< How much the pose can be trusted; the same value as `RobotPose::quality`. */
   (HeadingSource)(odometry) headingSource,            /**< Where the heading comes from. */
-  (float)(0.f) headingDrift,                          /**< Sum of the absolute heading corrections by tags since the last reset (rad); a measure of the gyro drift. */
+  (float)(0.f) headingDrift,                          /**< Net drift of the gyro offset since the last reset (rad, [-pi, pi]; positive when the gyro runs ahead of the truth). */
   (unsigned)(0) lastTagFixTime,                       /**< Time of the last accepted tag fix, or of the last reset (ms). */
   (unsigned)(0) tagFixes,                             /**< Accepted tag fixes since the last reset. */
   (unsigned)(0) tagRejections,                        /**< Detections since the last reset that were not used (invalid id, no matching face, wrong normal). */

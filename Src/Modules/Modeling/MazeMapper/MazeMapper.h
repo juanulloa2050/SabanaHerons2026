@@ -9,6 +9,10 @@
  * Attempts: the first transition into playing starts attempt 1; every later one starts the next
  * attempt. The map and the visited cells are kept across attempts.
  *
+ * The oracle (and later the camera) describes the cell the robot is truly in, the mapper writes it on the estimated one. Near a cell
+ * boundary these can differ, so the look-ahead is skipped there (tags are not: the id names the cell). Every edge also takes at most one
+ * observation per `minObservationInterval`, so a few repeated frames cannot flip a decided wall.
+ *
  * The map only learns while the game state is playing. Outside of it the robot may be carried, so the
  * localizer pose would not match what the camera sees.
  *
@@ -50,6 +54,8 @@ MODULE(MazeMapper,
     (float) fullWeightDistance,                        /**< Wall observations up to this distance (mm) have full weight. */
     (float) zeroWeightDistance,                        /**< Wall observations from this distance (mm) have no weight; linear in between. */
     (float) tagWeight,                                 /**< Weight of a decoded tag at any distance. */
+    (float) minObservationInterval,                    /**< An edge accepts at most one observation per this many ms; Cognition repeats the scene at 60 Hz, which is not independent evidence. */
+    (float) maxOffsetFromCentre,                       /**< The wall look-ahead is used only while the estimated position is this close (mm, per axis) to the centre of its cell; nearer to a boundary the cell is ambiguous. */
     (Angle) maxFaceAngleError,                         /**< Largest angle between the measured and the expected tag normal; keep equal to the one of MazeLocalizer. */
     (RobotPose::LocalizationQuality) worstAcceptedQuality, /**< Observations are used only while the localizer quality is at least this good; poor accepts everything. */
   }),
@@ -81,4 +87,5 @@ private:
   unsigned changeCounter = 0;
   unsigned lastChangeTime = 0;
   std::vector<int> lastObservedCells; /**< Cells of the last look-ahead, for the drawing. */
+  bool lookAheadSkipped = false;      /**< The last new wall percept was skipped because the estimate is near a cell boundary. */
 };

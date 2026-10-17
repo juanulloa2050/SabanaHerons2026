@@ -678,23 +678,23 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Ticket correction.** In `maze_1.maze`, cell 11 is closed east and south (open west and north), not a classic dead end. The robot avoids the detour by seeing those walls from cell 10 (look-ahead evidence), not by seeing the dead end earlier.
 
 **Acceptance criteria.** Not ticked: the numbers come from the offline tests (`Build/Linux/Tests/Develop/Tests`, 190 passed), not from SimRobot. Remaining for every item: the user checks it in SimRobot (the drift item needs the Lab 1 logs).
-- [ ] In simulation with noisy odometry and a drifting gyro, the pose error is ≤8 cm and ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct. *Offline:* 11 cells, 5 % odometry error, 3°/min drift: final error 4-5 mm and 0.4-0.8°, checkpoint maximum 8.7-12.5 mm, cell 11/11. Harsh (15°/min, +10 % odometry bias, dropout 0.17): 2 mm, 0.8°, 11/11. *Remains:* SimRobot run.
+- [ ] In simulation with noisy odometry and a drifting gyro, the pose error is ≤8 cm and ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct. *Offline:* 11 cells, 5 % odometry error, 3°/min drift: final error 2-3 mm and 0.3°, checkpoint maximum 8.2-13.1 mm, cell 11/11. Harsh (15°/min, +10 % odometry bias, dropout 0.17): 7 mm, 0.4°, 11/11. *Remains:* SimRobot run.
 - [ ] The gyro drift rate (° per minute) is measured and recorded in `GYRO_HEADING.md`. *Remains:* Lab 1 logs (MZ-017); the table and the procedure are in `GYRO_HEADING.md`, section 6.
-- [ ] The north-face-only experiment is documented, with the coverage consequence. *Offline, documented in `GYRO_HEADING.md`, section 7:* tag-fix share by true heading north 90 %, east 13 %, south 0 %, west 39 % (`allFaces` 90/91/91/100 %). North corridor: cell 6/6, 3 mm; south over the same corridor: 0 fixes, 147 mm drift. Head scan ±60° raises east to 28 % but lowers north to 58 %. *Remains:* bench check with real north-only tags, if the team wants it.
+- [ ] The north-face-only experiment is documented, with the coverage consequence. *Offline, documented in `GYRO_HEADING.md`, section 7:* tag-fix share by true heading north 90 %, east 13 %, south 0 %, west 39 % (`allFaces` 90/91/91/100 %). North corridor: cell 6/6, 2.5 mm; south over the same corridor: 0 fixes, 137 mm drift. Head scan ±60° raises east to 28 % but lowers north to 58 %. *Remains:* bench check with real north-only tags, if the team wants it.
 - [ ] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2. *Offline:* map equal before and after (also at the transition frame), attempt 2, pose reset to cell 0. *Remains:* SimRobot run.
 - [ ] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025). *Offline:* `okay` at 9.3 s / 1504 mm, `poor` at 30.06 s (3867 mm); position error 143 mm and 2.1° after the route. *Remains:* SimRobot run.
-- [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11. *Offline:* 96 edge-sides decided, 56 cells never entered, 0 wrong; the look-ahead run never enters cell 11, while a baseline that learns only on arrival enters it as the 6th cell. Standing in cell 10 facing east, 4 vision frames close cell 11 (east and south). *Remains:* SimRobot run, and a real walk once MZ-024 exists.
+- [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11. *Offline:* 96 edge-sides decided, 56 cells never entered, 0 wrong; the look-ahead run never enters cell 11, while a baseline that learns only on arrival enters it as the 6th cell. Standing in cell 10 facing east, 7 vision frames (0.6 s: one observation per edge every 250 ms) close cell 11 (east and south). *Remains:* SimRobot run, and a real walk once MZ-024 exists.
 - [ ] The localizer runs with each `mode` of `mazeTagLayout.cfg` (a config change only), and the tag-fix rate per mode is recorded in the PR. *Offline (same 11-cell route, nominal noise):*
 
   | `mode` | Fixes/s | Fixes per cell | Final error |
   |---|---|---|---|
-  | `allFaces` | 8.9 | 35 | 5 mm |
-  | `faces = [north]` | 1.9 | 7.6 | 55 mm |
-  | `walls` (checkerboard) | 7.0 | 27.6 | 3 mm |
+  | `allFaces` | 8.9 | 35 | 3 mm |
+  | `faces = [north]` | 1.9 | 7.6 | 40 mm |
+  | `walls` (checkerboard) | 7.0 | 27.6 | 9 mm |
 
   *Remains:* SimRobot run with each layout (regenerate the scene each time); copy the table to the PR text.
 
-**Known limits of the offline numbers.** The path follows the cell centres exactly (no sway or stopping error), the oracle sees every tag (no image processing), the planner state comes from the estimate but the motion is ideal, and neighbouring frames count as independent evidence in the fusion. The noise sequences are deterministic on the Linux toolchain only.
+**Known limits of the offline numbers.** The path follows the cell centres exactly (no sway or stopping error), the oracle sees every tag (no image processing), the planner state comes from the estimate but the motion is ideal, and the mapper takes one observation per edge every 250 ms and skips the wall look-ahead within 100 mm of a cell boundary (fix of 16 Oct: SimRobot showed walls erased when the estimated and the true cell differed). The noise sequences are deterministic on the Linux toolchain only.
 
 ### MZ-021 — Headless simulation campaign runner
 

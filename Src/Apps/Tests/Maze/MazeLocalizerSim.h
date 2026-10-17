@@ -65,6 +65,7 @@ namespace Maze
       bool useGyro = true;
       bool observeWhileMoving = true;          /**< False: the map learns only while the robot stands. */
       LocalizationQuality worstAcceptedQuality = LocalizationQuality::poor;
+      float maxOffsetFromCentre = 150.f;       /**< Like the mapper: the look-ahead is used only this close (mm, per axis) to the centre of the estimated cell. */
       unsigned frameMs = 33;                   /**< Period of the odometry and gyro (about 30 Hz). */
       unsigned perceptPeriodMs = 100;          /**< Period of the tag and wall percepts (the vision runs at about 10 Hz). */
       unsigned seed = 1;
@@ -82,6 +83,7 @@ namespace Maze
       unsigned fixes = 0;                      /**< Accepted tag fixes. */
       unsigned rejections = 0;
       unsigned framesWithFix = 0;              /**< Percept frames with at least one accepted fix. */
+      unsigned skippedLookAheads = 0;          /**< Look-aheads not used because the estimate was near a cell boundary. */
       unsigned wrongCellFrames = 0;            /**< Frames in the middle of a cell (within `centreZoneMm` of the centre) in which the estimated cell differs from the true one. */
       float maxPositionError = 0.f;
       float sumPositionError = 0.f;
@@ -318,12 +320,15 @@ namespace Maze
           fusion.markVisited(row, col);
         if(actions.observe && percept.present && percept.inMaze && (config.observeWhileMoving || trueDelta.translation.norm() + std::abs(trueDelta.rotation) < 1e-3f))
         {
-          observeWalls(percept.view, row, col);
+          if(nearCellCentre(localization.pose.translation.x(), localization.pose.translation.y(), row, col, config.maxOffsetFromCentre))
+            observeWalls(percept.view, row, col);
+          else
+            ++stats.skippedLookAheads;
           for(const AprilTagDetection& detection : percept.detections)
           {
             const FaceChoice choice = chooseFace(detection.id, localization.pose.rotation, detection.tagInRobot, config.layout);
             if(choice.found && choice.angleError <= config.localization.maxFaceAngleError)
-              fusion.observeTag(detection.id, choice.face);
+              fusion.observeTag(detection.id, choice.face, time);
           }
         }
       }
@@ -362,7 +367,7 @@ namespace Maze
           observation.distance = std::max(0.f, normal((Oracle::cellCentreOf(cell.row, cell.col) - view.robot).norm(), config.noise.wallDistanceStdDev));
           cells.push_back(observation);
         }
-        fusion.observeCellsAhead(row, col, gaze, cells);
+        fusion.observeCellsAhead(row, col, gaze, cells, time);
       }
 
       unsigned lastPerceptTime = 0;
