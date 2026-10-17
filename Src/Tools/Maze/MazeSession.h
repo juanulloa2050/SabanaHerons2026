@@ -10,6 +10,7 @@
 #pragma once
 
 #include "MazeLocalization.h"
+#include "Representations/Sensing/FallDownState.h"
 
 namespace Maze
 {
@@ -22,6 +23,15 @@ namespace Maze
   [[nodiscard]] constexpr bool isActive(bool playing, bool pickedUp)
   {
     return playing && !pickedUp;
+  }
+
+  /**
+   * The same with the body state of the robot: only `FallDownState::pickedUp` is a pick-up. A fall (falling, fallen,
+   * staggering, squatting) is not, so a fall during an attempt neither resets the pose nor counts an attempt.
+   */
+  [[nodiscard]] constexpr bool isActive(bool playing, FallDownState::State body)
+  {
+    return isActive(playing, body == FallDownState::pickedUp);
   }
 
   /** What `PlayingTracker::update` found in one frame. */

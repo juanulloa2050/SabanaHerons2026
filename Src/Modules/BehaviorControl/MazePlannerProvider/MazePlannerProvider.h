@@ -5,8 +5,9 @@
  * attempt 1) and the speed-run route (only edges known to be open, attempt 2), both computed with the time-weighted
  * planner of Tools/Maze/MazePlanner.h. The behaviour decides which one it follows, so the provider needs no mode.
  *
- * The plan is recomputed only when the `MazeMap::changeCounter`, the cell or the heading of the `MazeCellPose` change
- * (a planning takes well under a millisecond on the 8x8 grid, see MazeRoutesTest). A pose outside the maze gives
+ * The plan is recomputed only when the `MazeMap::changeCounter`, the cell or the heading of the `MazeCellPose` or the costs change
+ * (a planning takes well under a millisecond on the 8x8 grid on a development PC; MazeRoutesTest prints the time and only
+ * guards against a gross regression, it is no real-time guarantee on the robot). A pose outside the maze gives
  * a plan that is not valid and has no route.
  *
  * The motion durations come from `mazePlanner.cfg`; the keys are the fields of `Maze::MazeCosts`:
@@ -53,12 +54,16 @@ private:
   /** The durations of the primitive motions as the planner takes them. */
   Maze::MazeCosts costs() const;
 
-  /** Whether the cached plan was computed for the current inputs. */
+  /** Replaces invalid costs by the defaults (with an error), at start-up and whenever the parameters change. */
+  void ensureValidCosts();
+
+  /** Whether the cached plan was computed for the current inputs (map, pose and costs). */
   bool upToDate() const;
 
   /** Copies a route of the planner into the representation. */
   static void fill(MazeRoute& route, const Maze::RouteResult& result);
 
   MazePlan cached;
+  Maze::MazeCosts plannedCosts; /**< The costs `cached` was computed with. */
   bool computed = false;
 };

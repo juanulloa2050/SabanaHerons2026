@@ -207,5 +207,6 @@ GTEST_TEST(MazeRoutes, BothRoutesAreCheapEnoughToRecomputeEveryFrame)
     found += planRoutes(graph, start, MazeCosts()).speedRun.found ? 1 : 0;
   const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() / runs;
   EXPECT_EQ(found, runs);
+  EXPECT_LT(ms, 20.0) << "a gross regression only; the measured time is printed below";
   std::cout << "[MZ-024] planRoutes (exploration + speed run): " << ms * 1000.0 << " us per call" << std::endl;
 }

@@ -310,8 +310,13 @@ GTEST_TEST(MazeLocalizerAcceptance, AFallDuringPlayingNeitherResetsThePoseNorCou
     run.perform(route[i]);
   ASSERT_EQ(run.resets, 1u);
   const Vector2f poseBefore = run.localization.pose.translation;
-  // A fall (fallen/getting up) is not pickedUp: the sim's pickedUp stays false while the robot lies for a while.
-  EXPECT_FALSE(run.pickedUp);
+  // A fall: the body state goes through falling and fallen, then the robot is upright again. None of them is a pick-up.
+  run.setBody(FallDownState::falling);
+  run.setBody(FallDownState::fallen);
+  run.stand(100);
+  run.setBody(FallDownState::squatting);
+  run.stand(10);
+  run.setBody(FallDownState::upright);
   run.stand(150);
   EXPECT_EQ(run.fusion().attempt, 1);
   EXPECT_EQ(run.resets, 1u);

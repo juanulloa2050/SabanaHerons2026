@@ -20,15 +20,19 @@ static_assert(static_cast<int>(MazeRoute::forward) == static_cast<int>(Maze::Act
 
 MazePlannerProvider::MazePlannerProvider() : MazePlannerProviderBase("mazePlanner.cfg")
 {
-  if(!Maze::costsValid(costs()))
-  {
-    OUTPUT_ERROR("MazePlannerProvider: mazePlanner.cfg: forwardMs, turn90Ms and turn180Ms must be positive and startMs not negative, using the defaults.");
-    const Maze::MazeCosts defaults;
-    forwardMs = defaults.forwardMs;
-    startMs = defaults.startMs;
-    turn90Ms = defaults.turn90Ms;
-    turn180Ms = defaults.turn180Ms;
-  }
+  ensureValidCosts();
+}
+
+void MazePlannerProvider::ensureValidCosts()
+{
+  if(Maze::costsValid(costs()))
+    return;
+  OUTPUT_ERROR("MazePlannerProvider: mazePlanner.cfg: forwardMs, turn90Ms and turn180Ms must be positive and startMs not negative, using the defaults.");
+  const Maze::MazeCosts defaults;
+  forwardMs = defaults.forwardMs;
+  startMs = defaults.startMs;
+  turn90Ms = defaults.turn90Ms;
+  turn180Ms = defaults.turn180Ms;
 }
 
 Maze::MazeCosts MazePlannerProvider::costs() const
@@ -43,7 +47,10 @@ Maze::MazeCosts MazePlannerProvider::costs() const
 
 bool MazePlannerProvider::upToDate() const
 {
-  return computed && cached.mapChangeCounter == theMazeMap.changeCounter && cached.row == theMazeCellPose.row && cached.col == theMazeCellPose.col &&
+  const Maze::MazeCosts current = costs();
+  return computed && current.forwardMs == plannedCosts.forwardMs && current.startMs == plannedCosts.startMs &&
+         current.turn90Ms == plannedCosts.turn90Ms && current.turn180Ms == plannedCosts.turn180Ms &&
+         cached.mapChangeCounter == theMazeMap.changeCounter && cached.row == theMazeCellPose.row && cached.col == theMazeCellPose.col &&
          cached.heading == theMazeCellPose.heading && cached.valid == theMazeCellPose.insideMaze;
 }
 
@@ -73,6 +80,7 @@ void MazePlannerProvider::fill(MazeRoute& route, const Maze::RouteResult& result
 
 void MazePlannerProvider::update(MazePlan& mazePlan)
 {
+  ensureValidCosts(); // The parameters can be changed at runtime (set parameters), not only when the module is created.
   if(!upToDate())
   {
     const unsigned revision = computed ? cached.revision + 1 : 1;
@@ -84,6 +92,7 @@ void MazePlannerProvider::update(MazePlan& mazePlan)
     cached.heading = theMazeCellPose.heading;
     cached.mapChangeCounter = theMazeMap.changeCounter;
     cached.valid = theMazeCellPose.insideMaze;
+    plannedCosts = costs();
     computed = true;
     if(cached.valid)
     {

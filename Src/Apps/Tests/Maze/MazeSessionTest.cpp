@@ -134,13 +134,19 @@ GTEST_TEST(MazeSession, BootingPickedUpDelaysTheFirstAttemptWithoutCountingAnoth
 
 GTEST_TEST(MazeSession, AFallIsNotAPickUp)
 {
-  // A fall is fallen/falling/staggering, never pickedUp, so the robot stays active and nothing resets.
+  // Only FallDownState::pickedUp is a pick-up. The states of a fall keep the robot active, so nothing resets.
+  for(const FallDownState::State body : {FallDownState::upright, FallDownState::staggering, FallDownState::falling, FallDownState::fallen, FallDownState::squatting})
+    EXPECT_TRUE(isActive(true, body)) << static_cast<int>(body);
+  EXPECT_FALSE(isActive(true, FallDownState::pickedUp));
+  EXPECT_FALSE(isActive(false, FallDownState::upright));
+
   PlayingTracker tracker;
-  EXPECT_TRUE(tracker.update(isActive(true, false)).resetPose());
-  for(int i = 0; i < 10; ++i)
+  EXPECT_TRUE(tracker.update(isActive(true, FallDownState::upright)).resetPose());
+  for(const FallDownState::State body : {FallDownState::staggering, FallDownState::falling, FallDownState::fallen, FallDownState::fallen,
+                                         FallDownState::squatting, FallDownState::upright})
   {
-    const PlayingTransition fall = tracker.update(isActive(true, false));
-    EXPECT_FALSE(fall.resetPose());
-    EXPECT_FALSE(fall.newAttempt);
+    const PlayingTransition fall = tracker.update(isActive(true, body));
+    EXPECT_FALSE(fall.resetPose()) << static_cast<int>(body);
+    EXPECT_FALSE(fall.newAttempt) << static_cast<int>(body);
   }
 }
