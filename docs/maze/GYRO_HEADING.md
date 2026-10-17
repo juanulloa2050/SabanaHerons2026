@@ -4,7 +4,7 @@ How the maze localizer (`MazeLocalizer`, ticket MZ-020) knows which way the robo
 
 Related: [TICKETS_LABERINTO.md](TICKETS_LABERINTO.md) (MZ-020) · [PARAMETROS_LABERINTO.md](PARAMETROS_LABERINTO.md) (section 6, every key) · [SIMULACION_LABERINTO.md](SIMULACION_LABERINTO.md) (step 5, how to see it).
 
-Status: the method and the offline results are done. The **real drift rate is pending** (section 6): it needs the Lab 1 logs (MZ-017), which do not exist yet.
+Status: the method and the offline results are done. The **real drift rate is pending** (section 6): it needs the Lab 1 logs (MZ-017), which do not exist yet. It is tracked in the subtask MZ-020.1.
 
 ## 1. Why a gyro heading
 
@@ -71,7 +71,7 @@ Same route, nominal noise.
 | `faces = [north]` | 1.9 | 7.6 | 40 mm |
 | `walls` (checkerboard) | 7.0 | 27.6 | 9 mm |
 
-## 6. Pending: real drift rate (needs Lab 1 logs, MZ-017)
+## 6. Pending: real drift rate (MZ-020.1, needs the Lab 1 logs of MZ-017)
 
 `logger.cfg` already records `InertialData`. Until the logs exist, no number below is real.
 
