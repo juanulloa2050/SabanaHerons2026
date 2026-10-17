@@ -111,7 +111,7 @@ The robot must be in playing.
 
 | Command | Same as | Expected result |
 |---|---|---|
-| `dr option:HandleMaze:headFront on` | `headFront` ×1 | Says "start". |
+| `dr option:HandleMaze:headFront on` | `headFront` ×1 | Starts the attempt: says "exploring", or "speed run" if the map holds a route to the goal (full flow: step 5, *Running the full flow*). |
 | `dr option:HandleMaze:headRear on` | `headRear` ×1 | Says "tag <id>" for the last seen AprilTag (within 2 s), else "no tag". |
 | `dr option:HandleMaze:headMiddleTwice on` | `headMiddle` ×2 | Says "motion test", walks about 2 m (4 cells) forward, then turns 90° left, 90° right and 180°, with a beep in each pause. |
 | `dr option:HandleMaze:abortMotionTest on` | Any head button during the test | Says "motion test aborted" and stops the test. |
@@ -186,7 +186,7 @@ robot turn itself (`headMiddleTwice` motion test).
 is not moved by the code; the localizer resets the pose to the start cell (`resets` grows), and `MazeMap` keeps its edges
 with `attempt` one higher.
 
-- **Start cell and heading:** edit `startCell` and `startHeading` in `Config/Scenarios/Maze/mazeLocalizer.cfg` (and `startCell` in `mazeMapper.cfg`; keep both equal). The defaults are cell 0 facing south, which matches the generated mazes. If you generate a maze with `--start 7`, `56` or `63`, change them too. The start pose is taken on every transition into `playing`.
+- **Start cell and heading:** edit `start.cell` and `start.heading` in `Config/Scenarios/Maze/handleMaze.cfg` (one place for the localizer and the mapper). `start.cell = -1` (default) makes the robot deduce its start from the tags and walls; `0`, `7`, `56` or `63` gives it, and then `start.heading` says which of the two open sides it faces (cell 0: `east`/`south`, 7: `south`/`west`, 56: `north`/`east`, 63: `north`/`west`; the default `south` matches `--start 0`). An invalid value prints an error and is treated as `-1`. The start pose is taken on every transition into active. Details: `PARAMETROS_LABERINTO.md`, section 8.
 - **Inject drift and noise** (SimRobot has none): set `injectedGyroDriftPerMinute`, `injectedOdometryTranslationNoise` (0.05 = 5 %) or `injectedOdometryRotationNoise` in `mazeLocalizer.cfg`. To change them for this session only, run `get parameters:MazeLocalizer`, copy the printed `set parameters:MazeLocalizer …` line, edit the value and run it.
 - **Hide the tags** to see the quality drop: set `dropoutRate = 1;` as shown above, then watch `quality` in `RobotPose` go from superb to okay to poor.
 - **Other layouts:** change `mazeTagLayout.cfg` and regenerate the scene (step 3). The localizer needs no change.
@@ -194,6 +194,40 @@ with `attempt` one higher.
 
 Checked in SimRobot on 16 Oct: the cell estimate follows the robot (cells 0, 3, 19, 20) and walls already seen stay in the
 map when the robot crosses a cell boundary. The offline results are in `GYRO_HEADING.md`.
+
+### Running the full flow (MZ-024)
+
+`HandleMaze` runs the phases `waitingForStart` → `exploration` → `finished` → `standby` → `speedRun`. The robot says each change (the console prints the `Say` text and `HandleMaze: <phase>.`). Start from a freshly opened scene (`Maze.con` already did `gc playing`).
+
+| Step | Console | Expected |
+|---|---|---|
+| 1. Ready | `gc playing` (already set by `Maze.con`) | Says "ready". |
+| 2. Attempt 1 | `dr option:HandleMaze:headFront on` | Says "exploring"; the robot scans unknown walls and walks cell by cell. With `start.cell = -1` it says "start <id>" once the corner is deduced. |
+| 3. Goal | (wait) | In a central cell: says "goal", then "finished", and stands. |
+| 4. Pick-up | `gc initial`, drag the robot back to the start cell facing its open side, `gc playing` | Says "standby". The pose is reset to the start and `MazeMap` keeps its edges with `attempt` one higher. |
+| 5. Attempt 2 | `dr option:HandleMaze:headFront on` | Says "speed run" if the known-open edges reach the goal (the console prints the route: cells, actions, estimated time, and "all edges known to be open"), otherwise "exploring" again. |
+| 6. Gestures | `dr option:HandleMaze:headRear on`, `dr option:HandleMaze:headMiddleTwice on` | Only while standing (`waitingForStart`, `standby`, `finished`): "tag <id>" / "no tag", and the motion test. |
+
+`announce.enabled = false` in `handleMaze.cfg` silences all speech; the phases do not change (the console lines stay).
+
+What to look at:
+
+| Command | Shows |
+|---|---|
+| `get representation:MazeStart` | `known`, `given`, the working hypothesis (`cell`, `heading`), `aliveCount`, `revision`, `conflicts`. |
+| `get representation:MazePlan` | `exploration` and `speedRun` routes (`found`, `nextAction`, `cells`, `actions`, `estimatedTimeMs`), `atGoal`, `valid`, `revision`. |
+| `vfd worldState representation:MazePlan` | The routes drawn in the `worldState` field view (the drawing id is `representation:MazePlan`; maze frame, so compare the shape). |
+| `get parameters:MazePlannerProvider` | The planner costs; edit and run the printed `set` line to change `turn90Ms` for this session and watch the plan change. |
+
+Mazes with a known start: `Config/Mazes/fixtures/start_<cell>_<heading>.maze` (cells 0, 7, 56, 63, each with its two open sides; plus `boundary_test.maze`). Load one into the scene like any other maze, then set `start.cell`/`start.heading` to match, or `start.cell = -1` to test the deduction:
+
+```bash
+python3 Util/MazeTools/maze_to_scene.py Config/Mazes/fixtures/start_63_west.maze --out Config/Scenes/Includes/Maze/current.rsi2
+```
+
+Reopen the scene afterwards. The robot appears in the start cell of the maze file.
+
+Dragging the robot in the 3D view lifts it. The code treats `FallDownState` `pickedUp` as a pick-up (a fall is not one), so a drag that SimRobot reports as picked up ends the attempt (`standby`) and the pose is reset to the start when the robot is active again, wherever it was put down. The tags it then sees contradict that pose, which the mapper counts as conflicts and warns about (`MazeMapper: an observation contradicts ... Latest: tag`); the start does not change once it is known. Check `get representation:FallDownState` while dragging: whether SimRobot reports a drag as `pickedUp` has not been verified yet. `gc initial` then `gc playing` always works as a pick-up.
 
 ## 6. Real robot: see the AprilTags (RemoteRobot)
 
