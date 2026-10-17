@@ -53,6 +53,15 @@ namespace Maze
     gyroOffsetAtReset = gyroOffset;
   }
 
+  void MazeLocalization::transform(const Pose2f& oldToNew)
+  {
+    pose = oldToNew * pose;
+    pose.rotation = Angle::normalize(pose.rotation);
+    // The gyro heading is `gyroYaw - gyroOffset`: it has to turn by the rotation of the transform, too.
+    gyroOffset = Angle::normalize(gyroOffset - oldToNew.rotation);
+    gyroOffsetAtReset = Angle::normalize(gyroOffsetAtReset - oldToNew.rotation);
+  }
+
   void MazeLocalization::predict(const Pose2f& odometryDelta, float gyroYaw, bool useGyro)
   {
     pose.translation += Oracle::rotated(odometryDelta.translation, pose.rotation);

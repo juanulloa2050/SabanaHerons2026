@@ -77,18 +77,36 @@ GTEST_TEST(MazeSession, AttemptCounterAndMapSurviveAPickUp)
 
 GTEST_TEST(MazeSession, MapActionsApplyTheQualityGateAfterTheVisit)
 {
-  // Not playing or outside the maze: nothing.
-  EXPECT_FALSE(mapActions(false, true, true).markVisited);
-  EXPECT_FALSE(mapActions(false, true, true).observe);
-  EXPECT_FALSE(mapActions(true, false, true).markVisited);
-  EXPECT_FALSE(mapActions(true, false, true).observe);
-  // Playing inside the maze: the visit is recorded even when the quality is too poor to observe.
-  const MapActions poor = mapActions(true, true, false);
+  // Not active: nothing.
+  EXPECT_FALSE(mapActions(false, true).markVisited);
+  EXPECT_FALSE(mapActions(false, true).observe);
+  // Active: the visit is recorded even when the quality is too poor to observe.
+  const MapActions poor = mapActions(true, false);
   EXPECT_TRUE(poor.markVisited);
   EXPECT_FALSE(poor.observe);
-  const MapActions good = mapActions(true, true, true);
+  const MapActions good = mapActions(true, true);
   EXPECT_TRUE(good.markVisited);
   EXPECT_TRUE(good.observe);
+}
+
+GTEST_TEST(MazeSession, ActiveNeedsPlayingAndGroundContact)
+{
+  EXPECT_TRUE(isActive(true, true));
+  EXPECT_FALSE(isActive(true, false)); // Picked up while the game still plays.
+  EXPECT_FALSE(isActive(false, true)); // Standing on the ground outside of playing.
+  EXPECT_FALSE(isActive(false, false));
+}
+
+GTEST_TEST(MazeSession, LiftingTheRobotStartsTheNextAttemptWhenItIsPutDown)
+{
+  PlayingTracker tracker;
+  // The game keeps playing; the robot is on the ground, lifted, and put down again.
+  EXPECT_TRUE(tracker.update(isActive(true, true)).resetPose());
+  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
+  EXPECT_FALSE(tracker.update(isActive(true, false)).resetPose());
+  const PlayingTransition down = tracker.update(isActive(true, true));
+  EXPECT_TRUE(down.resetPose());
+  EXPECT_TRUE(down.newAttempt);
 }
 
 GTEST_TEST(MazeSession, QualityAcceptedComparesAgainstTheWorstAcceptedOne)

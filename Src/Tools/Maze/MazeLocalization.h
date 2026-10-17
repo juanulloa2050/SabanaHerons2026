@@ -114,6 +114,14 @@ namespace Maze
     void reset(int startCell, Heading startHeading, float gyroYaw, unsigned now = 0);
 
     /**
+     * Re-expresses the whole state in another maze frame, e.g. when the working start hypothesis changes. The pose is
+     * moved by `oldToNew`, and the gyro offset follows so that the gyro heading keeps agreeing with the pose rotation. The
+     * quality, the fix time and the heading drift are unchanged.
+     * @param oldToNew Transform of a pose in the old maze frame to the same pose in the new one.
+     */
+    void transform(const Pose2f& oldToNew);
+
+    /**
      * Moves the pose.
      * @param odometryDelta Motion since the last call in the robot frame (translation in mm).
      * @param gyroYaw Gyro yaw in rad.

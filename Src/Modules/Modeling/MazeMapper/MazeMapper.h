@@ -13,8 +13,14 @@
  * boundary these can differ, so the look-ahead is skipped there (tags are not: the id names the cell). Every edge also takes at most one
  * observation per `minObservationInterval`, so a few repeated frames cannot flip a decided wall.
  *
- * The map only learns while the game state is playing. Outside of it the robot may be carried, so the
- * localizer pose would not match what the camera sees.
+ * The map only learns while the robot is active (the game state is playing and a foot touches the ground, see
+ * `Maze::isActive`). Outside of it the robot may be carried, so the localizer pose would not match what the camera sees.
+ *
+ * Start: `handleMaze.cfg` gives the start cell and heading (`start.cell` 0, 7, 56 or 63), or -1 to deduce them. The
+ * deduction and the re-anchoring of the map are in `Maze::StartAnchoredMap`, shared with the offline simulation:
+ * until the start is known the map and the localizer use the frame of the first alive hypothesis, `MazeStart` tells
+ * which. When the working hypothesis changes the map is rebuilt from the logged observations and `changeCounter`
+ * grows, so the planner replans.
  *
  * Wall percept: the look-ahead of `WallPercept` is relative to the gaze, which is `lookAheadTurns`
  * quarter turns counterclockwise from the robot's x-axis. The gaze heading is the robot's cell heading
@@ -29,13 +35,15 @@
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/MazeCellPose.h"
 #include "Representations/Modeling/MazeMap.h"
+#include "Representations/Modeling/MazeStart.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/MazePercepts/WallPercept.h"
+#include "Representations/Sensing/GroundContactState.h"
 #include "Tools/Maze/MazeLocalization.h"
-#include "Tools/Maze/MazeMapFusion.h"
 #include "Tools/Maze/MazeSession.h"
-#include "Tools/Maze/MazeTagLayout.h"
+#include "Tools/Maze/MazeStartAnchoredMap.h"
+#include "Tools/Maze/MazeStartConfig.h"
 #include <vector>
 
 MODULE(MazeMapper,
@@ -43,13 +51,14 @@ MODULE(MazeMapper,
   REQUIRES(AprilTagPercept),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
+  REQUIRES(GroundContactState),
   REQUIRES(MazeCellPose),
   REQUIRES(RobotPose),
   REQUIRES(WallPercept),
   PROVIDES(MazeMap),
+  PROVIDES(MazeStart),
   LOADS_PARAMETERS(
   {,
-    (int) startCell,                                   /**< Cell the attempts start in. Replaced by `start.cell` of MZ-024. */
     (float) threshold,                                 /**< Evidence needed to decide an edge or to flip it; 3 observations of full weight. */
     (float) fullWeightDistance,                        /**< Wall observations up to this distance (mm) have full weight. */
     (float) zeroWeightDistance,                        /**< Wall observations from this distance (mm) have no weight; linear in between. */
@@ -72,6 +81,10 @@ public:
 
 private:
   void update(MazeMap& mazeMap) override;
+  void update(MazeStart& mazeStart) override;
+
+  /** Runs the mapper once per frame; both `update` functions read its result. */
+  void step();
 
   /** Adds the wall percept to the map. @return Number of edges that changed. */
   int observeWalls();
@@ -79,8 +92,12 @@ private:
   /** Adds the tags to the map. @return Number of edges that changed. */
   int observeTags();
 
-  Maze::MazeMapFusion fusion;       /**< The map; persists for the process. */
-  Maze::MazeTagLayout layout;
+  /** Reads `start` of handleMaze.cfg and gives the start to the map if it is set. */
+  void loadStart();
+
+  Maze::StartAnchoredMap anchored;  /**< The map and the start deduction; persist for the process. */
+  bool stepped = false;             /**< `step` ran for `lastStepTime`. */
+  unsigned lastStepTime = 0;
   Maze::TimestampFilter wallFilter;
   Maze::TimestampFilter tagFilter;
   Maze::PlayingTracker session;     /**< Decides when a new attempt starts. */

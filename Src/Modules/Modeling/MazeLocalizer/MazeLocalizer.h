@@ -10,10 +10,16 @@
  * torso (counterclockwise positive, like the odometry rotation). AprilTag detections correct it; the
  * filter itself is in Tools/Maze/MazeLocalization.h and has its own unit tests.
  *
- * Start: until MZ-041 (start deduction) and MZ-024 (`start.cell`) exist, the robot is "positioned at
- * start": on the first frame and on every transition into playing the pose is reset to `startCell`
- * and `startHeading` and the gyro is re-referenced (`resetToStart`). Standby and pick-up therefore put
- * the localizer back at the start while MazeMapper keeps the map.
+ * Start: the robot is "positioned at start": on the first frame and on every transition into active (the
+ * game is playing and a foot touches the ground, see `Maze::isActive`) the pose is reset to the start of the
+ * working hypothesis of `MazeStart` and the gyro is re-referenced (`resetToStart`). Standby and pick-up
+ * therefore put the localizer back at the start while MazeMapper keeps the map.
+ *
+ * The start is given in `handleMaze.cfg` or deduced by MazeMapper. Until it is known the pose lives in the maze
+ * frame of the working hypothesis; when `MazeStart` names another one (the previous frame's value, `MazeStart` is
+ * provided by the mapper, which needs this pose) the whole state is moved into the new frame, see
+ * `MazeLocalization::transform`. Before the first `MazeStart` the hypothesis is the first one (cell 0, east). Tags
+ * correct the pose only once the start is known: under a wrong hypothesis a tag would pull the pose to the wrong place.
  *
  * Simulation test knobs: SimRobot has neither gyro drift nor odometry noise. `injectedGyroDriftPerMinute`
  * and the `injectedOdometry*` parameters add them so that the corrections can be tested in the simulator.
@@ -26,12 +32,15 @@
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/MazeCellPose.h"
+#include "Representations/Modeling/MazeStart.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/MotionControl/OdometryData.h"
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
+#include "Representations/Sensing/GroundContactState.h"
 #include "Representations/Sensing/InertialData.h"
 #include "Tools/Maze/MazeLocalization.h"
 #include "Tools/Maze/MazeSession.h"
+#include "Tools/Maze/MazeStartDeduction.h"
 #include "Tools/Maze/MazeTagLayout.h"
 
 MODULE(MazeLocalizer,
@@ -39,14 +48,14 @@ MODULE(MazeLocalizer,
   REQUIRES(AprilTagPercept),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
+  REQUIRES(GroundContactState),
   REQUIRES(InertialData),
   REQUIRES(OdometryData),
+  USES(MazeStart),
   PROVIDES(MazeCellPose),
   PROVIDES(RobotPose),
   LOADS_PARAMETERS(
   {,
-    (int) startCell,                          /**< Cell the robot starts in (row * 8 + column). Replaced by `start.cell` of MZ-024. */
-    (MazeCellPose::Heading) startHeading,     /**< Maze heading the robot faces at the start. */
     (bool) useGyro,                           /**< Take the heading from the gyro; otherwise integrate the odometry rotation. */
     (Angle) maxFaceAngleError,                /**< Largest angle between the measured and the expected tag normal; larger detections are rejected. */
     (float) translationGain,                  /**< Share of the position error that a tag fix corrects at zero distance. */
@@ -80,8 +89,11 @@ private:
   /** Runs the filter once per frame; both `update` functions read its result. */
   void step();
 
-  /** The robot is positioned at the start: hook for MZ-041 and MZ-024 to put a deduced start here. */
+  /** The robot is positioned at the start of the working hypothesis. */
   void resetToStart(float gyroYaw);
+
+  /** Moves the state into the maze frame of the working hypothesis of `MazeStart` if that changed. */
+  void followStart();
 
   /** The current gyro yaw in rad, counterclockwise positive, including the injected drift. */
   float gyroYaw() const;
@@ -95,6 +107,7 @@ private:
   Pose2f lastOdometry;
   bool hasLastOdometry = false;
   Maze::PlayingTracker session;   /**< Decides when the robot is positioned at the start. */
+  Maze::Hypothesis frame = Maze::StartDeduction::hypotheses()[0]; /**< The start whose maze frame the pose is in. */
   bool stepped = false;           /**< `step` ran for `lastStepTime`. */
   unsigned lastStepTime = 0;
   float injectedGyroDrift = 0.f;  /**< Accumulated injected drift in rad. */

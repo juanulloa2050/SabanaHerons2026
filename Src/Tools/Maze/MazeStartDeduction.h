@@ -66,6 +66,7 @@ namespace Maze
   {
   public:
     static constexpr int hypothesisCount = 8;
+    static constexpr std::size_t maxLogEntries = 50000; /**< About 2 MB; a run that never resolves the start stops logging here (`logOverflowed`) instead of growing for ever. */
 
     /** The 8 hypotheses in a fixed order: corners 0, 7, 56 and 63, each with its two headings in `Heading` order. */
     [[nodiscard]] static const std::array<Hypothesis, hypothesisCount>& hypotheses();
@@ -128,6 +129,21 @@ namespace Maze
      */
     int observePosition(GridCell cell);
 
+    /** Notes that the robot has been in a start-relative cell, for the replay, without drawing any conclusion from it. */
+    void markVisited(GridCell cell);
+
+    /**
+     * Stops logging and frees the log. Call it once the start is known: only one hypothesis can be left, so the
+     * map never has to be rebuilt again. Evidence is still weighed, to count the conflicts. A given start does it already.
+     */
+    void freezeLog();
+
+    /** Whether observations are still logged. */
+    [[nodiscard]] bool logging() const { return recording; }
+
+    /** Whether the log reached `maxLogEntries` while the start was unknown: a replay then misses what came later. */
+    [[nodiscard]] bool logOverflowed() const { return overflowed; }
+
     /**
      * Fuses the whole log into `fusion`, which should be fresh, under `hypothesis`: the same evidence the mapper
      * would have fused had that hypothesis been its frame from the start. Edges outside the maze are dropped. Sets
@@ -171,6 +187,9 @@ namespace Maze
       bool hasLast = false;
     };
 
+    /** Appends `entry` unless logging stopped or the log is full. */
+    void record(const Entry& entry);
+
     /** Removes the hypotheses in `doomed` unless that would leave none; counts a conflict then. */
     int remove(const std::array<bool, hypothesisCount>& doomed);
 
@@ -179,6 +198,8 @@ namespace Maze
 
     std::array<bool, hypothesisCount> aliveMask = {true, true, true, true, true, true, true, true};
     std::vector<Entry> log;
+    bool recording = true;   /**< Cleared by `freezeLog` and by a given start. */
+    bool overflowed = false;
     std::set<GridCell> visitedCells;
     std::map<std::array<int, 3>, EdgeEvidence> edges; /**< Keyed by the canonical edge: row, column, horizontal. */
   };

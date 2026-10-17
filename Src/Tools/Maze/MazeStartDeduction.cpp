@@ -105,13 +105,29 @@ namespace Maze
     aliveMask.fill(false);
     aliveMask[static_cast<std::size_t>(index)] = true;
     // Restart from the given start: what was collected for the other hypotheses says nothing about it.
-    log.clear();
-    visitedCells.clear();
+    freezeLog();
     edges.clear();
     conflicts = 0;
     if(index != before)
       ++revision;
     return true;
+  }
+
+  void StartDeduction::freezeLog()
+  {
+    recording = false;
+    std::vector<Entry>().swap(log);
+    visitedCells.clear();
+  }
+
+  void StartDeduction::record(const Entry& entry)
+  {
+    if(!recording)
+      return;
+    if(log.size() >= maxLogEntries)
+      overflowed = true;
+    else
+      log.push_back(entry);
   }
 
   int StartDeduction::aliveCount() const
@@ -155,7 +171,7 @@ namespace Maze
     entry.id = id;
     entry.normalAngle = normalAngle;
     entry.time = time;
-    log.push_back(entry);
+    record(entry);
 
     const Vector2f centre = Oracle::cellCentreOf(cellRow(id), cellCol(id));
     std::array<bool, hypothesisCount> doomed = {};
@@ -209,7 +225,7 @@ namespace Maze
     entry.isWall = isWall;
     entry.weight = weight;
     entry.time = time;
-    log.push_back(entry);
+    record(entry);
 
     EdgeEvidence& evidence = edges[canonicalEdge(cell, side)];
     if(!acceptedByClock(evidence, time))
@@ -240,9 +256,15 @@ namespace Maze
     return removed;
   }
 
+  void StartDeduction::markVisited(GridCell cell)
+  {
+    if(recording)
+      visitedCells.insert(cell);
+  }
+
   int StartDeduction::observePosition(GridCell cell)
   {
-    visitedCells.insert(cell);
+    markVisited(cell);
     std::array<bool, hypothesisCount> doomed = {};
     for(int i = 0; i < hypothesisCount; ++i)
     {
