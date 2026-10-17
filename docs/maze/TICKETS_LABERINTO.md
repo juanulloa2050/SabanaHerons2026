@@ -89,7 +89,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
-| [ ] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
+| [x] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
 | [ ] | MZ-024 | HandleMaze state machine + skills + start-cell deduction | Bryam | 3 | 6 | no | MZ-011, MZ-020 |
@@ -123,6 +123,7 @@ Bodies are in the section *Physical robot tickets*, after the proposed tickets. 
 | MZ-015 | Print and mount tags ⚠️ | Wilson | 1 | 1 | no | MZ-014 |
 | MZ-017 | Lab 1: log capture ⚠️ | Wilson | 1 | 2 | **yes** | MZ-007, MZ-014, MZ-015 |
 | MZ-018.1 | Tune the AprilTag detector on the robot ⚠️ (subtask of MZ-018) | Wilson | 2 | 1.5 | **yes** | MZ-018, MZ-015 |
+| MZ-020.1 | Measure the real gyro drift from the Lab 1 logs (subtask of MZ-020) | Bryam | 2 | 0.5 | no (uses Lab 1 logs) | MZ-020, MZ-017 |
 | MZ-023 | Lab 2: calibration of motion costs | Wilson | 2 | 2 | **yes** | MZ-016, MZ-018 |
 | MZ-027 | Lab 3: integrated bench run (pairing) | Bryam + Wilson | 3 | 2.5 + 2.5 | **yes** | MZ-024 |
 | MZ-031 | Lab 4: competition rehearsal (pairing) | Bryam + Wilson | 4 | 2.5 + 2.5 | **yes** | MZ-029, MZ-030 |
@@ -640,11 +641,13 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - [ ] The distance error at 0.5, 1.0, 1.5, 2.0 and 2.5 m is measured, standing and walking (Lab 1 logs, or rendered images if the logs do not exist), and written in the PR; `lookAheadRangeWalking`, `lookAheadRangeStanding` and `snapToleranceMm` are set from it.
 - [ ] With the floor and walls set to the same light colour in the simulation scene, wall present or absent is still ≥90 % correct for the 4 sides of visited cells (gradient check).
 
+**Note (16 Oct).** The grid snap uses `RobotPose` from `MazeLocalizer`, decided 2026-10-16 (Upper modules can `REQUIRE(RobotPose)`, e.g. `BallPerceptor`). That is why MZ-020 was done first.
+
 ### MZ-020 — Maze localizer, mapper and gyro heading ⚠️ TAG-DEP
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 7.5 h (5 h + 0.5 h look-ahead evidence + 2 h gyro heading, merged from MZ-038) |
 | Depends on | MZ-011, MZ-013, MZ-017* (gyro drift from the Lab 1 logs) |
@@ -664,14 +667,35 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 2. Implement the offset, the snap and the tag-based re-alignment. Unit-test the snap with ±44° and ±46° inputs.
 3. **Experiment:** put tags **only on the north face** (in simulation, `mode = faces; faces = [north];` in `mazeTagLayout.cfg`; on the bench, mount only north tags) and check that the localizer still keeps the cell estimate when the robot faces north. Document the coverage loss on other headings.
 
-**Acceptance criteria**
-- [ ] In simulation with noisy odometry and a drifting gyro, the pose error is ≤8 cm and ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct.
-- [ ] The gyro drift rate (° per minute) is measured and recorded in `GYRO_HEADING.md`.
-- [ ] The north-face-only experiment is documented, with the coverage consequence.
-- [ ] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2.
-- [ ] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025).
-- [ ] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11.
-- [ ] The localizer runs with each `mode` of `mazeTagLayout.cfg` (a config change only), and the tag-fix rate per mode is recorded in the PR.
+**Delivered beyond the original scope.**
+- Pure helpers in `Src/Tools/Maze` with unit tests: heading math (`MazeHeading.h`), localization filter (`MazeLocalization.h`), map fusion with hysteresis (`MazeMapFusion.h`), flat edge indexing (`MazeEdgeIndex.h`, out-of-range reads give `unknown`) and the module session logic (`MazeSession.h`: attempt counter, quality gate). Both modules call the same helpers.
+- Offline acceptance suite (`MazeLocalizerAcceptanceTest.cpp`, `MazeLocalizerSim.h` in `Src/Apps/Tests/Maze`): a walking robot with noisy odometry, a drifting gyro and oracle percepts. It stands in for the runs that need MZ-024 and MZ-021, which do not exist yet.
+- `EmptyWallPerceptProvider` (Perception) is a placeholder on the robot until MZ-019 exists. In simulation `Maze.con` replaces it with the oracle (`mr WallPercept OracledMazePerceptsProvider`).
+- `RobotPose` is now in the maze frame (x east, y north, origin at the outer bottom-left corner, mm). `MazeLocalizer` provides it in `Maze` and `MazeSafe`; it is removed from `defaultRepresentations`.
+- Simulation-only injection keys (`injectedGyroDriftPerMinute`, `injectedOdometryTranslationNoise`, `injectedOdometryRotationNoise`) and field drawings `representation:MazeMap`, `module:MazeLocalizer:pose`, `module:MazeMapper:lookAhead` (see `SIMULACION_LABERINTO.md`, step 5).
+- The start pose defaults to cell 0, heading south (the only open side of the start cell) until MZ-024 (`start.cell`) exists.
+- Every key is documented in `PARAMETROS_LABERINTO.md` (section 6); the gyro method and the offline results in `GYRO_HEADING.md`.
+
+**Ticket correction.** In `maze_1.maze`, cell 11 is closed east and south (open west and north), not a classic dead end. The robot avoids the detour by seeing those walls from cell 10 (look-ahead evidence), not by seeing the dead end earlier.
+
+**Acceptance criteria.** Ticked on 16 Oct (decision of the owner) on the offline evidence (`Build/Linux/Tests/Develop/Tests`, 199 passed) plus the SimRobot check of 16 Oct: the cell estimate follows the robot and walls already seen stay in the map across cell boundaries (after the fix of the erased walls). The drift rate needs the Lab 1 logs and moved to MZ-020.1. The per-item SimRobot runs below are optional follow-ups, not blockers.
+- [x] In simulation with noisy odometry and a drifting gyro, the pose error is ≤8 cm and ≤10° after 10 cells with tag fixes, and the cell estimate is 100 % correct. *Offline:* 11 cells, 5 % odometry error, 3°/min drift: final error 2-3 mm and 0.3°, checkpoint maximum 8.2-13.1 mm, cell 11/11. Harsh (15°/min, +10 % odometry bias, dropout 0.17): 7 mm, 0.4°, 11/11. *Optional:* SimRobot run with the injection keys.
+- [x] ~~The gyro drift rate (° per minute) is measured and recorded in `GYRO_HEADING.md`.~~ Moved to MZ-020.1 (decision, 16 Oct): it needs the Lab 1 logs (MZ-017); the table and the procedure are in `GYRO_HEADING.md`, section 6.
+- [x] The north-face-only experiment is documented, with the coverage consequence. *Offline, documented in `GYRO_HEADING.md`, section 7:* tag-fix share by true heading north 90 %, east 13 %, south 0 %, west 39 % (`allFaces` 90/91/91/100 %). North corridor: cell 6/6, 2.5 mm; south over the same corridor: 0 fixes, 137 mm drift. Head scan ±60° raises east to 28 % but lowers north to 58 %. *Optional:* bench check with real north-only tags.
+- [x] After a simulated pick-up and Standby, the map is identical and the attempt counter = 2. *Offline:* map equal before and after (also at the transition frame), attempt 2, pose reset to cell 0. *Optional:* SimRobot run (`SIMULACION_LABERINTO.md`, step 5, *Pick-up and Standby*).
+- [x] With tags hidden (dropout 1.0), the localizer reports low quality (used by MZ-025). *Offline:* `okay` at 9.3 s / 1504 mm, `poor` at 30.06 s (3867 mm); position error 143 mm and 2.1° after the route. *Optional:* SimRobot run with `dropoutRate = 1`.
+- [x] In simulation with the oracle percepts (MZ-013, maximum range 2 cells), edges of cells the robot has not visited reach `wall`/`open`, and on `maze_1.maze` the robot does not enter the dead end at cell 11. *Offline:* 96 edge-sides decided, 56 cells never entered, 0 wrong; the look-ahead run never enters cell 11, while a baseline that learns only on arrival enters it as the 6th cell. Standing in cell 10 facing east, 7 vision frames (0.6 s: one observation per edge every 250 ms) close cell 11 (east and south). The real walk is checked in MZ-024, which makes the robot explore.
+- [x] The localizer runs with each `mode` of `mazeTagLayout.cfg` (a config change only), and the tag-fix rate per mode is recorded in the PR. *Offline (same 11-cell route, nominal noise):*
+
+  | `mode` | Fixes/s | Fixes per cell | Final error |
+  |---|---|---|---|
+  | `allFaces` | 8.9 | 35 | 3 mm |
+  | `faces = [north]` | 1.9 | 7.6 | 40 mm |
+  | `walls` (checkerboard) | 7.0 | 27.6 | 9 mm |
+
+  Recorded in PR #15. *Optional:* SimRobot run with each layout (regenerate the scene each time).
+
+**Known limits of the offline numbers.** The path follows the cell centres exactly (no sway or stopping error), the oracle sees every tag (no image processing), the planner state comes from the estimate but the motion is ideal, and the mapper takes one observation per edge every 250 ms and skips the wall look-ahead within 100 mm of a cell boundary (fix of 16 Oct: SimRobot showed walls erased when the estimated and the true cell differed). The noise sequences are deterministic on the Linux toolchain only.
 
 ### MZ-021 — Headless simulation campaign runner
 
@@ -1119,6 +1143,8 @@ proposed.
 - [ ] On the Lab 1 logs, the lateral and longitudinal error between tag fixes is lower with the wall fix than without it, and both numbers are written in the PR.
 - [ ] A percept of an edge the map holds as `open` or `unknown` never changes the pose (unit test).
 
+**Note (MZ-020).** Wall percepts snapped with the localizer pose must not be fed back as pose correction (circular). This ticket must use the raw distances (`frontDistance`, `leftDistance`, `rightDistance`).
+
 ### MZ-024.1 — Exploring return to start (subtask of MZ-024)
 
 | Field | Value |
@@ -1295,6 +1321,28 @@ Subtask of MZ-018. The detector is merged with untuned defaults; this ticket onl
 - [ ] With the chosen values, ids are read at 0.25–1.5 m at 0° and 30°, and there is no wrong id in the whole session, including the false-positive minute.
 - [ ] The average `AprilTagDetector` time is ≤ 20 ms, or `frameSkip = 2` is set.
 - [ ] Both `aprilTagDetector.cfg` files have the chosen values, each changed value with a one-line comment giving its reason.
+
+### MZ-020.1 — Measure the real gyro drift from the Lab 1 logs
+
+Subtask of MZ-020. The gyro heading is merged and checked in simulation with an injected drift; this ticket only measures the drift of the real NAO gyro, which the simulator does not have.
+
+| Field | Value |
+|---|---|
+| Done | [ ] |
+| Owner | Bryam |
+| Estimate | 0.5 h |
+| Depends on | MZ-020, MZ-017 (Lab 1 logs with `InertialData`) |
+| Lab / robot | no (uses the Lab 1 logs) |
+| Branch | `docs/MZ-020.1-gyro-drift` |
+| Files | `docs/maze/GYRO_HEADING.md` (section 6, the empty drift table) |
+
+**Goal.** Know how fast the real yaw drifts, so the team knows how often the localizer needs a tag fix.
+
+**Steps.** Follow the procedure in `GYRO_HEADING.md`, section 6: from the Lab 1 logs, take the yaw of `InertialData.orientation3D` over a 5 min stand and over a corridor walk, and fill the table (° per minute). If the walking drift is larger than the 3°/min of the offline runs, repeat the acceptance suite with the measured value (`injectedGyroDriftPerMinute`) and record the result.
+
+**Acceptance criteria**
+- [ ] The gyro drift rate (° per minute), standing and walking, is in `GYRO_HEADING.md`.
+- [ ] The offline acceptance runs still meet the MZ-020 limits with the measured drift.
 
 ### MZ-023 — Lab 2 (Tue 20 Oct, 2 h): calibration of motion costs
 
