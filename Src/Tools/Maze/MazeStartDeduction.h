@@ -16,7 +16,7 @@
  * Evidence removes hypotheses: a decoded tag whose id and face do not fit, `open` evidence on an edge that
  * would be outer boundary or outside the grid, and a robot cell outside the grid. The last hypothesis is never
  * removed, the contradiction is counted in `conflicts` instead. A given start is a deduction restricted to one
- * hypothesis, so contradictions are only counted.
+ * hypothesis, so contradictions are only counted. Non-finite evidence (weights, tag poses) is ignored.
  *
  * The observations are logged in start-relative form so that `replay` can fuse them into a fresh map under
  * any hypothesis, as if that hypothesis had been the frame from the start.
@@ -91,7 +91,9 @@ namespace Maze
     explicit StartDeduction(const DeductionParameters& parameters = DeductionParameters()) : parameters(parameters) {}
 
     /**
-     * Restricts the deduction to one start. Observations that contradict it are counted, never followed.
+     * Restricts the deduction to one start. Observations that contradict it are counted, never followed. The
+     * observation log, the edge evidence, the visited cells and the conflicts start over, and `revision` grows
+     * if the working hypothesis changes, so a caller that follows the revision re-anchors to the given start.
      * @return Whether it is one of the 8 hypotheses; if not, nothing changes.
      */
     bool setGiven(int cell, Heading heading);

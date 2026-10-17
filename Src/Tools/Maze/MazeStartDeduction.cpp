@@ -101,8 +101,16 @@ namespace Maze
     const int index = indexOf(cell, heading);
     if(index < 0)
       return false;
+    const int before = workingIndex();
     aliveMask.fill(false);
     aliveMask[static_cast<std::size_t>(index)] = true;
+    // Restart from the given start: what was collected for the other hypotheses says nothing about it.
+    log.clear();
+    visitedCells.clear();
+    edges.clear();
+    conflicts = 0;
+    if(index != before)
+      ++revision;
     return true;
   }
 
@@ -193,8 +201,8 @@ namespace Maze
 
   int StartDeduction::observeEdge(GridCell cell, Heading side, bool isWall, float weight, unsigned time)
   {
-    if(weight <= 0.f)
-      return 0;
+    if(!std::isfinite(weight) || weight <= 0.f)
+      return 0; // A NaN weight would skip the threshold test and could prune on garbage.
     Entry entry;
     entry.cell = cell;
     entry.side = side;
@@ -250,7 +258,8 @@ namespace Maze
     for(const GridCell& cell : visitedCells)
     {
       const GridCell inMaze = toMaze(hypothesis, cell);
-      fusion.markVisited(inMaze.row, inMaze.col);
+      if(inside(inMaze.row, inMaze.col))
+        fusion.markVisited(inMaze.row, inMaze.col);
     }
     for(const Entry& entry : log)
     {

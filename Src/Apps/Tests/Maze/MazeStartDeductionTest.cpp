@@ -12,6 +12,7 @@
 #include "Tools/Maze/MazeStartDeduction.h"
 
 #include <gtest/gtest.h>
+#include <limits>
 
 namespace
 {
@@ -292,7 +293,7 @@ GTEST_TEST(MazeStartDeduction, GivenStartNeverChanges)
   EXPECT_EQ(deduction.observePosition({0, 1}), 0);
   EXPECT_GE(deduction.conflicts, 3);
   EXPECT_EQ(deduction.working(), (Hypothesis{56, Heading::east}));
-  EXPECT_EQ(deduction.revision, 0);
+  EXPECT_EQ(deduction.revision, 1); // Only the setGiven above changed the working hypothesis.
   EXPECT_EQ(observeForwardTag(deduction, {56, Heading::east}, layout), 0); // Its own tag fits.
 }
 
@@ -432,4 +433,91 @@ GTEST_TEST(MazeStartDeduction, ReplayUnderAnotherHypothesisDropsEdgesOutsideTheM
       EXPECT_EQ(replayed.graph.get(i, size - 1, Heading::east), EdgeState::wall);
     }
   }
+}
+
+GTEST_TEST(MazeStartDeduction, NonFiniteWeightsAreIgnored)
+{
+  StartDeduction deduction;
+  const float nan = std::numeric_limits<float>::quiet_NaN(), inf = std::numeric_limits<float>::infinity();
+  for(const float weight : {nan, inf, -inf, 0.f, -1.f})
+    EXPECT_EQ(deduction.observeEdge({0, 0}, Heading::east, false, weight), 0) << weight;
+  EXPECT_EQ(deduction.aliveCount(), 8);
+  EXPECT_EQ(deduction.conflicts, 0);
+
+  // A NaN distance gives a NaN weight in the look-ahead.
+  const MazeMapFusion weights;
+  const std::vector<CellObservation> cells = {{0, EdgeState::open, EdgeState::open, EdgeState::open, nan}};
+  EXPECT_EQ(deduction.observeCellsAhead({0, 0}, Heading::north, cells, weights), 0);
+  EXPECT_EQ(deduction.aliveCount(), 8);
+  // The garbage is not in the log either.
+  MazeMapFusion replayed;
+  deduction.replay(StartDeduction::hypotheses()[0], replayed, MazeTagLayout());
+  EXPECT_TRUE(replayed == MazeMapFusion());
+}
+
+GTEST_TEST(MazeStartDeduction, SettingTheGivenStartStartsOver)
+{
+  StartDeduction deduction;
+  for(int i = 0; i < 2; ++i)
+    deduction.observeEdge({0, 0}, Heading::east, false, 1.f, static_cast<unsigned>(i) * 300);
+  deduction.observePosition({0, 1});
+  const MazeTagLayout layout;
+  const SeenTag contradicting = seen(StartDeduction::hypotheses()[2], 6, Heading::south);
+  deduction.observeTag(6, contradicting.position, contradicting.normal, 0, layout);
+  ASSERT_NE(deduction.working(), (Hypothesis{63, Heading::north}));
+  const int revision = deduction.revision;
+
+  ASSERT_TRUE(deduction.setGiven(63, Heading::north));
+  EXPECT_EQ(deduction.revision, revision + 1);
+  EXPECT_EQ(deduction.conflicts, 0);
+  MazeMapFusion replayed;
+  deduction.replay(deduction.working(), replayed, layout);
+  MazeMapFusion fresh;
+  fresh.startCell = 63;
+  EXPECT_TRUE(replayed == fresh); // Nothing carried over.
+
+  // Giving the hypothesis that already works does not change the revision.
+  ASSERT_TRUE(deduction.setGiven(63, Heading::north));
+  EXPECT_EQ(deduction.revision, revision + 1);
+}
+
+GTEST_TEST(MazeStartDeduction, ReplayMarksOnlyCellsInsideTheGrid)
+{
+  StartDeduction deduction;
+  deduction.observePosition({0, 0});
+  deduction.observePosition({0, 1}); // Inside the maze only under (0, east), (7, south), (56, north) and (63, west).
+  deduction.observePosition({1, 0}); // Behind the start: outside under every hypothesis.
+  MazeMapFusion replayed;
+  deduction.replay(StartDeduction::hypotheses()[1], replayed, MazeTagLayout()); // (0, south): the right of the start is outside.
+  int visited = 0;
+  for(int cell = 0; cell < cellCount; ++cell)
+    visited += replayed.visited(cellRow(cell), cellCol(cell)) ? 1 : 0;
+  EXPECT_EQ(visited, 1);
+  EXPECT_TRUE(replayed.visited(0, 0));
+}
+
+GTEST_TEST(MazeStartDeduction, ClockFilterDropsOutOfOrderObservationsWithoutMovingTheClock)
+{
+  StartDeduction deduction;
+  // 1000 is accepted; 800 is out of order and must not move the edge's clock back, or 1100 (300 after it) would be accepted.
+  for(const unsigned time : {1000u, 800u, 1100u, 1400u})
+    deduction.observeEdge({0, 0}, Heading::east, false, 1.f, time);
+  EXPECT_EQ(deduction.aliveCount(), 8); // Accepted: 1000 and 1400.
+  EXPECT_EQ(deduction.observeEdge({0, 0}, Heading::east, false, 1.f, 1700), 4);
+}
+
+GTEST_TEST(MazeStartDeduction, ClockFilterAcceptsAClockRestart)
+{
+  StartDeduction deduction;
+  deduction.observeEdge({0, 0}, Heading::east, false, 1.f, 20000);
+  deduction.observeEdge({0, 0}, Heading::east, false, 1.f, 300); // More than clockRestartThreshold older: a new session.
+  EXPECT_EQ(deduction.aliveCount(), 8);
+  EXPECT_EQ(deduction.observeEdge({0, 0}, Heading::east, false, 1.f, 600), 4);
+
+  // A jump back of less than the threshold is only out of order.
+  StartDeduction outOfOrder;
+  outOfOrder.observeEdge({0, 0}, Heading::east, false, 1.f, 20000);
+  outOfOrder.observeEdge({0, 0}, Heading::east, false, 1.f, 15000);
+  outOfOrder.observeEdge({0, 0}, Heading::east, false, 1.f, 10000);
+  EXPECT_EQ(outOfOrder.aliveCount(), 8);
 }
