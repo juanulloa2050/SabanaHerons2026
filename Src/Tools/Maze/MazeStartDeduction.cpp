@@ -52,6 +52,17 @@ namespace Maze
     return all;
   }
 
+  const char* evidenceName(Evidence kind)
+  {
+    switch(kind)
+    {
+      case Evidence::tag: return "tag";
+      case Evidence::edge: return "boundary edge";
+      case Evidence::position: return "position";
+      default: return "unknown";
+    }
+  }
+
   int StartDeduction::indexOf(int cell, Heading heading)
   {
     const auto& all = hypotheses();
@@ -108,6 +119,7 @@ namespace Maze
     freezeLog();
     edges.clear();
     conflicts = 0;
+    lastConflict = Evidence::none;
     if(index != before)
       ++revision;
     return true;
@@ -140,7 +152,7 @@ namespace Maze
     return static_cast<int>(std::find(aliveMask.begin(), aliveMask.end(), true) - aliveMask.begin());
   }
 
-  int StartDeduction::remove(const std::array<bool, hypothesisCount>& doomed)
+  int StartDeduction::remove(const std::array<bool, hypothesisCount>& doomed, Evidence kind)
   {
     int removed = 0, left = aliveCount();
     for(int i = 0; i < hypothesisCount; ++i)
@@ -149,6 +161,7 @@ namespace Maze
       return 0;
     if(removed >= left)
     {
+      lastConflict = kind;
       ++conflicts; // The evidence contradicts every hypothesis that is left: believe none of it.
       return 0;
     }
@@ -191,7 +204,7 @@ namespace Maze
       }
       doomed[static_cast<std::size_t>(i)] = !explained;
     }
-    return remove(doomed);
+    return remove(doomed, Evidence::tag);
   }
 
   bool StartDeduction::acceptedByClock(EdgeEvidence& evidence, unsigned time) const
@@ -238,7 +251,7 @@ namespace Maze
     std::array<bool, hypothesisCount> doomed = {};
     for(int i = 0; i < hypothesisCount; ++i)
       doomed[static_cast<std::size_t>(i)] = alive(i) && edgeOnBoundary(hypotheses()[static_cast<std::size_t>(i)], cell, side);
-    return remove(doomed);
+    return remove(doomed, Evidence::edge);
   }
 
   int StartDeduction::observeCellsAhead(GridCell robot, Heading gaze, const std::vector<CellObservation>& cells, const MazeMapFusion& weights, unsigned time)
@@ -271,7 +284,7 @@ namespace Maze
       const GridCell inMaze = toMaze(hypotheses()[static_cast<std::size_t>(i)], cell);
       doomed[static_cast<std::size_t>(i)] = alive(i) && !inside(inMaze.row, inMaze.col);
     }
-    return remove(doomed);
+    return remove(doomed, Evidence::position);
   }
 
   void StartDeduction::replay(const Hypothesis& hypothesis, MazeMapFusion& fusion, const MazeTagLayout& layout) const

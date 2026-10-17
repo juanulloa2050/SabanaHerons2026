@@ -58,6 +58,7 @@
 #include "Representations/Sensing/FallDownState.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
 #include "Tools/Maze/MazeBehavior.h"
+#include "Tools/Maze/MazeDrive.h"
 #include "Tools/Maze/MazeSession.h"
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"

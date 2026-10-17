@@ -81,8 +81,13 @@ void MazeLocalizer::step()
   followStart();
 
   // Positioned at start: on the first frame and whenever the robot becomes active (playing, on the ground).
-  if(session.update(Maze::isActive(theGameState.isPlaying(), theFallDownState.state)).resetPose())
+  const Maze::PlayingTransition transition = session.update(Maze::isActive(theGameState.isPlaying(), theFallDownState.state));
+  if(transition.resetPose())
+  {
+    OUTPUT_TEXT("MazeLocalizer: pose reset to the start (cell " << frame.cell << "): "
+                << (transition.firstFrame ? "first frame" : "the robot is active again (back from pick-up or pause)") << ".");
     resetToStart(yaw);
+  }
 
   // The odometry delta in the robot frame of the last frame, with the optional simulated noise.
   Pose2f delta;

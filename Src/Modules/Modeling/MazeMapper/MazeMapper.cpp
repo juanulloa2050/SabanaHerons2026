@@ -145,7 +145,7 @@ void MazeMapper::step()
   {
     const Maze::StartStatus status = anchored.status();
     OUTPUT_WARNING("MazeMapper: an observation contradicts the " << (status.given ? "given" : "only remaining") << " start (cell " << status.working.cell
-                   << "), it is not followed. Conflicts so far: " << status.conflicts << ".");
+                   << "), it is not followed. Latest: " << Maze::evidenceName(status.lastConflict) << ". Conflicts so far: " << status.conflicts << ".");
   }
   if(anchored.takeLogOverflowWarning())
     OUTPUT_WARNING("MazeMapper: the start is still unknown after " << static_cast<unsigned>(Maze::StartDeduction::maxLogEntries) << " observations, the map can no longer be re-anchored completely.");

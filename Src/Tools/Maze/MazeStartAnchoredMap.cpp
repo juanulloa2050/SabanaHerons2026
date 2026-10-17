@@ -146,6 +146,7 @@ namespace Maze
       status.aliveMask |= startDeduction.alive(i) ? 1u << i : 0u;
     status.revision = startDeduction.revision;
     status.conflicts = startDeduction.conflicts;
+    status.lastConflict = startDeduction.lastConflict;
     status.logOverflowed = startDeduction.logOverflowed();
     return status;
   }

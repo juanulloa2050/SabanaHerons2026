@@ -62,6 +62,18 @@ namespace Maze
     float tagPositionTolerance = 200.f;                 /**< Largest distance (mm) between the tag and the centre of the face that explains it. */
   };
 
+  /** The kinds of observation that can remove a start hypothesis, for the conflict report. */
+  enum class Evidence
+  {
+    none,
+    tag,      /**< A decoded AprilTag whose id and face no hypothesis explains. */
+    edge,     /**< Open evidence on an edge that is outer boundary or outside the maze. */
+    position, /**< The robot cell is outside the maze. */
+  };
+
+  /** @return "tag", "boundary edge" or "position" for logs. */
+  [[nodiscard]] const char* evidenceName(Evidence kind);
+
   class StartDeduction
   {
   public:
@@ -163,6 +175,7 @@ namespace Maze
 
     DeductionParameters parameters;
     int conflicts = 0; /**< Observations that would have removed the last alive hypothesis (or the given one). */
+    Evidence lastConflict = Evidence::none; /**< What kind of observation caused the latest conflict. */
     int revision = 0;  /**< Grows whenever the working hypothesis changes. */
 
   private:
@@ -191,7 +204,7 @@ namespace Maze
     void record(const Entry& entry);
 
     /** Removes the hypotheses in `doomed` unless that would leave none; counts a conflict then. */
-    int remove(const std::array<bool, hypothesisCount>& doomed);
+    int remove(const std::array<bool, hypothesisCount>& doomed, Evidence kind);
 
     [[nodiscard]] bool acceptedByClock(EdgeEvidence& evidence, unsigned time) const;
     [[nodiscard]] bool edgeOnBoundary(const Hypothesis& hypothesis, GridCell cell, Heading side) const;

@@ -46,6 +46,7 @@ namespace Maze
     unsigned aliveMask = (1u << StartDeduction::hypothesisCount) - 1u;
     int revision = 0;
     int conflicts = 0;
+    Evidence lastConflict = Evidence::none; /**< The kind of the latest observation that contradicted the start. */
     bool logOverflowed = false;
   };
 

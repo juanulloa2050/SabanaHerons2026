@@ -42,6 +42,27 @@ namespace Maze
   /** Whether the planner can use `costs`: a step must take time, otherwise the shortest-route search is not well defined. */
   [[nodiscard]] bool costsValid(const MazeCosts& costs);
 
+  /** @return `costs` if the planner can use them, otherwise the defaults of `MazeCosts`. */
+  [[nodiscard]] MazeCosts validCosts(const MazeCosts& costs);
+
+  /** The inputs a computed plan depends on: the costs, the map (its change counter) and the pose. A plan is reused while the key is equal. */
+  struct PlanKey
+  {
+    MazeCosts costs;
+    unsigned mapChangeCounter = 0;
+    int row = 0;
+    int col = 0;
+    int heading = 0;
+    bool valid = false; /**< The pose is inside the maze. */
+
+    [[nodiscard]] bool operator==(const PlanKey& other) const
+    {
+      return costs.forwardMs == other.costs.forwardMs && costs.startMs == other.costs.startMs && costs.turn90Ms == other.costs.turn90Ms &&
+             costs.turn180Ms == other.costs.turn180Ms && mapChangeCounter == other.mapChangeCounter && row == other.row && col == other.col &&
+             heading == other.heading && valid == other.valid;
+    }
+  };
+
   /**
    * Both routes from `start` over `map`. `start.moving` is taken as given: the robot stands in a cell when it plans, so it
    * should be false, which charges the start-up time of the first step.

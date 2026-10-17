@@ -28,7 +28,7 @@ void MazePlannerProvider::ensureValidCosts()
   if(Maze::costsValid(costs()))
     return;
   OUTPUT_ERROR("MazePlannerProvider: mazePlanner.cfg: forwardMs, turn90Ms and turn180Ms must be positive and startMs not negative, using the defaults.");
-  const Maze::MazeCosts defaults;
+  const Maze::MazeCosts defaults = Maze::validCosts(costs());
   forwardMs = defaults.forwardMs;
   startMs = defaults.startMs;
   turn90Ms = defaults.turn90Ms;
@@ -45,13 +45,16 @@ Maze::MazeCosts MazePlannerProvider::costs() const
   return result;
 }
 
-bool MazePlannerProvider::upToDate() const
+Maze::PlanKey MazePlannerProvider::currentKey() const
 {
-  const Maze::MazeCosts current = costs();
-  return computed && current.forwardMs == plannedCosts.forwardMs && current.startMs == plannedCosts.startMs &&
-         current.turn90Ms == plannedCosts.turn90Ms && current.turn180Ms == plannedCosts.turn180Ms &&
-         cached.mapChangeCounter == theMazeMap.changeCounter && cached.row == theMazeCellPose.row && cached.col == theMazeCellPose.col &&
-         cached.heading == theMazeCellPose.heading && cached.valid == theMazeCellPose.insideMaze;
+  Maze::PlanKey key;
+  key.costs = costs();
+  key.mapChangeCounter = theMazeMap.changeCounter;
+  key.row = theMazeCellPose.row;
+  key.col = theMazeCellPose.col;
+  key.heading = static_cast<int>(theMazeCellPose.heading);
+  key.valid = theMazeCellPose.insideMaze;
+  return key;
 }
 
 void MazePlannerProvider::fill(MazeRoute& route, const Maze::RouteResult& result)
@@ -81,7 +84,8 @@ void MazePlannerProvider::fill(MazeRoute& route, const Maze::RouteResult& result
 void MazePlannerProvider::update(MazePlan& mazePlan)
 {
   ensureValidCosts(); // The parameters can be changed at runtime (set parameters), not only when the module is created.
-  if(!upToDate())
+  const Maze::PlanKey key = currentKey();
+  if(!computed || !(key == plannedKey))
   {
     const unsigned revision = computed ? cached.revision + 1 : 1;
     cached = MazePlan();
@@ -92,7 +96,7 @@ void MazePlannerProvider::update(MazePlan& mazePlan)
     cached.heading = theMazeCellPose.heading;
     cached.mapChangeCounter = theMazeMap.changeCounter;
     cached.valid = theMazeCellPose.insideMaze;
-    plannedCosts = costs();
+    plannedKey = key;
     computed = true;
     if(cached.valid)
     {

@@ -10,8 +10,10 @@
 #include "Tools/Maze/MazeBehavior.h"
 
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 namespace
 {
@@ -353,9 +355,11 @@ GTEST_TEST(MazeAnnounce, EnabledFalseSilencesAndOtherEntriesAreIgnored)
 {
   static const bool registered = (FunctionList::execute(), true);
   (void) registered;
-  const std::string path = std::string(File::getBHDir()) + "/Build/Linux/Tests/mazeAnnounceTest.cfg";
+  // The temporary directory exists and is writable on every machine; the stream is checked so that a failure is not mistaken for a missing file.
+  const std::string path = (std::filesystem::temp_directory_path() / ("mazeAnnounceTest" + std::to_string(::getpid()) + ".cfg")).string();
   {
     std::ofstream out(path);
+    ASSERT_TRUE(out.is_open()) << path;
     out << "start = {cell = 63; heading = north;};\nannounce = {\n  enabled = false;\n};\n";
   }
   AnnounceFile file;

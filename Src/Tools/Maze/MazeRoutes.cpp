@@ -37,6 +37,11 @@ namespace Maze
     return costs.forwardMs > 0 && costs.startMs >= 0 && costs.turn90Ms > 0 && costs.turn180Ms > 0;
   }
 
+  MazeCosts validCosts(const MazeCosts& costs)
+  {
+    return costsValid(costs) ? costs : MazeCosts();
+  }
+
   RoutePair planRoutes(const MazeGraph& map, const MazeState& start, const MazeCosts& costs)
   {
     RoutePair pair;

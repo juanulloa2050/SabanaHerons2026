@@ -46,7 +46,7 @@ static constexpr int motionTestCells = 4;
 static constexpr int motionTestPauseTime = 2000;
 
 /** The time the robot waits after announcing something until it accepts the next tap (in ms). */
-static constexpr int mazeAnnouncementTime = 1500;
+static constexpr int mazeAnnouncementTime = static_cast<int>(Maze::announcementTimeMs);
 
 /** A tag that was last seen longer ago than this is announced as "no tag" (in ms). */
 static constexpr int tagMemoryTime = 2000;
@@ -56,15 +56,6 @@ static constexpr int motionTestWalkTimeout = 30000;
 
 /** The maximum time a turning step of the motion test may take before the test is aborted (in ms). */
 static constexpr int motionTestTurnTimeout = 15000;
-
-/** The maximum time a walk to a neighbouring cell may take before the plan is read again (in ms). */
-static constexpr int mazeWalkTimeout = 20000;
-
-/** The maximum time a turn may take before the plan is read again (in ms). */
-static constexpr int mazeTurnTimeout = 12000;
-
-/** The maximum time a wall scan may take before the plan is read again (in ms). */
-static constexpr int mazeScanTimeout = 2500;
 
 /** The number of steps of the motion test: walk forward, turn left, turn right, turn around. */
 static constexpr int motionTestNumOfSteps = 4;
@@ -95,76 +86,31 @@ std::string currentTagAnnouncement() const
   return Maze::tagPhrase(lastTagId, theFrameInfo.getTimeSince(lastTagTime) <= tagMemoryTime);
 }
 
-/** What the drive option of an attempt is doing. */
-enum class MazeDriveKind
-{
-  idle,   /**< Standing: there is no route (or no pose) to follow. */
-  walk,   /**< MazeFollowCorridor to the neighbouring cell. */
-  turn,   /**< MazeTurn to the next heading. */
-  scan,   /**< MazeScanWalls in a cell with unknown edges. */
-};
-
-/** What to do next at a cell centre. */
-enum class MazeDriveNext
-{
-  idle,
-  walk,
-  turn,
-  scan,
-  keep, /**< The plan does not describe the current pose yet: go on with the current action. */
-};
-
 Maze::MazeBehavior mazeBehavior; /**< The phase of the attempt. */
 bool announceEnabled = true; /**< `announce.enabled` of handleMaze.cfg, read by the constructor. */
-std::vector<std::string> speechQueue; /**< What the robot has still to say; the first one is being said. */
-bool speechRunning = false; /**< The first phrase of the queue has been handed to Say. */
-unsigned speechStartTime = 0; /**< The time when the first phrase of the queue was handed to Say. */
-bool speechPause = false; /**< Skip one frame so that Say forgets the last phrase and says the same one again. */
+Maze::SpeechQueue speechQueue; /**< What the robot has still to say (bounded, see Maze::maxQueuedPhrases). */
 bool motionTestRunning = false; /**< The motion test (or its announcement) is running: head taps do not start an attempt. */
 unsigned ignoreTapsUntil = 0; /**< The end of a motion test can report a tap late; it does not start an attempt. */
 
 bool driveSpeedRun = false; /**< The route that MazeDrive follows: the speed run (true) or the exploration. */
-MazeDriveKind driveKind = MazeDriveKind::idle; /**< The action that is running. */
-unsigned driveStartTime = 0; /**< The time when it started. */
-int lockedRow = 0; /**< The target of the running walk, or the cell of the running turn. */
-int lockedCol = 0;
-MazeCellPose::Heading lockedHeading = MazeCellPose::north; /**< The heading to keep (walk) or to reach (turn). */
-int scannedCell = -1; /**< The cell where the walls were scanned last in this attempt. */
-bool noRouteReported = false; /**< "No route" was written to the console since the last route. */
+Maze::DriveController drive; /**< The action that runs, its target and the scan bookkeeping. */
 
 /** Queues something to say; nothing is said if the announcements are off. */
 void queueSpeech(const std::string& text)
 {
   if(announceEnabled)
-    speechQueue.push_back(text);
+    speechQueue.push(text);
 }
 
 /**
- * Says the queued phrases one after the other, each for mazeAnnouncementTime. It only calls Say, so it runs in parallel
- * with the motion skills and never blocks them. Say drops the same text twice in a row until it was not called for a frame,
- * so a frame without the call separates the phrases.
+ * Says the queued phrases one after the other, each for Maze::announcementTimeMs. It only calls Say, so it runs in parallel
+ * with the motion skills and never blocks them. The queue leaves a frame without a phrase between two phrases, so that Say,
+ * which drops the same text twice in a row, says the same phrase again.
  */
 void speak()
 {
-  if(speechQueue.empty())
-    return;
-  if(speechPause)
-  {
-    speechPause = false;
-    return;
-  }
-  if(!speechRunning)
-  {
-    speechRunning = true;
-    speechStartTime = theFrameInfo.time;
-  }
-  theSaySkill({.text = speechQueue.front()});
-  if(theFrameInfo.getTimeSince(speechStartTime) >= mazeAnnouncementTime)
-  {
-    speechQueue.erase(speechQueue.begin());
-    speechRunning = false;
-    speechPause = true;
-  }
+  if(const std::optional<std::string> text = speechQueue.update(theFrameInfo.time))
+    theSaySkill({.text = *text});
 }
 
 /** @return Whether a head front tap happened in this frame (a button, or the debug request in SimRobot). */
@@ -231,11 +177,15 @@ void logSpeedRun() const
 void enterPhase(Maze::Phase phase)
 {
   OUTPUT_TEXT("HandleMaze: " << Maze::phaseName(phase) << ".");
-  driveKind = MazeDriveKind::idle;
-  scannedCell = -1;
-  noRouteReported = false;
+  drive.reset();
   if(phase == Maze::Phase::speedRun)
     logSpeedRun();
+}
+
+/** @return The heading to keep (walk) or to reach (turn) as the skills take it. */
+MazeCellPose::Heading lockedHeading() const
+{
+  return static_cast<MazeCellPose::Heading>(static_cast<int>(drive.targetHeading()));
 }
 
 /** @return Whether the plan was computed for the pose the robot has now. */
@@ -257,17 +207,22 @@ bool currentCellHasUnknownEdges() const
 /** @return Whether the action that runs is over: done, or too slow, so that the plan is read again. */
 bool driveActionOver() const
 {
-  switch(driveKind)
+  bool skillDone = false;
+  switch(drive.kind())
   {
-    case MazeDriveKind::walk:
-      return theMazeFollowCorridorSkill.isDone() || theFrameInfo.getTimeSince(driveStartTime) > mazeWalkTimeout;
-    case MazeDriveKind::turn:
-      return theMazeTurnSkill.isDone() || theFrameInfo.getTimeSince(driveStartTime) > mazeTurnTimeout;
-    case MazeDriveKind::scan:
-      return theMazeScanWallsSkill.isDone() || theFrameInfo.getTimeSince(driveStartTime) > mazeScanTimeout;
+    case Maze::DriveKind::walk:
+      skillDone = theMazeFollowCorridorSkill.isDone();
+      break;
+    case Maze::DriveKind::turn:
+      skillDone = theMazeTurnSkill.isDone();
+      break;
+    case Maze::DriveKind::scan:
+      skillDone = theMazeScanWallsSkill.isDone();
+      break;
     default:
-      return true;
+      break;
   }
+  return drive.actionOver(skillDone, theFrameInfo.time);
 }
 
 /**
@@ -275,38 +230,25 @@ bool driveActionOver() const
  * whenever the map learns an edge, so only its first action is binding; the speed run takes the first action of the
  * route as well, which is the same list because the map no longer changes along known-open edges.
  */
-MazeDriveNext chooseNextDriveAction(bool speedRun)
+Maze::DriveNext chooseNextDriveAction(bool speedRun)
 {
-  if(!planCurrent())
-    return theMazePlan.valid ? MazeDriveNext::keep : MazeDriveNext::idle;
   const MazeRoute& route = speedRun ? theMazePlan.speedRun : theMazePlan.exploration;
-  if(!route.found || route.nextAction == MazeRoute::none)
-  {
-    if(!noRouteReported)
-      OUTPUT_TEXT("HandleMaze: no " << (speedRun ? "speed run" : "exploration") << " route from cell " << theMazeCellPose.cell() << ", standing.");
-    noRouteReported = true;
-    return MazeDriveNext::idle;
-  }
-  noRouteReported = false;
-  const unsigned now = theFrameInfo.time;
-  if(!speedRun && scannedCell != theMazeCellPose.cell() && currentCellHasUnknownEdges())
-  {
-    scannedCell = theMazeCellPose.cell();
-    driveStartTime = now;
-    driveKind = MazeDriveKind::scan;
-    return MazeDriveNext::scan;
-  }
-  lockedRow = route.targetRow;
-  lockedCol = route.targetCol;
-  lockedHeading = route.targetHeading;
-  driveStartTime = now;
-  if(route.nextAction == MazeRoute::forward)
-  {
-    driveKind = MazeDriveKind::walk;
-    return MazeDriveNext::walk;
-  }
-  driveKind = MazeDriveKind::turn;
-  return MazeDriveNext::turn;
+  Maze::DriveInput input;
+  input.speedRun = speedRun;
+  input.planValid = theMazePlan.valid;
+  input.planCurrent = planCurrent();
+  input.routeFound = route.found;
+  input.hasAction = route.nextAction != MazeRoute::none;
+  input.nextAction = static_cast<Maze::Action>(static_cast<int>(route.nextAction));
+  input.targetRow = route.targetRow;
+  input.targetCol = route.targetCol;
+  input.targetHeading = static_cast<Maze::Heading>(static_cast<int>(route.targetHeading));
+  input.cell = theMazeCellPose.cell();
+  input.unknownEdges = currentCellHasUnknownEdges();
+  const Maze::DriveDecision decision = drive.choose(input, theFrameInfo.time);
+  if(decision.reportNoRoute)
+    OUTPUT_TEXT("HandleMaze: no " << (speedRun ? "speed run" : "exploration") << " route from cell " << theMazeCellPose.cell() << ", standing.");
+  return decision.next;
 }
 
 int motionTestStep = 0; /**< The step of the motion test that is currently executed (or the next one during a pause). */
@@ -439,13 +381,13 @@ option(MazeDrive)
     {
       switch(chooseNextDriveAction(driveSpeedRun))
       {
-        case MazeDriveNext::walk:
+        case Maze::DriveNext::walk:
           goto walk;
-        case MazeDriveNext::turn:
+        case Maze::DriveNext::turn:
           goto turn;
-        case MazeDriveNext::scan:
+        case Maze::DriveNext::scan:
           goto scan;
-        case MazeDriveNext::idle:
+        case Maze::DriveNext::idle:
           goto idle;
         default: // keep
           break;
@@ -467,9 +409,9 @@ option(MazeDrive)
     action
     {
       theLookForwardSkill();
-      theMazeFollowCorridorSkill({.targetRow = lockedRow,
-                                  .targetCol = lockedCol,
-                                  .heading = lockedHeading});
+      theMazeFollowCorridorSkill({.targetRow = drive.targetRow(),
+                                  .targetCol = drive.targetCol(),
+                                  .heading = lockedHeading()});
     }
   }
 
@@ -478,7 +420,7 @@ option(MazeDrive)
     action
     {
       theLookForwardSkill();
-      theMazeTurnSkill({.heading = lockedHeading});
+      theMazeTurnSkill({.heading = lockedHeading()});
     }
   }
 

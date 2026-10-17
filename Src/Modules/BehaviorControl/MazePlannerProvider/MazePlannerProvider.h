@@ -57,13 +57,13 @@ private:
   /** Replaces invalid costs by the defaults (with an error), at start-up and whenever the parameters change. */
   void ensureValidCosts();
 
-  /** Whether the cached plan was computed for the current inputs (map, pose and costs). */
-  bool upToDate() const;
+  /** The inputs (map, pose and costs) that a plan depends on; the cached plan is reused while it is unchanged. */
+  Maze::PlanKey currentKey() const;
 
   /** Copies a route of the planner into the representation. */
   static void fill(MazeRoute& route, const Maze::RouteResult& result);
 
   MazePlan cached;
-  Maze::MazeCosts plannedCosts; /**< The costs `cached` was computed with. */
+  Maze::PlanKey plannedKey; /**< The inputs `cached` was computed from. */
   bool computed = false;
 };

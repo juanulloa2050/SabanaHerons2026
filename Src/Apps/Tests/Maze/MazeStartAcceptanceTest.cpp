@@ -297,3 +297,41 @@ GTEST_TEST(MazeStartAcceptance, AfterAPickUpTheLocalizerIsPutAtTheStartOfTheWork
   EXPECT_LT(run.headingError(), 0.01f);
   EXPECT_EQ(run.anchored.map().attempt, 2);
 }
+
+GTEST_TEST(MazeStartAcceptance, ACarriedRobotPutDownElsewhereCountsConflictsAndNeverChangesTheKnownStart)
+{
+  // What happens when the robot is picked up and put down in another cell: the localizer cannot know that, so it puts the pose
+  // at the start while the truth is somewhere else. The tags it then sees contradict the pose, which the deduction counts as
+  // conflicts. The start is known by then (one hypothesis is left), so nothing is removed and nothing is re-anchored.
+  const Hypothesis truth = {63, Heading::west};
+  Config config = exact(loadFixture(truth), everyFace());
+  config.startGiven = false;
+  WalkingRobot run(config);
+  run.stand(2);
+  ASSERT_TRUE(run.anchored.status().known);
+  ASSERT_EQ(run.localizerStart(), truth);
+  run.perform(Action::forward);
+  const StartStatus before = run.anchored.status();
+
+  run.setPickedUp(true);
+  run.carryTo(cellId(3, 3), Heading::north); // Put down far from the start cell ...
+  run.setPickedUp(false);                    // ... and the pose is put at the start again.
+  EXPECT_EQ(run.resets, 2u) << "the first frame and the return to active";
+  EXPECT_GT(run.positionError(), 500.f) << "the pose is at the start, the truth is somewhere else";
+  run.stand(120);
+  run.perform(Action::forward);
+
+  const StartStatus after = run.anchored.status();
+  note("carried from the start area to cell 27 and put down: position error " + std::to_string(run.positionError()) + " mm, conflicts " +
+       std::to_string(before.conflicts) + " -> " + std::to_string(after.conflicts) + ", revision " + std::to_string(before.revision) + " -> " +
+       std::to_string(after.revision));
+  EXPECT_TRUE(after.known);
+  EXPECT_EQ(after.working, truth) << "the start hypothesis does not change";
+  EXPECT_EQ(after.revision, before.revision) << "nothing is re-anchored";
+  EXPECT_EQ(run.anchored.anchor(), truth);
+  EXPECT_EQ(run.localizerStart(), truth);
+  EXPECT_EQ(after.aliveCount, 1);
+  EXPECT_GT(after.conflicts, before.conflicts) << "the tags of the real cell contradict the pose at the start";
+  EXPECT_NE(after.lastConflict, Evidence::none);
+  note(std::string("the latest conflict was a ") + evidenceName(after.lastConflict));
+}
