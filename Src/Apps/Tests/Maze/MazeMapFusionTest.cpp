@@ -228,17 +228,36 @@ GTEST_TEST(MazeMapFusion, ARepeatedFrameCannotFlipADecidedWall)
   EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
 }
 
-GTEST_TEST(MazeMapFusion, TheIntervalAppliesToTagsAndSurvivesAClockThatWentBack)
+GTEST_TEST(MazeMapFusion, TheIntervalAppliesToTags)
 {
   MazeMapFusion fusion;
   EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 100));
   EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 150)); // too soon: dropped
   EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 350));
   EXPECT_TRUE(fusion.observeTag(cellId(2, 2), Heading::east, 600));
-  fusion.parameters.minObservationInterval = 250.f;
-  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 10)); // the clock went back: accepted (no change, the wall is decided)
-  fusion.parameters.minObservationInterval = 0.f;
-  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 10)); // no interval: never too soon
+}
+
+GTEST_TEST(MazeMapFusion, AnOutOfOrderObservationDoesNotShortenTheInterval)
+{
+  MazeMapFusion fusion;
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 1000)); // wall percept
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 2), Heading::east, 900)); // older tag percept: rejected, the clock stays at 1000
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 1150)); // still blocked, needs >= 1250
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, true, 1.f, 1250)); // second counted observation
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::unknown);
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, true, 1.f, 1500)); // third decides
+}
+
+GTEST_TEST(MazeMapFusion, ALargeBackwardJumpIsANewSession)
+{
+  MazeMapFusion fusion;
+  fusion.observe(2, 2, Heading::east, true, 1.f, 100000);
+  fusion.observe(2, 2, Heading::east, true, 1.f, 100250);
+  // The clock restarted: accepted, as the third observation, and the edge is decided.
+  EXPECT_TRUE(fusion.observe(2, 2, Heading::east, true, 1.f, 0));
+  EXPECT_EQ(fusion.graph.get(2, 2, Heading::east), EdgeState::wall);
+  // The new clock rules from here on.
+  EXPECT_FALSE(fusion.observe(2, 2, Heading::east, false, 1.f, 100)); // too soon after 0
 }
 
 GTEST_TEST(MazeMapFusion, NearCellCentreIsMeasuredPerAxis)

@@ -40,9 +40,13 @@ namespace Maze
     const std::size_t edge = index(row, col, heading);
     if(time != untimed)
     {
-      // A clock that went backwards (new session) does not block the edge.
+      // An out-of-order observation (a tag percept older than the last wall percept, both on the Upper clock) is dropped and
+      // must not move the edge's clock back, or it would shorten the interval of the next observation. A jump back larger than
+      // `clockRestartThreshold` is a new session (the clock restarted) and is accepted.
+      const bool restarted = hasObservation[edge] && time < lastObservation[edge] && static_cast<float>(lastObservation[edge] - time) > parameters.clockRestartThreshold;
+      const bool outOfOrder = hasObservation[edge] && time < lastObservation[edge] && !restarted;
       const bool tooSoon = hasObservation[edge] && time >= lastObservation[edge] && static_cast<float>(time - lastObservation[edge]) < parameters.minObservationInterval;
-      if(tooSoon)
+      if(tooSoon || outOfOrder)
         return false;
       hasObservation[edge] = true;
       lastObservation[edge] = time;

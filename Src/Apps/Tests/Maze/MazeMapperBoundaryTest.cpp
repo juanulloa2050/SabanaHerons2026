@@ -4,7 +4,7 @@
  * Regression for the map that erased known walls (ticket MZ-020, SimRobot report). The oracle describes the cell the robot
  * is TRUE in, while the mapper writes it on the cell it ESTIMATES the robot in. While the two differ (a robot dragged in the
  * scene, or an error near a cell boundary) an open edge of the true cell landed on the wrong cell and flipped a decided wall
- * within a few Cognition frames. These runs use the maze of the scene, a percept in every Cognition frame (about 60 Hz, each
+ * within a few Cognition frames. These runs use the fixture maze Config/Mazes/fixtures/boundary_test.maze (a copy of a scene maze, so regenerating the scene cannot change them), a percept in every Cognition frame (about 60 Hz, each
  * with a new timestamp) and zero odometry.
  */
 
@@ -29,7 +29,9 @@ namespace
   {
     MazeDescription maze;
     std::string error;
-    EXPECT_TRUE(MazeFile::load(std::string(File::getBHDir()) + "/Config/Scenes/Includes/Maze/current.maze", maze, error)) << error;
+    EXPECT_TRUE(MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/fixtures/boundary_test.maze", maze, error)) << error;
+    EXPECT_EQ(maze.graph.get(2, 4, Heading::east), EdgeState::wall) << "fixture premise: cell 20 has a wall to the east";
+    EXPECT_EQ(maze.graph.get(2, 3, Heading::east), EdgeState::open) << "fixture premise: cells 19 and 20 are open to each other";
     maze.startCell = startCell;
     maze.startHeading = Heading::south;
     return maze;
@@ -119,4 +121,5 @@ GTEST_TEST(MazeMapperBoundary, AnEstimateAcrossTheBoundaryDoesNotWriteTheNeighbo
   std::cout << "[MZ-020] boundary: wrong edges after 3 s " << wrongEdges(run) << std::endl;
   EXPECT_EQ(run.fusion.graph.get(2, 4, Heading::east), EdgeState::wall) << "the east wall of cell 20 was erased";
   EXPECT_EQ(wrongEdges(run), 0);
+  EXPECT_GT(run.stats.skippedLookAheads, 0u) << "the centre gate never fired: the rate limit alone protected the wall";
 }

@@ -30,6 +30,7 @@ namespace Maze
     float zeroWeightDistance = 2500.f; /**< Wall observations from this distance (mm) have no weight; linear in between. */
     float tagWeight = 1.f;            /**< Weight of a decoded tag at any distance. */
     float minObservationInterval = 250.f; /**< An edge accepts at most one timed observation per this many ms (wall percepts and tags alike). */
+    float clockRestartThreshold = 10000.f; /**< A timed observation older than the edge's last one is dropped, unless it is more than this many ms older (the clock restarted: a new session). */
   };
 
   /** The `time` of an observation that is not subject to the per-edge rate limit. */
