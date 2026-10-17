@@ -2,7 +2,7 @@
  * @file Tools/Maze/MazeSession.h
  *
  * The stateful decisions of MazeLocalizer and MazeMapper that do not depend on representations, so that
- * they can be unit tested: when the robot is "active" (playing and standing on the ground), when it is
+ * they can be unit tested: when the robot is "active" (playing and not picked up), when it is
  * "positioned at start" (the first frame and every transition into active), when a new attempt begins,
  * and which parts of the map update run in a frame.
  */
@@ -14,12 +14,14 @@
 namespace Maze
 {
   /**
-   * Whether the robot takes part in an attempt: the game is playing and a foot touches the ground. A picked-up robot
-   * is not active even if the game still says playing, so lifting it ends the attempt like a pause does.
+   * Whether the robot takes part in an attempt: the game is playing and the robot is not picked up
+   * (`FallDownState::pickedUp`: upright without ground contact for a minimum time). A picked-up robot is not active
+   * even if the game still says playing, so lifting it ends the attempt like a pause does. A fall or a flicker of
+   * the ground contact is not a pick-up and does not end the attempt.
    */
-  [[nodiscard]] constexpr bool isActive(bool playing, bool groundContact)
+  [[nodiscard]] constexpr bool isActive(bool playing, bool pickedUp)
   {
-    return playing && groundContact;
+    return playing && !pickedUp;
   }
 
   /** What `PlayingTracker::update` found in one frame. */

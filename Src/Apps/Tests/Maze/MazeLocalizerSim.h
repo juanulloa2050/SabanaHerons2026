@@ -130,6 +130,7 @@ namespace Maze
       Pose2f truth;
       unsigned time = 1000;
       bool playing = true;
+      bool pickedUp = false;      /**< `FallDownState::pickedUp`: lifted off the ground. A fall is not a pick-up and leaves this false. */
       Config config;
       Stats stats;
       std::mt19937 rng;
@@ -223,13 +224,20 @@ namespace Maze
       {
         carryTo(cell, heading);
         localization.reset(cell, heading, Angle::normalize(truth.rotation + config.noise.gyroReference + gyroDrift()), time);
-        (void) localizerSession.update(isActive(playing, true)); // The first frame is over.
+        (void) localizerSession.update(isActive(playing, pickedUp)); // The first frame is over.
       }
 
       /** Moves the robot's state to not playing (pick-up, Standby) or back to playing; the frame runs with the new state. */
       void setPlaying(bool value)
       {
         playing = value;
+        tick();
+      }
+
+      /** Lifts the robot (a pick-up while the game keeps playing) or puts it down; the frame runs with the new state. */
+      void setPickedUp(bool value)
+      {
+        pickedUp = value;
         tick();
       }
 
@@ -278,7 +286,7 @@ namespace Maze
           localization.transform(StartDeduction::startToMaze(anchored.anchor()) * StartDeduction::startToMaze(localizerFrame).inverse());
           localizerFrame = anchored.anchor();
         }
-        if(localizerSession.update(isActive(playing, true)).resetPose())
+        if(localizerSession.update(isActive(playing, pickedUp)).resetPose())
         {
           localization.reset(localizerFrame.cell, localizerFrame.heading, gyroYaw, time);
           ++resets;
@@ -371,7 +379,7 @@ namespace Maze
       /** MazeMapper::step, every frame; the observations only when a percept arrived. */
       void mapperUpdate(const Percept& percept, const Pose2f& trueDelta)
       {
-        const bool active = isActive(playing, true);
+        const bool active = isActive(playing, pickedUp);
         if(mapperSession.update(active).newAttempt)
           anchored.newAttempt();
         const MapActions actions = mapActions(active, qualityAccepted(localization.quality(time), config.worstAcceptedQuality));

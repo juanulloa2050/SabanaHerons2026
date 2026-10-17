@@ -271,6 +271,53 @@ GTEST_TEST(MazeLocalizerAcceptance, PickUpAndStandbyKeepTheMapAndStartTheSecondA
   EXPECT_TRUE(run.cellCorrect());
 }
 
+GTEST_TEST(MazeLocalizerAcceptance, PickUpDuringPlayingStartsTheNextAttemptWhenPutDown)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.fusion().attempt, 1);
+  ASSERT_EQ(run.resets, 1u);
+
+  const MazeMapFusion before = run.fusion();
+  run.setPickedUp(true); // The game keeps playing.
+  run.carryTo(45, Heading::west);
+  run.stand(100);
+  EXPECT_TRUE(run.fusion() == before) << "the map must not learn while picked up";
+  EXPECT_EQ(run.fusion().attempt, 1);
+  run.carryTo(maze.startCell, maze.startHeading);
+  run.config.noise.dropoutRate = 1.f;
+  run.setPickedUp(false);
+  run.config.noise.dropoutRate = 0.f;
+  EXPECT_EQ(run.fusion().attempt, 2);
+  EXPECT_EQ(run.resets, 2u);
+  EXPECT_TRUE(run.fusion() == before) << "the map is kept";
+  const Vector2f startCentre = Oracle::cellCentreOf(cellRow(maze.startCell), cellCol(maze.startCell));
+  EXPECT_LT((run.localization.pose.translation - startCentre).norm(), 30.f);
+  EXPECT_EQ(run.localization.heading(), maze.startHeading);
+}
+
+GTEST_TEST(MazeLocalizerAcceptance, AFallDuringPlayingNeitherResetsThePoseNorCountsAnAttempt)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.resets, 1u);
+  const Vector2f poseBefore = run.localization.pose.translation;
+  // A fall (fallen/getting up) is not pickedUp: the sim's pickedUp stays false while the robot lies for a while.
+  EXPECT_FALSE(run.pickedUp);
+  run.stand(150);
+  EXPECT_EQ(run.fusion().attempt, 1);
+  EXPECT_EQ(run.resets, 1u);
+  EXPECT_LT((run.localization.pose.translation - poseBefore).norm(), 50.f);
+}
+
 GTEST_TEST(MazeLocalizerAcceptance, OracleLookAheadKeepsTheRobotOutOfTheDeadEndAtCell11)
 {
   const MazeDescription maze = loadMaze(1);

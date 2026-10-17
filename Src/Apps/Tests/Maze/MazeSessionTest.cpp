@@ -89,22 +89,22 @@ GTEST_TEST(MazeSession, MapActionsApplyTheQualityGateAfterTheVisit)
   EXPECT_TRUE(good.observe);
 }
 
-GTEST_TEST(MazeSession, ActiveNeedsPlayingAndGroundContact)
+GTEST_TEST(MazeSession, ActiveNeedsPlayingAndNotPickedUp)
 {
-  EXPECT_TRUE(isActive(true, true));
-  EXPECT_FALSE(isActive(true, false)); // Picked up while the game still plays.
-  EXPECT_FALSE(isActive(false, true)); // Standing on the ground outside of playing.
-  EXPECT_FALSE(isActive(false, false));
+  EXPECT_TRUE(isActive(true, false));
+  EXPECT_FALSE(isActive(true, true)); // Picked up while the game still plays.
+  EXPECT_FALSE(isActive(false, false)); // Standing on the ground outside of playing.
+  EXPECT_FALSE(isActive(false, true));
 }
 
 GTEST_TEST(MazeSession, LiftingTheRobotStartsTheNextAttemptWhenItIsPutDown)
 {
   PlayingTracker tracker;
   // The game keeps playing; the robot is on the ground, lifted, and put down again.
-  EXPECT_TRUE(tracker.update(isActive(true, true)).resetPose());
-  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
+  EXPECT_TRUE(tracker.update(isActive(true, false)).resetPose());
   EXPECT_FALSE(tracker.update(isActive(true, false)).resetPose());
-  const PlayingTransition down = tracker.update(isActive(true, true));
+  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
+  const PlayingTransition down = tracker.update(isActive(true, false));
   EXPECT_TRUE(down.resetPose());
   EXPECT_TRUE(down.newAttempt);
 }
@@ -116,4 +116,31 @@ GTEST_TEST(MazeSession, QualityAcceptedComparesAgainstTheWorstAcceptedOne)
   EXPECT_FALSE(qualityAccepted(LocalizationQuality::poor, LocalizationQuality::okay));
   EXPECT_TRUE(qualityAccepted(LocalizationQuality::poor, LocalizationQuality::poor));
   EXPECT_FALSE(qualityAccepted(LocalizationQuality::okay, LocalizationQuality::superb));
+}
+
+GTEST_TEST(MazeSession, BootingPickedUpDelaysTheFirstAttemptWithoutCountingAnother)
+{
+  // FallDownState starts as pickedUp until the robot stands upright; the game may already be playing then.
+  PlayingTracker tracker;
+  const PlayingTransition boot = tracker.update(isActive(true, true));
+  EXPECT_TRUE(boot.firstFrame);
+  EXPECT_TRUE(boot.resetPose());
+  EXPECT_FALSE(boot.enteredPlaying);
+  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
+  const PlayingTransition upright = tracker.update(isActive(true, false));
+  EXPECT_TRUE(upright.enteredPlaying);
+  EXPECT_FALSE(upright.newAttempt) << "the first attempt is attempt 1, not a second one";
+}
+
+GTEST_TEST(MazeSession, AFallIsNotAPickUp)
+{
+  // A fall is fallen/falling/staggering, never pickedUp, so the robot stays active and nothing resets.
+  PlayingTracker tracker;
+  EXPECT_TRUE(tracker.update(isActive(true, false)).resetPose());
+  for(int i = 0; i < 10; ++i)
+  {
+    const PlayingTransition fall = tracker.update(isActive(true, false));
+    EXPECT_FALSE(fall.resetPose());
+    EXPECT_FALSE(fall.newAttempt);
+  }
 }

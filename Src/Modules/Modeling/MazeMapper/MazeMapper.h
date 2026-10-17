@@ -13,7 +13,7 @@
  * boundary these can differ, so the look-ahead is skipped there (tags are not: the id names the cell). Every edge also takes at most one
  * observation per `minObservationInterval`, so a few repeated frames cannot flip a decided wall.
  *
- * The map only learns while the robot is active (the game state is playing and a foot touches the ground, see
+ * The map only learns while the robot is active (the game state is playing and the robot is not picked up, see
  * `Maze::isActive`). Outside of it the robot may be carried, so the localizer pose would not match what the camera sees.
  *
  * Start: `handleMaze.cfg` gives the start cell and heading (`start.cell` 0, 7, 56 or 63), or -1 to deduce them. The
@@ -39,7 +39,7 @@
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/MazePercepts/WallPercept.h"
-#include "Representations/Sensing/GroundContactState.h"
+#include "Representations/Sensing/FallDownState.h"
 #include "Tools/Maze/MazeLocalization.h"
 #include "Tools/Maze/MazeSession.h"
 #include "Tools/Maze/MazeStartAnchoredMap.h"
@@ -49,9 +49,9 @@
 MODULE(MazeMapper,
 {,
   REQUIRES(AprilTagPercept),
+  REQUIRES(FallDownState),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
-  REQUIRES(GroundContactState),
   REQUIRES(MazeCellPose),
   REQUIRES(RobotPose),
   REQUIRES(WallPercept),
