@@ -114,7 +114,12 @@ namespace
 SkillBehaviorControl::SkillBehaviorControl() :
   Cabsl<SkillBehaviorControl>(const_cast<ActivationGraph*>(&theActivationGraph)),
   theSkillRegistry("skills.cfg", const_cast<ActivationGraph&>(theActivationGraph), theArmMotionRequest, theBehaviorStatus, theCalibrationRequest, theHeadMotionRequest, theMotionRequest, theOptionalImageRequest)
-{}
+{
+  // Only the maze scenarios have handleMaze.cfg; the announcements stay on if it is missing.
+  Maze::AnnounceFile announce;
+  if(Maze::AnnounceFile::load("handleMaze.cfg", announce))
+    announceEnabled = announce.announce.enabled;
+}
 
 std::vector<ModuleBase::Info> SkillBehaviorControl::getExtModuleInfo()
 {

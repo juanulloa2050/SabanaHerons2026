@@ -20,6 +20,7 @@
 #include "Representations/BehaviorControl/Libraries/LibCheck.h"
 #include "Representations/BehaviorControl/Libraries/LibDemo.h"
 #include "Representations/BehaviorControl/Libraries/LibPosition.h"
+#include "Representations/BehaviorControl/MazePlan.h"
 #include "Representations/BehaviorControl/RestartBallSearchContext.h"
 #include "Representations/BehaviorControl/SkillRequest.h"
 #include "Representations/BehaviorControl/StrategyStatus.h"
@@ -39,6 +40,9 @@
 #include "Representations/Infrastructure/SensorData/JointSensorData.h"
 #include "Representations/Infrastructure/SensorData/KeyStates.h"
 #include "Representations/Modeling/BallModel.h"
+#include "Representations/Modeling/MazeCellPose.h"
+#include "Representations/Modeling/MazeMap.h"
+#include "Representations/Modeling/MazeStart.h"
 #include "Representations/Modeling/ObstacleModel.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/Modeling/TeammatesBallModel.h"
@@ -51,7 +55,10 @@
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
+#include "Representations/Sensing/FallDownState.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
+#include "Tools/Maze/MazeBehavior.h"
+#include "Tools/Maze/MazeSession.h"
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"
 #include "Framework/Module.h"
@@ -70,6 +77,10 @@ MODULE(SkillBehaviorControl,
 {,
   // USES, not REQUIRES: only the maze scenarios provide it; elsewhere it stays empty.
   USES(AprilTagPercept),
+  USES(MazeCellPose),
+  USES(MazeMap),
+  USES(MazePlan),
+  USES(MazeStart),
   REQUIRES(BallModel),
   REQUIRES(BallSpecification),
   REQUIRES(BehaviorParameters),
@@ -80,6 +91,7 @@ MODULE(SkillBehaviorControl,
   REQUIRES(EnhancedKeyStates),
   REQUIRES(ExtendedGameState),
   REQUIRES(ExpectedGoals),
+  REQUIRES(FallDownState),
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
   REQUIRES(FrameInfo),

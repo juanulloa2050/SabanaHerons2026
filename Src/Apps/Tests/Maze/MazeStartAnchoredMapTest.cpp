@@ -8,6 +8,7 @@
 #include "Platform/File.h"
 #include "Streaming/FunctionList.h"
 #include "Streaming/InStreams.h"
+#include "Tools/Maze/MazeBehavior.h"
 #include "Tools/Maze/MazeHeading.h"
 #include "Tools/Maze/MazeOracle.h"
 #include "Tools/Maze/MazeStartAnchoredMap.h"
@@ -246,20 +247,6 @@ GTEST_TEST(MazeStartConfig, OnlyACornerFacingIntoTheMazeIsAGivenStart)
   EXPECT_TRUE(error.empty());
 }
 
-namespace
-{
-  STREAMABLE(AnnounceSettings,
-  {,
-    (bool)(false) enabled,
-  });
-
-  /** What the behaviour will declare of handleMaze.cfg: not `start`. */
-  STREAMABLE(AnnounceFile,
-  {,
-    (AnnounceSettings) announce,
-  });
-}
-
 GTEST_TEST(MazeStartConfig, TheSharedFileIsReadByBothReadersWithoutComplaints)
 {
   static const bool registered = (FunctionList::execute(), true);
@@ -283,11 +270,7 @@ GTEST_TEST(MazeStartConfig, TheSharedFileIsReadByBothReadersWithoutComplaints)
     StartFile start;
     EXPECT_TRUE(StartFile::load(path, start)) << path;
     AnnounceFile announce;
-    {
-      InMapFile stream(path);
-      ASSERT_TRUE(stream.exists());
-      stream >> announce;
-    }
+    EXPECT_TRUE(AnnounceFile::load(path, announce)) << path;
     const std::string output = testing::internal::GetCapturedStdout() + testing::internal::GetCapturedStderr();
     EXPECT_EQ(output.find("rror"), std::string::npos) << path << ": " << output;
     EXPECT_EQ(start.start.cell, -1);
