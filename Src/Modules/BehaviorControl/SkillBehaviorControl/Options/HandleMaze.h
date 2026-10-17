@@ -39,6 +39,13 @@
 /** The edge length of one maze cell in mm (the maze consists of 50 cm x 50 cm cells). */
 static constexpr float mazeCellSize = 500.f;
 
+// The options cast MazeCellPose::Heading to Maze::Heading through int, so both must have the same order.
+static_assert(static_cast<int>(MazeCellPose::north) == static_cast<int>(Maze::Heading::north) &&
+              static_cast<int>(MazeCellPose::east) == static_cast<int>(Maze::Heading::east) &&
+              static_cast<int>(MazeCellPose::south) == static_cast<int>(Maze::Heading::south) &&
+              static_cast<int>(MazeCellPose::west) == static_cast<int>(Maze::Heading::west),
+              "MazeCellPose::Heading and Maze::Heading must have the same order");
+
 /** The number of cells walked forward in the first step of the motion test. */
 static constexpr int motionTestCells = 4;
 
