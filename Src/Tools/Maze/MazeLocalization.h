@@ -79,6 +79,9 @@ namespace Maze
    */
   [[nodiscard]] FaceChoice chooseFace(int id, float robotRotation, const Pose3f& tagInRobot, const MazeTagLayout& layout);
 
+  /** The same choice from the angle of the measured tag normal in the maze frame (rad), see `chooseFace`. */
+  [[nodiscard]] FaceChoice chooseFaceByNormal(int id, float normalAngle, const MazeTagLayout& layout);
+
   /** Ignores a percept whose timestamp equals the one processed last (Cognition repeats percepts). */
   struct TimestampFilter
   {

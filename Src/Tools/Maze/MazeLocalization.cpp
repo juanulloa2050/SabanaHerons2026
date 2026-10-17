@@ -14,18 +14,24 @@ namespace Maze
 {
   FaceChoice chooseFace(int id, float robotRotation, const Pose3f& tagInRobot, const MazeTagLayout& layout)
   {
+    if(id < 0 || id >= cellCount)
+      return FaceChoice();
+    const Vector2f normalInRobot = tagInRobot.rotation.col(2).head<2>();
+    if(!normalInRobot.allFinite() || normalInRobot.norm() < 1e-3f)
+      return FaceChoice();
+    return chooseFaceByNormal(id, robotRotation + std::atan2(normalInRobot.y(), normalInRobot.x()), layout);
+  }
+
+  FaceChoice chooseFaceByNormal(int id, float normalAngle, const MazeTagLayout& layout)
+  {
     FaceChoice choice;
     if(id < 0 || id >= cellCount)
       return choice;
-    const Vector2f normalInRobot = tagInRobot.rotation.col(2).head<2>();
-    if(!normalInRobot.allFinite() || normalInRobot.norm() < 1e-3f)
-      return choice;
 
     // Which face is it? The one whose expected normal, into the cell, is closest to the measured normal.
-    const float measuredNormalAngle = robotRotation + std::atan2(normalInRobot.y(), normalInRobot.x());
     for(const Heading face : layout.candidateFaces(id))
     {
-      const float error = std::abs(Angle::normalize(measuredNormalAngle - angleOf(turned(face, 2))));
+      const float error = std::abs(Angle::normalize(normalAngle - angleOf(turned(face, 2))));
       if(!choice.found || error < choice.angleError)
       {
         choice.found = true;
