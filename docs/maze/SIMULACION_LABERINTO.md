@@ -149,11 +149,42 @@ percepts) and run it.
 |---|---|
 | `vfd worldState representation:MazeMap` | The believed walls: decided edges as wall or open, `unknown` edges left empty. |
 | `vfd worldState module:MazeLocalizer:pose` | The estimated pose (cell and heading) in the maze frame. |
-| `vfd worldState module:MazeMapper:lookAhead` | The cells and edges currently seen along the gaze. |
-| `get representation:MazeCellPose` | One snapshot: cell, heading, `headingSource`, `headingDrift`. |
+| `vfd worldState module:MazeMapper:lookAhead` | The cells seen along the gaze (orange). A red dashed rectangle means the look-ahead was skipped this frame: the estimate is more than `maxOffsetFromCentre` from its cell centre. |
+| `get representation:MazeCellPose` | One snapshot: cell, heading, `headingSource`, `headingDrift` (net gyro offset drift since the last reset), `tagFixes`, `tagRejections`, `resets`. |
 | `get representation:RobotPose` | One snapshot: pose in mm (maze frame) and `quality`. |
+| `get representation:MazeMap` | One snapshot: the edges, visited cells, `attempt` and `changeCounter`. |
+
+To set up the world state view, paste these lines into the console:
+
+```
+vfd worldState representation:MazeMap
+vfd worldState module:MazeLocalizer:pose
+vfd worldState module:MazeMapper:lookAhead
+```
+
+The map and the pose are drawn in the maze frame (origin at the bottom-left outer corner, no 180° turn), so the drawing
+can appear shifted or turned against the 3D maze. Compare the shape, not the position on the field.
 
 `RobotPose` is in the maze frame, not in the SimRobot field frame, so compare it with the maze, not with the ground-truth robot position.
+
+**Move or turn the robot.** With the mouse in the 3D scene view: drag to move it, Shift + drag to turn it about its own
+axis, Ctrl + Shift + drag to turn it in the world frame. From the console: `mv <x> <y> <z> <rotx> <roty> <rotz>` (mm and
+degrees, team frame). For the maze robot the centre of cell (row, col) is `x = 1750 − 500·col`, `y = −1750 + 500·row`,
+`z = 300`, and `rotz` is 90 (south), 180 (east), −90 (north) or 0 (west). Example, cell 19 facing south then east:
+
+```
+mv 250 -750 300 0 0 90
+mv 250 -750 300 0 0 180
+```
+
+Moving the robot this way is a teleport: odometry does not see it, so only a tag fix brings the estimate to the new cell.
+A teleported turn of 90° or more is larger than `maxFaceAngleError`, so the localizer may reject the tags
+(`tagRejections` grows) until the heading matches again. On the real robot nobody teleports it; to test turns, let the
+robot turn itself (`headMiddleTwice` motion test).
+
+**Pick-up and Standby.** `gc initial`, drag the robot back to the start cell facing its open side, `gc playing`. The robot
+is not moved by the code; the localizer resets the pose to the start cell (`resets` grows), and `MazeMap` keeps its edges
+with `attempt` one higher.
 
 - **Start cell and heading:** edit `startCell` and `startHeading` in `Config/Scenarios/Maze/mazeLocalizer.cfg` (and `startCell` in `mazeMapper.cfg`; keep both equal). The defaults are cell 0 facing south, which matches the generated mazes. If you generate a maze with `--start 7`, `56` or `63`, change them too. The start pose is taken on every transition into `playing`.
 - **Inject drift and noise** (SimRobot has none): set `injectedGyroDriftPerMinute`, `injectedOdometryTranslationNoise` (0.05 = 5 %) or `injectedOdometryRotationNoise` in `mazeLocalizer.cfg`. To change them for this session only, run `get parameters:MazeLocalizer`, copy the printed `set parameters:MazeLocalizer …` line, edit the value and run it.
@@ -161,7 +192,8 @@ percepts) and run it.
 - **Other layouts:** change `mazeTagLayout.cfg` and regenerate the scene (step 3). The localizer needs no change.
 - The map learns only in `playing`, and a pick-up (Standby) does not clear it.
 
-Not run in SimRobot yet: these commands and drawing ids are taken from the code (`DEBUG_DRAWING` and the module names), and the offline results are in `GYRO_HEADING.md`.
+Checked in SimRobot on 16 Oct: the cell estimate follows the robot (cells 0, 3, 19, 20) and walls already seen stay in the
+map when the robot crosses a cell boundary. The offline results are in `GYRO_HEADING.md`.
 
 ## 6. Real robot: see the AprilTags (RemoteRobot)
 
