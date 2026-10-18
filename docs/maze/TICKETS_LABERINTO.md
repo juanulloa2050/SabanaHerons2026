@@ -712,7 +712,8 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Goal.** Run many mazes in SimRobot one after another without clicking, and write one CSV row per run. It is the measuring tool for MZ-025, MZ-026 and every strategy comparison.
 
 **Scope.** Use the headless `pybh` mode of `docs/RL/Environment.md` ("Backend"). If that is not usable, start `Build/Linux/SimRobot/Develop/SimRobot` once per maze with a timeout.
-- Options: `--mazes Config/Mazes/generated`, `--attempts 2`, `--noise {low,mid,high}`, `--timeout-s 300`, `--out results.csv`.
+- Options: `--mazes Config/Mazes/generated`, `--attempts 2`, `--noise {low,mid,high}`, `--timeout-s 300`, `--out results.csv`, `--max-mazes 2` (use `20` for the full generated set).
+- Noise presets use the MZ-020 cases as a reference: `low` = zero injected gyro/odometry noise and no dropout; `mid` = 3°/min gyro drift and 5% odometry translation noise; `high` = 15°/min, 10% translation-noise standard deviation and 0.17 oracle dropout. MZ-020's harsh offline case used a systematic +10% odometry bias; the current config cannot inject that bias, so `high` is not an exact reproduction.
 - For each maze: run `maze_to_scene.py`, start the simulation, read `BehaviorStatus` / `MazeMap` through the debug output (Bryam provides the field names in the PR review), and write `maze,attempt,noise,reached_goal,time_s,wall_contacts,max_stall_s`.
 
 **Steps**
@@ -846,7 +847,7 @@ The thresholds live in `handleMaze.cfg`.
 **Steps**
 1. Run the campaign:
    ```bash
-   for n in low mid high; do python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --attempts 2 --noise $n --out ~/sim_$n.csv; done
+   for n in low mid high; do python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --max-mazes 20 --attempts 2 --noise $n --out ~/sim_$n.csv; done
    ```
 2. Write `docs/maze/SIM_RESULTS.md`.
 
