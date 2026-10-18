@@ -12,9 +12,15 @@
  *   exploration     -> finished          the pose is in a goal cell                       "goal", "finished"
  *   speedRun        -> finished          the pose is in a goal cell                       "goal", "finished"
  *   exploration/speedRun/finished -> standby   the robot is not active (picked up, penalized or not playing)   "standby"
+ *   exploration/speedRun/finished -> standby   the attempt counter grew while the robot is active (the frames in which
+ *                                                the robot was not active were not seen: the option did not run)    "ready"
  *   standby         -> standby           the robot is lifted again before the tap                       "standby"
  *   standby         -> standby           the robot becomes active again (put down, unpenalized, gc playing)  "ready"
  *   standby         -> speedRun / exploration   headFront tap while active, as for waitingForStart  "speed run" / "exploring"
+ *
+ * HandleMaze is not executed in every frame: CABSL stops at the first root option that acts, and HandlePlayerState acts
+ * while the robot is penalized. The phase machine then never sees the inactive frames, so the attempt counter of the map
+ * (it grows when the robot becomes active again) tells it that an attempt ended in the meantime.
  *
  * A penalty counts as a pick-up, also the chest-button one of a robot without GameController (the game state stays
  * playing then). So a robot that is put down says "standby", then "ready" once, then "exploring" / "speed run" on the tap.
@@ -67,6 +73,7 @@ namespace Maze
     bool headFront = false;        /**< A single head-front tap happened in this frame. */
     bool atGoal = false;           /**< The plan is valid and the pose is in a goal cell. */
     bool speedRunFound = false;    /**< The plan is valid and a route over known-open edges reaches the goal. */
+    int attempt = 1;               /**< `MazeMap::attempt`: grows when the robot becomes active again; survives frames the option did not run. */
     bool startKnown = false;       /**< `MazeStart::known`. */
     bool startGiven = false;       /**< `MazeStart::given`. */
     int startCell = 0;             /**< `MazeStart::cell`. */
@@ -93,6 +100,7 @@ namespace Maze
     bool seenFrame = false;
     bool startWasKnown = false;
     bool wasActive = false; /**< The robot was active in the previous frame. */
+    int lastAttempt = 1;    /**< The attempt counter of the previous call. */
   };
 
   /** @return "tag <id>" if a tag was seen recently, otherwise "no tag". */

@@ -9,14 +9,16 @@
  *   waitingForStart  stand, look forward, head gestures ("ready")
  *   exploration      walk the exploration route of the MazePlan cell by cell ("exploring")
  *   speedRun         walk the speed-run route (known-open edges only), no wall scans ("speed run")
- *   standby          stand (picked up, penalized, or the game stopped playing); the map is kept ("standby", and "ready"
+ *   standby          stand (picked up, penalized, or the game stopped playing; also after skipped frames); the map is kept ("standby", and "ready"
  *                    once when the robot is active again: put down, unpenalized, or gc playing)
  *   finished         stand, a goal cell is reached ("goal", "finished")
  *
  * A penalized robot (GameState::isPenalized, also the chest-button penalty of a robot without GameController, which leaves
- * the game state at playing) counts as picked up: the phase is standby and the pose is reset to the start, with a new
- * attempt, when it is unpenalized. HandlePlayerState (listed before HandleMaze in skillBehaviorControl.cfg) stands and
- * says "Penalized" then, so HandleMaze requests no motion while penalized and only speaks.
+ * the game state at playing) counts as picked up. HandlePlayerState (listed before HandleMaze in skillBehaviorControl.cfg)
+ * stands and says "Penalized" / "Not penalized" itself, and CABSL stops at the first root option that acts, so HandleMaze
+ * is not executed at all while the robot is penalized (nor in any other frame a root option before it acts). The phase
+ * machine learns that an attempt ended in the meantime from theMazeMap.attempt, which the mapper increments when the robot
+ * is active again: the phase is standby and the robot says "ready", and it never walks before the next headFront tap.
  *
  * The robot says what it does with the Say skill, in parallel with the motion and only if `announce.enabled` of
  * handleMaze.cfg is true. The head buttons (a tap is reported after the streak has ended):
@@ -146,6 +148,7 @@ Maze::BehaviorInput mazeInput() const
   input.headFront = headFrontTapped() && !motionTestRunning && theFrameInfo.time >= ignoreTapsUntil;
   input.atGoal = theMazePlan.valid && theMazePlan.atGoal;
   input.speedRunFound = theMazePlan.valid && theMazePlan.speedRun.found;
+  input.attempt = theMazeMap.attempt;
   input.startKnown = theMazeStart.known;
   input.startGiven = theMazeStart.given;
   input.startCell = theMazeStart.cell;
@@ -308,9 +311,6 @@ option(HandleMaze)
       queueSpeech(phrase);
     if(step.changed)
       enterPhase(step.phase);
-    // HandlePlayerState owns the motion of a penalized robot; a second request in the same frame would override it.
-    if(input.penalized)
-      goto penalized;
     switch(step.phase)
     {
       case Maze::Phase::waitingForStart:
@@ -335,14 +335,6 @@ option(HandleMaze)
       speak();
       theLookForwardSkill();
       theStandSkill({.high = true});
-    }
-  }
-
-  state(penalized)
-  {
-    action
-    {
-      speak(); // Only Say: the stand of HandlePlayerState must not be overridden.
     }
   }
 

@@ -290,6 +290,73 @@ GTEST_TEST(MazeBehavior, PenalizedWhileWaitingForStartLeavesAndSaysReadyWhenRele
   EXPECT_EQ(behavior.phase(), Phase::waitingForStart);
 }
 
+/** @return The input of the frame in which the mapper has counted attempt `attempt`. */
+static BehaviorInput withAttempt(BehaviorInput input, int attempt)
+{
+  input.attempt = attempt;
+  return input;
+}
+
+GTEST_TEST(MazeBehavior, SkippedFramesThenANewAttemptGoToStandbyAndSayReady)
+{
+  // HandleMaze is not executed while HandlePlayerState acts (penalty): the machine never sees the inactive frames,
+  // only that the attempt counter grew when the robot is active again.
+  const auto skipped = [](MazeBehavior behavior, Phase expected, int attempt)
+  {
+    EXPECT_EQ(behavior.phase(), expected);
+    const BehaviorStep step = behavior.update(withAttempt(playingInput(), attempt + 1));
+    EXPECT_EQ(step.phase, Phase::standby);
+    EXPECT_EQ(step.phrases, Said({"ready"}));
+    EXPECT_TRUE(behavior.update(withAttempt(playingInput(), attempt + 1)).phrases.empty()) << "said once";
+    EXPECT_EQ(behavior.update(withAttempt(playingInput(), attempt + 1)).phase, Phase::standby) << "no walking without a tap";
+    EXPECT_EQ(behavior.update(withAttempt(tap(), attempt + 1)).phase, Phase::exploration);
+  };
+  skipped(exploring(), Phase::exploration, 1);
+
+  MazeBehavior speedRun = standingBy();
+  (void) speedRun.update(withAttempt(playingInput(), 2));
+  (void) speedRun.update(withRoute(withAttempt(tap(), 2)));
+  skipped(speedRun, Phase::speedRun, 2);
+
+  MazeBehavior finished = exploring();
+  (void) finished.update(withAttempt(atGoal(), 1));
+  skipped(finished, Phase::finished, 1);
+}
+
+GTEST_TEST(MazeBehavior, ANewAttemptWhileNotActiveSaysStandby)
+{
+  MazeBehavior behavior = exploring();
+  const BehaviorStep step = behavior.update(withAttempt(pickedUp(), 2));
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"standby"}));
+  EXPECT_EQ(behavior.update(withAttempt(playingInput(), 2)).phrases, Said({"ready"})) << "once, when active again";
+}
+
+GTEST_TEST(MazeBehavior, TheAttemptOfTheMapperDoesNotDoubleAnnounceTheRegularCycle)
+{
+  // The option runs in every frame: the mapper counts the new attempt in the frame in which the robot is active again.
+  MazeBehavior behavior = exploring();
+  Said said;
+  int attempt = 1;
+  const auto run = [&](const BehaviorInput& input)
+  {
+    const BehaviorStep step = behavior.update(withAttempt(input, attempt));
+    said.insert(said.end(), step.phrases.begin(), step.phrases.end());
+  };
+  for(int cycle = 0; cycle < 3; ++cycle)
+  {
+    run(pickedUp());
+    run(pickedUp());
+    ++attempt;
+    run(playingInput());
+    run(playingInput());
+    EXPECT_EQ(behavior.phase(), Phase::standby);
+  }
+  run(tap());
+  EXPECT_EQ(said, Said({"standby", "ready", "standby", "ready", "standby", "ready", "exploring"}));
+  EXPECT_EQ(behavior.phase(), Phase::exploration);
+}
+
 GTEST_TEST(MazeBehavior, StandbyRunsTheKnownRoute)
 {
   MazeBehavior behavior = standingBy();

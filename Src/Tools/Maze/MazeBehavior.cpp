@@ -33,6 +33,11 @@ namespace Maze
     const bool playing = input.playing && !input.penalized;
     const bool active = input.active && !input.penalized;
 
+    // The counter grew since the last call. If the option ran in every frame, the robot passed standby on the way (and
+    // the phase says so); a growth seen in exploration, speed run or finished means the inactive frames were skipped.
+    const bool attemptGrew = seenFrame && input.attempt != lastAttempt;
+    lastAttempt = input.attempt;
+
     // The tap that starts an attempt: attempt 1 explores, later attempts run the known route if there is one.
     const auto startAttempt = [&]
     {
@@ -70,6 +75,12 @@ namespace Maze
           next = Phase::standby;
           say.push_back(Phrases::standby);
         }
+        else if(attemptGrew)
+        {
+          // The attempt ended while this machine did not run and the robot is active again: wait for the tap, say it once.
+          next = Phase::standby;
+          say.push_back(Phrases::ready);
+        }
         else if(input.atGoal)
         {
           next = Phase::finished;
@@ -82,6 +93,11 @@ namespace Maze
         {
           next = Phase::standby;
           say.push_back(Phrases::standby);
+        }
+        else if(attemptGrew)
+        {
+          next = Phase::standby;
+          say.push_back(Phrases::ready);
         }
         break;
       case Phase::standby:
