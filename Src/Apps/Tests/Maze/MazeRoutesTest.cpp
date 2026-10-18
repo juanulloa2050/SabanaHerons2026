@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 
 namespace
 {
@@ -238,6 +239,7 @@ GTEST_TEST(MazeRoutes, AnyChangeOfTheCostsMapOrPoseInvalidatesTheCachedPlan)
   key.row = 2;
   key.col = 3;
   key.heading = 1;
+  key.startCell = 0;
   key.valid = true;
   EXPECT_TRUE(key == PlanKey(key));
 
@@ -255,5 +257,94 @@ GTEST_TEST(MazeRoutes, AnyChangeOfTheCostsMapOrPoseInvalidatesTheCachedPlan)
   EXPECT_TRUE(changed([](PlanKey& k) { ++k.row; }));
   EXPECT_TRUE(changed([](PlanKey& k) { ++k.col; }));
   EXPECT_TRUE(changed([](PlanKey& k) { ++k.heading; }));
+  EXPECT_TRUE(changed([](PlanKey& k) { k.startCell = 7; })) << "a new start cell (deduced or given) must replan the return";
   EXPECT_TRUE(changed([](PlanKey& k) { k.valid = false; }));
+}
+
+namespace
+{
+  using namespace Maze;
+
+  /**
+   * maze_19 as the robot knows it after attempt 1 reached cell 36 by the long eastern loop: the shortest walk to 36 that
+   * enters the goal block only at 36 (found with a breadth-first search over the true maze with the goal cells 27, 28
+   * and 35 banned). The robot saw every wall slot of the cells it walked, so those edges carry their true state and
+   * every other edge is still unknown. Cell 44, south of 36, is also known: with 44 unknown the edge 44-43 would count
+   * as open and "36 -> 44 -> 43" would tie with "36 -> 35 -> 43" (and be slightly cheaper, it saves one start-up), so the
+   * example of the ticket needs the robot to have looked into 44 before (the wall 44-43 is known).
+   */
+  MazeGraph mapAfterTheWalk(const MazeDescription& maze, const std::vector<int>& walked)
+  {
+    MazeGraph map;
+    for(const int cell : walked)
+      for(int h = 0; h < headingCount; ++h)
+        map.set(cellRow(cell), cellCol(cell), static_cast<Heading>(h), maze.graph.get(cellRow(cell), cellCol(cell), static_cast<Heading>(h)));
+    return map;
+  }
+}
+
+GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
+{
+  MazeDescription maze;
+  std::string error;
+  ASSERT_TRUE(MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/generated/maze_19.maze", maze, error)) << error;
+  ASSERT_EQ(maze.startCell, 0);
+  const std::vector<int> walked = {0, 8, 16, 24, 25, 33, 34, 26, 18, 19, 20, 21, 13, 12, 4, 5, 6, 14, 22, 23, 31, 39, 38, 30, 29, 37, 36, 44};
+  const MazeGraph map = mapAfterTheWalk(maze, walked);
+
+  // The robot stands in 36 after coming from 37, so it faces west.
+  const RoutePair routes = planRoutes(map, stateAt(4, 4, Heading::west), MazeCosts(), maze.startCell);
+  EXPECT_TRUE(routes.atGoal);
+  EXPECT_FALSE(routes.atStart);
+  ASSERT_TRUE(routes.returnToStart.found);
+  std::vector<int> cells;
+  for(const MazeState& state : routes.returnToStart.states)
+    if(cells.empty() || cells.back() != cellId(state.row, state.col))
+      cells.push_back(cellId(state.row, state.col));
+  ASSERT_GE(cells.size(), 5u);
+  EXPECT_EQ(cells[0], 36);
+  EXPECT_EQ(cells[1], 35);
+  EXPECT_EQ(cells[2], 43);
+  EXPECT_EQ(cells[3], 42);
+  EXPECT_EQ(cells[4], 34) << "35 -> 43 -> 42 -> 34 goes through unknown edges, 35 and 34 are separated by a wall";
+  EXPECT_EQ(cells.back(), 0);
+  EXPECT_EQ(std::count(cells.begin(), cells.end(), 37), 0) << "the walked loop is not retraced";
+  EXPECT_EQ(map.get(4, 3, Heading::south), EdgeState::unknown) << "the shortcut is unexplored";
+  EXPECT_EQ(map.get(4, 2, Heading::east), EdgeState::wall);
+
+  // The goal routes are unchanged by the extra target: the planner for the goal block still sees the goal.
+  EXPECT_TRUE(routes.exploration.found);
+  EXPECT_TRUE(routes.exploration.actions.empty());
+}
+
+GTEST_TEST(MazeRoutes, TheReturnIsEmptyAtTheStartAndAbsentWithoutAStartCell)
+{
+  const MazeState atStart = stateAt(0, 0, Heading::south);
+  const RoutePair here = planRoutes(MazeGraph(), atStart, MazeCosts(), 0);
+  EXPECT_TRUE(here.atStart);
+  EXPECT_FALSE(here.atGoal);
+  EXPECT_TRUE(here.returnToStart.found);
+  EXPECT_TRUE(here.returnToStart.actions.empty());
+
+  const RoutePair away = planRoutes(MazeGraph(), stateAt(2, 0, Heading::north), MazeCosts(), 0);
+  EXPECT_FALSE(away.atStart);
+  ASSERT_TRUE(away.returnToStart.found);
+  EXPECT_EQ(away.returnToStart.cells, 2);
+  EXPECT_EQ(away.returnToStart.states.back().row, 0);
+
+  EXPECT_FALSE(planRoutes(MazeGraph(), atStart, MazeCosts()).returnToStart.found) << "no start cell given";
+  EXPECT_FALSE(planRoutes(MazeGraph(), atStart, MazeCosts(), 64).returnToStart.found);
+  EXPECT_FALSE(planRoutes(MazeGraph(), stateAt(-1, 0, Heading::north), MazeCosts(), 0).returnToStart.found);
+}
+
+GTEST_TEST(MazeRoutes, TheReturnFollowsTheStartCellOfTheMap)
+{
+  const MazeGraph map;
+  const RoutePair toZero = planRoutes(map, stateAt(7, 7, Heading::north), MazeCosts(), 0);
+  const RoutePair toCorner = planRoutes(map, stateAt(7, 7, Heading::north), MazeCosts(), 56);
+  ASSERT_TRUE(toZero.returnToStart.found);
+  ASSERT_TRUE(toCorner.returnToStart.found);
+  EXPECT_EQ(toZero.returnToStart.states.back().row, 0);
+  EXPECT_EQ(toCorner.returnToStart.states.back().row, 7);
+  EXPECT_EQ(toCorner.returnToStart.states.back().col, 0);
 }

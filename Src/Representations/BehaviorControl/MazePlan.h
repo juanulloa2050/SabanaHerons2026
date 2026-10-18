@@ -2,11 +2,13 @@
  * @file MazePlan.h
  *
  * What the behaviour should do next in the maze, provided by MazePlannerProvider for the current `MazeCellPose` and
- * `MazeMap`. Both routes are always computed, the behaviour picks the one it needs:
+ * `MazeMap`. All routes are always computed, the behaviour picks the one it needs:
  *  - `exploration` (attempt 1): the optimal route to the goal if unknown edges are open. Its `nextAction` is what
  *    the robot does now; the plan changes whenever the map learns an edge, so only the first action is binding.
  *  - `speedRun` (attempt 2): the optimal route over edges that are known to be open. `found` is false if the known
  *    edges do not connect the pose to the goal. The whole action list is the route to drive.
+ *  - `returnToStart` (MZ-024.1): like `exploration` (unknown edges open) but to the start cell of `MazeMap`, so the
+ *    walk back after the goal keeps exploring. Only the first action is binding.
  *
  * A route is expressed in cells of the maze frame (row 0 is the north row, heading clockwise from north), the same
  * convention as `MazeCellPose`. The plan describes the pose it was computed for (`row`, `col`, `heading`) and the
@@ -21,7 +23,7 @@
 #include "Streaming/Enum.h"
 #include <vector>
 
-/** One route to the goal. */
+/** One route to the goal (or, for `returnToStart`, to the start cell). */
 STREAMABLE(MazeRoute,
 {
   /** The primitive motions of the planner, same order as `Maze::Action`. `none` when there is nothing to do. */
@@ -55,13 +57,16 @@ STREAMABLE(MazeRoute,
 
 STREAMABLE(MazePlan,
 {
-  /** Draws both routes over the maze in the maze frame. */
+  /** Draws the routes over the maze in the maze frame. */
   void draw() const,
 
   (bool)(false) valid,                          /**< The pose was inside the maze; otherwise both routes are not found. */
   (bool)(false) atGoal,                         /**< The pose is in a goal cell; both routes are found and empty. */
   (MazeRoute) exploration,                      /**< Unknown edges count as open. */
   (MazeRoute) speedRun,                         /**< Only edges known to be open. */
+  (bool)(false) atStart,                        /**< The pose is in the start cell of `MazeMap`; `returnToStart` is found and empty. */
+  (MazeRoute) returnToStart,                    /**< Unknown edges count as open; the target is the start cell. */
+  (int)(0) startCell,                           /**< The start cell `returnToStart` was computed for. */
   (int)(0) row,                                 /**< The pose the plan was computed for (row, column, heading of `MazeCellPose`). */
   (int)(0) col,
   (MazeCellPose::Heading)(MazeCellPose::north) heading,

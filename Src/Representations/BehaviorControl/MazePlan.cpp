@@ -20,7 +20,7 @@ void MazePlan::draw() const
       Drawings::PenStyle style;
       float offset;
     };
-    for(const Line& line : {Line{exploration, ColorRGBA(240, 140, 0), Drawings::dashedPen, 25.f}, Line{speedRun, ColorRGBA::blue, Drawings::solidPen, -25.f}})
+    for(const Line& line : {Line{exploration, ColorRGBA(240, 140, 0), Drawings::dashedPen, 25.f}, Line{speedRun, ColorRGBA::blue, Drawings::solidPen, -25.f}, Line{returnToStart, ColorRGBA(0, 160, 0), Drawings::dottedPen, 0.f}})
       for(std::size_t i = 1; i < line.route.cells.size(); ++i)
       {
         const Maze::CellCentre from = Maze::cellCentre(Maze::cellRow(line.route.cells[i - 1]), Maze::cellCol(line.route.cells[i - 1]));
