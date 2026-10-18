@@ -87,6 +87,10 @@ namespace Maze
       case Phase::standby:
         if(active && input.headFront)
           startAttempt();
+        else if(active && !wasActive)
+          say.push_back(Phrases::ready); // Back on the ground (or unpenalized, or gc playing): said once per re-activation.
+        else if(!active && wasActive)
+          say.push_back(Phrases::standby); // Lifted again before the tap: the same pair, so the cycle repeats.
         break;
     }
 
@@ -106,6 +110,7 @@ namespace Maze
     }
 
     currentPhase = next;
+    wasActive = active;
     step.phase = next;
     step.changed = next != before;
     return step;

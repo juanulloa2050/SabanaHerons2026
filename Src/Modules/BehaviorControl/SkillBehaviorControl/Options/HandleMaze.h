@@ -9,7 +9,8 @@
  *   waitingForStart  stand, look forward, head gestures ("ready")
  *   exploration      walk the exploration route of the MazePlan cell by cell ("exploring")
  *   speedRun         walk the speed-run route (known-open edges only), no wall scans ("speed run")
- *   standby          stand (picked up, penalized, or the game stopped playing); the map is kept ("standby")
+ *   standby          stand (picked up, penalized, or the game stopped playing); the map is kept ("standby", and "ready"
+ *                    once when the robot is active again: put down, unpenalized, or gc playing)
  *   finished         stand, a goal cell is reached ("goal", "finished")
  *
  * A penalized robot (GameState::isPenalized, also the chest-button penalty of a robot without GameController, which leaves

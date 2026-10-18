@@ -330,11 +330,14 @@ what the robot understood without a laptop. The robot uses the existing `Say` sk
 | `headFront` ×1, start of attempt 2 | "speed run" |
 | Goal detected | "goal" |
 | `ReturnToStart` begins | "returning" |
-| Picked up (`Standby`) | "standby" |
+| Picked up, penalized by the chest button, or the game stops playing (`Standby`) | "standby" |
+| Back on the ground / unpenalized / `gc playing` in `Standby` | "ready" |
 | `Finished` | "finished" |
 | Watchdog: safe mode / wall-follower | "safe mode" / "wall follower" |
 | `headRear` ×1 (self-test) | "tag <id>" or "no tag" |
 | `headMiddle` ×2 | "motion test" |
+
+A chest-button penalty (a robot without GameController) counts as `Standby`, like a pick-up: the pose is put at the start and the attempt counter grows when the robot is active again. Only one "ready" is said per re-activation, before the `headFront` tap says "exploring" or "speed run".
 
 Rules: speech never blocks a motion command; `Say` ignores the same text twice in a row, so the
 phrases of consecutive states must differ (they do) and the ticket checks that "exploring" is

@@ -213,8 +213,54 @@ GTEST_TEST(MazeBehavior, StandbyNeedsAnActiveRobotAndATap)
 {
   MazeBehavior behavior = standingBy();
   EXPECT_EQ(behavior.update(playingInput()).phase, Phase::standby) << "put down, but no tap yet";
+  EXPECT_TRUE(behavior.update(playingInput()).phrases.empty()) << "ready is said once";
   EXPECT_EQ(behavior.update(tap(pickedUp())).phase, Phase::standby) << "a tap while it is still carried";
   EXPECT_EQ(behavior.update(tap(BehaviorInput())).phase, Phase::standby) << "a tap while the game does not play";
+}
+
+GTEST_TEST(MazeBehavior, BecomingActiveAgainInStandbySaysReadyOnceEveryTime)
+{
+  MazeBehavior behavior = exploring();
+  Said said;
+  const auto run = [&](const BehaviorInput& input)
+  {
+    const BehaviorStep step = behavior.update(input);
+    said.insert(said.end(), step.phrases.begin(), step.phrases.end());
+  };
+  for(int cycle = 0; cycle < 3; ++cycle)
+  {
+    run(pickedUp());
+    run(pickedUp());
+    run(playingInput());
+    run(playingInput());
+    EXPECT_EQ(behavior.phase(), Phase::standby);
+  }
+  run(tap());
+  EXPECT_EQ(said, Said({"standby", "ready", "standby", "ready", "standby", "ready", "exploring"}));
+}
+
+GTEST_TEST(MazeBehavior, ReadyAfterTheGameReturnsToPlayingInStandby)
+{
+  MazeBehavior behavior = exploring();
+  EXPECT_EQ(behavior.update(BehaviorInput()).phrases, Said({"standby"})) << "gc initial";
+  EXPECT_TRUE(behavior.update(BehaviorInput()).phrases.empty());
+  EXPECT_EQ(behavior.update(playingInput()).phrases, Said({"ready"})) << "gc playing";
+  EXPECT_EQ(behavior.update(tap()).phrases, Said({"exploring"}));
+}
+
+GTEST_TEST(MazeBehavior, ATapOnTheFirstActiveFrameStartsWithoutReady)
+{
+  MazeBehavior behavior = standingBy();
+  EXPECT_EQ(behavior.update(tap()).phrases, Said({"exploring"}));
+}
+
+GTEST_TEST(MazeBehavior, DisabledAnnouncementsSayNoReadyInStandby)
+{
+  MazeBehavior behavior = standingBy();
+  BehaviorInput input = playingInput();
+  input.announce = false;
+  EXPECT_TRUE(behavior.update(input).phrases.empty());
+  EXPECT_EQ(behavior.phase(), Phase::standby);
 }
 
 GTEST_TEST(MazeBehavior, APenaltyIsAPickUp)
@@ -224,7 +270,7 @@ GTEST_TEST(MazeBehavior, APenaltyIsAPickUp)
   EXPECT_EQ(step.phase, Phase::standby);
   EXPECT_EQ(step.phrases, Said({"standby"}));
   EXPECT_EQ(behavior.update(tap(penalized())).phase, Phase::standby) << "no start while penalized";
-  EXPECT_TRUE(behavior.update(playingInput()).phrases.empty()) << "unpenalized";
+  EXPECT_EQ(behavior.update(playingInput()).phrases, Said({"ready"})) << "unpenalized";
   EXPECT_EQ(behavior.update(tap()).phrases, Said({"exploring"}));
 }
 
@@ -285,11 +331,11 @@ GTEST_TEST(MazeBehavior, TheFullCompetitionFlow)
   run(tap());                   // exploring
   run(atGoal());                // goal, finished
   run(pickedUp());              // standby
-  run(playingInput());          // put down
+  run(playingInput());          // put down: ready
   run(withRoute(tap()));        // speed run
   run(atGoal());                // goal, finished
   EXPECT_EQ(behavior.phase(), Phase::finished);
-  EXPECT_EQ(said, Said({"ready", "exploring", "goal", "finished", "standby", "speed run", "goal", "finished"}));
+  EXPECT_EQ(said, Said({"ready", "exploring", "goal", "finished", "standby", "ready", "speed run", "goal", "finished"}));
 }
 
 GTEST_TEST(MazeBehavior, SaysTheDeducedStartOnce)

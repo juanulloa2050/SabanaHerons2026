@@ -12,10 +12,12 @@
  *   exploration     -> finished          the pose is in a goal cell                       "goal", "finished"
  *   speedRun        -> finished          the pose is in a goal cell                       "goal", "finished"
  *   exploration/speedRun/finished -> standby   the robot is not active (picked up, penalized or not playing)   "standby"
+ *   standby         -> standby           the robot is lifted again before the tap                       "standby"
+ *   standby         -> standby           the robot becomes active again (put down, unpenalized, gc playing)  "ready"
  *   standby         -> speedRun / exploration   headFront tap while active, as for waitingForStart  "speed run" / "exploring"
  *
  * A penalty counts as a pick-up, also the chest-button one of a robot without GameController (the game state stays
- * playing then).
+ * playing then). So a robot that is put down says "standby", then "ready" once, then "exploring" / "speed run" on the tap.
  *
  * "start <id>" is said once when the start cell becomes known by deduction (never when it is given). The phrases are
  * data, so a test can check every transition; speaking them (without blocking the motion) is the behaviour's job.
@@ -90,6 +92,7 @@ namespace Maze
     Phase currentPhase = Phase::notPlaying;
     bool seenFrame = false;
     bool startWasKnown = false;
+    bool wasActive = false; /**< The robot was active in the previous frame. */
   };
 
   /** @return "tag <id>" if a tag was seen recently, otherwise "no tag". */
