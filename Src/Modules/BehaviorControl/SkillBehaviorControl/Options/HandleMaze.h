@@ -166,7 +166,8 @@ void logSpeedRun() const
   for(std::size_t i = 0; i < route.cells.size(); ++i)
   {
     cells += (i ? " " : "") + std::to_string(route.cells[i]);
-    if(i + 1 < route.cells.size())
+    // A turn repeats the cell in the list; only a move between two different cells crosses an edge.
+    if(i + 1 < route.cells.size() && route.cells[i] != route.cells[i + 1])
     {
       const Maze::Heading heading = mazeHeadingBetween(route.cells[i], route.cells[i + 1]);
       if(theMazeMap.get(Maze::cellRow(route.cells[i]), Maze::cellCol(route.cells[i]), heading) != MazeMap::open)
