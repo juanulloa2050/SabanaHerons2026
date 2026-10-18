@@ -15,23 +15,24 @@
 namespace Maze
 {
   /**
-   * Whether the robot takes part in an attempt: the game is playing and the robot is not picked up
-   * (`FallDownState::pickedUp`: upright without ground contact for a minimum time). A picked-up robot is not active
-   * even if the game still says playing, so lifting it ends the attempt like a pause does. A fall or a flicker of
-   * the ground contact is not a pick-up and does not end the attempt.
+   * Whether the robot takes part in an attempt: the game is playing, the robot is not penalized and it is not picked up
+   * (`FallDownState::pickedUp`: upright without ground contact for a minimum time). A picked-up or penalized robot is
+   * not active even if the game state still says playing (a chest-button penalty without GameController leaves the game
+   * state at playing), so both end the attempt like a pause does. A fall or a flicker of the ground contact is not a
+   * pick-up and does not end the attempt.
    */
-  [[nodiscard]] constexpr bool isActive(bool playing, bool pickedUp)
+  [[nodiscard]] constexpr bool isActive(bool playing, bool penalized, bool pickedUp)
   {
-    return playing && !pickedUp;
+    return playing && !penalized && !pickedUp;
   }
 
   /**
    * The same with the body state of the robot: only `FallDownState::pickedUp` is a pick-up. A fall (falling, fallen,
    * staggering, squatting) is not, so a fall during an attempt neither resets the pose nor counts an attempt.
    */
-  [[nodiscard]] constexpr bool isActive(bool playing, FallDownState::State body)
+  [[nodiscard]] constexpr bool isActive(bool playing, bool penalized, FallDownState::State body)
   {
-    return isActive(playing, body == FallDownState::pickedUp);
+    return isActive(playing, penalized, body == FallDownState::pickedUp);
   }
 
   /** What `PlayingTracker::update` found in one frame. */

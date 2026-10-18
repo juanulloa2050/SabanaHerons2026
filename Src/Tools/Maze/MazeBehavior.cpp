@@ -29,6 +29,10 @@ namespace Maze
     Phase next = before;
     std::vector<const char*> say;
 
+    // A penalized robot does not play, whatever the game state says (the chest button leaves it at playing).
+    const bool playing = input.playing && !input.penalized;
+    const bool active = input.active && !input.penalized;
+
     // The tap that starts an attempt: attempt 1 explores, later attempts run the known route if there is one.
     const auto startAttempt = [&]
     {
@@ -47,21 +51,21 @@ namespace Maze
     switch(before)
     {
       case Phase::notPlaying:
-        if(input.playing)
+        if(playing)
         {
           next = Phase::waitingForStart;
           say.push_back(Phrases::ready);
         }
         break;
       case Phase::waitingForStart:
-        if(!input.playing)
+        if(!playing)
           next = Phase::notPlaying;
-        else if(input.active && input.headFront)
+        else if(active && input.headFront)
           startAttempt();
         break;
       case Phase::exploration:
       case Phase::speedRun:
-        if(!input.active)
+        if(!active)
         {
           next = Phase::standby;
           say.push_back(Phrases::standby);
@@ -74,14 +78,14 @@ namespace Maze
         }
         break;
       case Phase::finished:
-        if(!input.active)
+        if(!active)
         {
           next = Phase::standby;
           say.push_back(Phrases::standby);
         }
         break;
       case Phase::standby:
-        if(input.active && input.headFront)
+        if(active && input.headFront)
           startAttempt();
         break;
     }

@@ -41,6 +41,15 @@ namespace
     return input;
   }
 
+  /** The chest button: the game state still says playing, `Maze::isActive` is false. */
+  BehaviorInput penalized()
+  {
+    BehaviorInput input = playingInput();
+    input.penalized = true;
+    input.active = false;
+    return input;
+  }
+
   BehaviorInput atGoal()
   {
     BehaviorInput input = playingInput();
@@ -206,6 +215,33 @@ GTEST_TEST(MazeBehavior, StandbyNeedsAnActiveRobotAndATap)
   EXPECT_EQ(behavior.update(playingInput()).phase, Phase::standby) << "put down, but no tap yet";
   EXPECT_EQ(behavior.update(tap(pickedUp())).phase, Phase::standby) << "a tap while it is still carried";
   EXPECT_EQ(behavior.update(tap(BehaviorInput())).phase, Phase::standby) << "a tap while the game does not play";
+}
+
+GTEST_TEST(MazeBehavior, APenaltyIsAPickUp)
+{
+  MazeBehavior behavior = exploring();
+  const BehaviorStep step = behavior.update(penalized()); // The game state still says playing.
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"standby"}));
+  EXPECT_EQ(behavior.update(tap(penalized())).phase, Phase::standby) << "no start while penalized";
+  EXPECT_TRUE(behavior.update(playingInput()).phrases.empty()) << "unpenalized";
+  EXPECT_EQ(behavior.update(tap()).phrases, Said({"exploring"}));
+}
+
+GTEST_TEST(MazeBehavior, APenaltyIsStandbyEvenIfActiveWasNotCleared)
+{
+  MazeBehavior behavior = exploring();
+  BehaviorInput input = playingInput();
+  input.penalized = true; // active left true: the machine does not trust it while penalized.
+  EXPECT_EQ(behavior.update(input).phase, Phase::standby);
+}
+
+GTEST_TEST(MazeBehavior, PenalizedWhileWaitingForStartLeavesAndSaysReadyWhenReleased)
+{
+  MazeBehavior behavior = waiting();
+  EXPECT_EQ(behavior.update(penalized()).phase, Phase::notPlaying);
+  EXPECT_EQ(behavior.update(playingInput()).phrases, Said({"ready"}));
+  EXPECT_EQ(behavior.phase(), Phase::waitingForStart);
 }
 
 GTEST_TEST(MazeBehavior, StandbyRunsTheKnownRoute)

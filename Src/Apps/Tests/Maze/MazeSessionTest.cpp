@@ -91,20 +91,43 @@ GTEST_TEST(MazeSession, MapActionsApplyTheQualityGateAfterTheVisit)
 
 GTEST_TEST(MazeSession, ActiveNeedsPlayingAndNotPickedUp)
 {
-  EXPECT_TRUE(isActive(true, false));
-  EXPECT_FALSE(isActive(true, true)); // Picked up while the game still plays.
-  EXPECT_FALSE(isActive(false, false)); // Standing on the ground outside of playing.
-  EXPECT_FALSE(isActive(false, true));
+  EXPECT_TRUE(isActive(true, false, false));
+  EXPECT_FALSE(isActive(true, false, true)); // Picked up while the game still plays.
+  EXPECT_FALSE(isActive(false, false, false)); // Standing on the ground outside of playing.
+  EXPECT_FALSE(isActive(false, false, true));
+}
+
+GTEST_TEST(MazeSession, APenalizedRobotIsNotActiveEvenIfTheGameIsPlaying)
+{
+  // A chest-button penalty leaves the game state at playing.
+  EXPECT_FALSE(isActive(true, true, false));
+  EXPECT_FALSE(isActive(true, true, true));
+  EXPECT_FALSE(isActive(false, true, false));
+  EXPECT_FALSE(isActive(true, true, FallDownState::upright));
+  EXPECT_TRUE(isActive(true, false, FallDownState::upright));
+}
+
+GTEST_TEST(MazeSession, BeingUnpenalizedStartsTheNextAttemptLikeAPutDown)
+{
+  PlayingTracker tracker;
+  EXPECT_TRUE(tracker.update(isActive(true, false, false)).resetPose());
+  const PlayingTransition penalized = tracker.update(isActive(true, true, false));
+  EXPECT_FALSE(penalized.resetPose());
+  EXPECT_FALSE(penalized.newAttempt);
+  EXPECT_FALSE(tracker.update(isActive(true, true, false)).resetPose());
+  const PlayingTransition released = tracker.update(isActive(true, false, false));
+  EXPECT_TRUE(released.resetPose());
+  EXPECT_TRUE(released.newAttempt);
 }
 
 GTEST_TEST(MazeSession, LiftingTheRobotStartsTheNextAttemptWhenItIsPutDown)
 {
   PlayingTracker tracker;
   // The game keeps playing; the robot is on the ground, lifted, and put down again.
-  EXPECT_TRUE(tracker.update(isActive(true, false)).resetPose());
-  EXPECT_FALSE(tracker.update(isActive(true, false)).resetPose());
-  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
-  const PlayingTransition down = tracker.update(isActive(true, false));
+  EXPECT_TRUE(tracker.update(isActive(true, false, false)).resetPose());
+  EXPECT_FALSE(tracker.update(isActive(true, false, false)).resetPose());
+  EXPECT_FALSE(tracker.update(isActive(true, false, true)).resetPose());
+  const PlayingTransition down = tracker.update(isActive(true, false, false));
   EXPECT_TRUE(down.resetPose());
   EXPECT_TRUE(down.newAttempt);
 }
@@ -122,12 +145,12 @@ GTEST_TEST(MazeSession, BootingPickedUpDelaysTheFirstAttemptWithoutCountingAnoth
 {
   // FallDownState starts as pickedUp until the robot stands upright; the game may already be playing then.
   PlayingTracker tracker;
-  const PlayingTransition boot = tracker.update(isActive(true, true));
+  const PlayingTransition boot = tracker.update(isActive(true, false, true));
   EXPECT_TRUE(boot.firstFrame);
   EXPECT_TRUE(boot.resetPose());
   EXPECT_FALSE(boot.enteredPlaying);
-  EXPECT_FALSE(tracker.update(isActive(true, true)).resetPose());
-  const PlayingTransition upright = tracker.update(isActive(true, false));
+  EXPECT_FALSE(tracker.update(isActive(true, false, true)).resetPose());
+  const PlayingTransition upright = tracker.update(isActive(true, false, false));
   EXPECT_TRUE(upright.enteredPlaying);
   EXPECT_FALSE(upright.newAttempt) << "the first attempt is attempt 1, not a second one";
 }
@@ -136,16 +159,16 @@ GTEST_TEST(MazeSession, AFallIsNotAPickUp)
 {
   // Only FallDownState::pickedUp is a pick-up. The states of a fall keep the robot active, so nothing resets.
   for(const FallDownState::State body : {FallDownState::upright, FallDownState::staggering, FallDownState::falling, FallDownState::fallen, FallDownState::squatting})
-    EXPECT_TRUE(isActive(true, body)) << static_cast<int>(body);
-  EXPECT_FALSE(isActive(true, FallDownState::pickedUp));
-  EXPECT_FALSE(isActive(false, FallDownState::upright));
+    EXPECT_TRUE(isActive(true, false, body)) << static_cast<int>(body);
+  EXPECT_FALSE(isActive(true, false, FallDownState::pickedUp));
+  EXPECT_FALSE(isActive(false, false, FallDownState::upright));
 
   PlayingTracker tracker;
-  EXPECT_TRUE(tracker.update(isActive(true, FallDownState::upright)).resetPose());
+  EXPECT_TRUE(tracker.update(isActive(true, false, FallDownState::upright)).resetPose());
   for(const FallDownState::State body : {FallDownState::staggering, FallDownState::falling, FallDownState::fallen, FallDownState::fallen,
                                          FallDownState::squatting, FallDownState::upright})
   {
-    const PlayingTransition fall = tracker.update(isActive(true, body));
+    const PlayingTransition fall = tracker.update(isActive(true, false, body));
     EXPECT_FALSE(fall.resetPose()) << static_cast<int>(body);
     EXPECT_FALSE(fall.newAttempt) << static_cast<int>(body);
   }

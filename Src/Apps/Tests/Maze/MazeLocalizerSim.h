@@ -130,6 +130,7 @@ namespace Maze
       Pose2f truth;
       unsigned time = 1000;
       bool playing = true;
+      bool penalized = false; /**< Penalized (for example by the chest button) while the game state still says playing. */
       FallDownState::State body = FallDownState::upright; /**< The body state: `pickedUp` is a pick-up; fallen, falling, ... are falls, which do not end the attempt. */
       Config config;
       Stats stats;
@@ -224,13 +225,20 @@ namespace Maze
       {
         carryTo(cell, heading);
         localization.reset(cell, heading, Angle::normalize(truth.rotation + config.noise.gyroReference + gyroDrift()), time);
-        (void) localizerSession.update(isActive(playing, body)); // The first frame is over.
+        (void) localizerSession.update(isActive(playing, penalized, body)); // The first frame is over.
       }
 
       /** Moves the robot's state to not playing (pick-up, Standby) or back to playing; the frame runs with the new state. */
       void setPlaying(bool value)
       {
         playing = value;
+        tick();
+      }
+
+      /** Penalizes the robot or releases it; the game state keeps playing. The frame runs with the new state. */
+      void setPenalized(bool value)
+      {
+        penalized = value;
         tick();
       }
 
@@ -293,7 +301,7 @@ namespace Maze
           localization.transform(StartDeduction::startToMaze(anchored.anchor()) * StartDeduction::startToMaze(localizerFrame).inverse());
           localizerFrame = anchored.anchor();
         }
-        if(localizerSession.update(isActive(playing, body)).resetPose())
+        if(localizerSession.update(isActive(playing, penalized, body)).resetPose())
         {
           localization.reset(localizerFrame.cell, localizerFrame.heading, gyroYaw, time);
           ++resets;
@@ -386,7 +394,7 @@ namespace Maze
       /** MazeMapper::step, every frame; the observations only when a percept arrived. */
       void mapperUpdate(const Percept& percept, const Pose2f& trueDelta)
       {
-        const bool active = isActive(playing, body);
+        const bool active = isActive(playing, penalized, body);
         if(mapperSession.update(active).newAttempt)
           anchored.newAttempt();
         const MapActions actions = mapActions(active, qualityAccepted(localization.quality(time), config.worstAcceptedQuality));

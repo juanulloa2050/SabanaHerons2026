@@ -80,8 +80,8 @@ void MazeLocalizer::step()
   // The mapper may have changed the working start hypothesis in the last frame.
   followStart();
 
-  // Positioned at start: on the first frame and whenever the robot becomes active (playing, on the ground).
-  const Maze::PlayingTransition transition = session.update(Maze::isActive(theGameState.isPlaying(), theFallDownState.state));
+  // Positioned at start: on the first frame and whenever the robot becomes active (playing, not penalized, on the ground).
+  const Maze::PlayingTransition transition = session.update(Maze::isActive(theGameState.isPlaying(), theGameState.isPenalized(), theFallDownState.state));
   if(transition.resetPose())
   {
     OUTPUT_TEXT("MazeLocalizer: pose reset to the start (cell " << frame.cell << "): "

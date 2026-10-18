@@ -300,6 +300,36 @@ GTEST_TEST(MazeLocalizerAcceptance, PickUpDuringPlayingStartsTheNextAttemptWhenP
   EXPECT_EQ(run.localization.heading(), maze.startHeading);
 }
 
+GTEST_TEST(MazeLocalizerAcceptance, PenaltyDuringPlayingActsLikeAPickUp)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.fusion().attempt, 1);
+  ASSERT_EQ(run.resets, 1u);
+
+  const MazeMapFusion before = run.fusion();
+  run.setPenalized(true); // The chest button: the game state keeps playing.
+  run.carryTo(45, Heading::west);
+  run.stand(100);
+  EXPECT_TRUE(run.fusion() == before) << "the map must not learn while penalized";
+  EXPECT_EQ(run.fusion().attempt, 1);
+  EXPECT_EQ(run.resets, 1u);
+  run.carryTo(maze.startCell, maze.startHeading);
+  run.config.noise.dropoutRate = 1.f;
+  run.setPenalized(false);
+  run.config.noise.dropoutRate = 0.f;
+  EXPECT_EQ(run.fusion().attempt, 2);
+  EXPECT_EQ(run.resets, 2u);
+  EXPECT_TRUE(run.fusion() == before) << "the map is kept";
+  const Vector2f startCentre = Oracle::cellCentreOf(cellRow(maze.startCell), cellCol(maze.startCell));
+  EXPECT_LT((run.localization.pose.translation - startCentre).norm(), 30.f);
+  EXPECT_EQ(run.localization.heading(), maze.startHeading);
+}
+
 GTEST_TEST(MazeLocalizerAcceptance, AFallDuringPlayingNeitherResetsThePoseNorCountsAnAttempt)
 {
   const MazeDescription maze = loadMaze(1);

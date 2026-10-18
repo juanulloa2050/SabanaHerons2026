@@ -11,7 +11,7 @@
  * filter itself is in Tools/Maze/MazeLocalization.h and has its own unit tests.
  *
  * Start: the robot is "positioned at start": on the first frame and on every transition into active (the
- * game is playing and the robot is not picked up, see `Maze::isActive`) the pose is reset to the start of the
+ * game is playing and the robot is neither penalized nor picked up, see `Maze::isActive`) the pose is reset to the start of the
  * working hypothesis of `MazeStart` and the gyro is re-referenced (`resetToStart`). Standby and pick-up
  * therefore put the localizer back at the start while MazeMapper keeps the map.
  *

@@ -110,8 +110,8 @@ void MazeMapper::step()
   parameters.maxOffsetFromCentre = maxOffsetFromCentre;
   anchored.setParameters(parameters);
 
-  // A picked-up robot is as inactive as a paused game: the pose would not match what the camera sees.
-  const bool active = Maze::isActive(theGameState.isPlaying(), theFallDownState.state);
+  // A picked-up or penalized robot is as inactive as a paused game: the pose would not match what the camera sees.
+  const bool active = Maze::isActive(theGameState.isPlaying(), theGameState.isPenalized(), theFallDownState.state);
   if(session.update(active).newAttempt)
     anchored.newAttempt();
 
