@@ -291,7 +291,8 @@ stateDiagram-v2
   StartScan --> MazeExploration: headFront tap (attempt 1)
   WaitingForStart --> MazeExploration: headFront tap (attempt 1)
   WaitingForStart --> SpeedRun: headFront tap (map exists)
-  MazeExploration --> ReturnToStart: goal reached
+  MazeExploration --> Finished: goal reached
+  Finished --> ReturnToStart: returnToStart enabled: timer or headFront tap
   MazeExploration --> Standby: picked up / timeout
   ReturnToStart --> Standby: at start / 2 min / picked up
   Standby --> SpeedRun: headFront tap
@@ -310,7 +311,7 @@ stateDiagram-v2
 | `StartScan` | Optional (switch `startScan.enabled`, MZ-041). Pan the head left and right for `startScan.durationMs` (default 5 s) to read the tags and walls already visible from the start cell, then look ahead. A `headFront` tap during the scan starts the run at once. |
 | `WaitingForStart` | Stand and look ahead. Identify the start corner from the tag (0/7/56/63) and the open side. A single `headRear` tap says the last seen tag id (self-test). |
 | `MazeExploration` | Execute `MazePlan` actions with skills `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centre) and `MazeScanWalls` (head pan ≤2 s, only on unknown edges) |
-| `ReturnToStart` | Stretch goal. Otherwise stand at the goal (Finished). |
+| `ReturnToStart` | Optional (`returnToStart.enabled`, MZ-024.1). The same plan-walk-replan loop as `MazeExploration` with the start cell as the target (unknown edges open, scans on unknown edges). Starts from `Finished` after `delayMs` (`trigger = timer`) or on a `headFront` tap (`trigger = button`); ends at the start cell, after `maxDurationMs` or when picked up, and always goes to `Standby`. With `enabled = false` the robot stands in `Finished`. |
 | `Standby` | Entered when ground contact is lost (picked up). Keep the map, reset the pose to the stored start cell, wait for the tap. |
 | `SpeedRun` | Execute the known-only plan. No wall scans. |
 | `Finished` | Stand, say "goal". |
@@ -328,11 +329,11 @@ what the robot understood without a laptop. The robot uses the existing `Say` sk
 | Scan over, or no scan: waiting for the whistle | "ready" |
 | `headFront` ×1, start of attempt 1 | "exploring" |
 | `headFront` ×1, start of attempt 2 | "speed run" |
-| Goal detected | "goal" |
+| Goal detected | "goal" (then "finished" unless the return follows) |
 | `ReturnToStart` begins | "returning" |
 | Picked up, or the game stops playing (`Standby`) | "standby" |
 | Back on the ground / unpenalized / `gc playing` in `Standby` | "ready" |
-| `Finished` | "finished" |
+| `Finished` (return disabled) | "finished" |
 | Watchdog: safe mode / wall-follower | "safe mode" / "wall follower" |
 | `headRear` ×1 (self-test) | "tag <id>" or "no tag" |
 | `headMiddle` ×2 | "motion test" |

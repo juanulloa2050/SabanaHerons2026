@@ -1199,6 +1199,12 @@ the same loop back. Every edge seen on the way goes into `MazeMap`, so attempt 2
 - [ ] With `returnToStart.enabled = false`, the robot stays at the goal (`Finished`), as before.
 - [ ] In simulation on 3 mazes, the robot reaches the start cell, or stops at `maxDurationMs`, and goes to `Standby`; the edges found on the way are in `MazeMap`, and the attempt-2 plan uses them (check in a log).
 
+**Offline evidence (branch `feat/MZ-024.1-return-to-start`; boxes stay unticked until the SimRobot runs).**
+- `MazeRoutes.TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop`: `maze_19`, map known after the walk (the cells of the long eastern loop, plus cell 44), return from 36 is 36 → 35 → 43 → 42 → 34 → … → 0 and never enters 37. Cell 44 had to be known: with 44 unknown, 36 → 44 → 43 ties with 36 → 35 → 43 and is one start-up cheaper.
+- The planner tests are unchanged and pass with the default target; `MazePlanner.TheDefaultTargetSetIsTheGoalBlock` compares the default with an explicit goal block.
+- `MazeReturnToStart.*` (phase machine, injected clock): disabled → "goal", "finished" and no return; timer at `delayMs` (before/after); button only on a tap; end at the start, at `maxDurationMs` (also without route) or on pick-up; new attempt during the return → `standby`.
+- Pending (user, SimRobot): timer ±0.5 s, button, disabled, 3 mazes with the attempt-2 plan log.
+
 ---
 
 ## Physical robot tickets (testing method not settled)

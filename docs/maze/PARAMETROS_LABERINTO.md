@@ -199,14 +199,16 @@ In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `
 
 ## 9. Return to start
 
-File: `Config/Scenarios/Maze/handleMaze.cfg`. Ticket: MZ-024.1 (proposed). Status: **planned in MZ-024.1**.
+File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg`. Ticket: MZ-024.1. Status: **implemented in MZ-024.1** (`returnToStart = {...}`; a file without the entry keeps the defaults, so the old flow stays).
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `returnToStart.enabled` | `false`: stand at the goal (`Finished`); `true`: explore back to the start. | `false` | Q3, Q9 |
+| `returnToStart.enabled` | `false`: stand at the goal (`Finished`, says "goal" and "finished"); `true`: says "goal" only, then explores back to the start (says "returning"). | `false` | Q3, Q9 |
 | `returnToStart.trigger` | `timer`: start `delayMs` after the goal is confirmed; `button`: start on a `headFront` tap at the goal. | `timer` | Q9 |
 | `returnToStart.delayMs` | Wait after the goal is confirmed, for `trigger = timer`. | `5000` | Q9 |
-| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min). | `120000` | Q3 |
+| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min), counted from "returning". The return also ends at the start cell or on a pick-up; it always goes to `Standby` and says "standby". | `120000` | Q3 |
+
+The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. It does not change the attempt counter.
 
 ## 10. Start scan
 
