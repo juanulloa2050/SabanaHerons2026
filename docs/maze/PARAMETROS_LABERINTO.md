@@ -208,7 +208,7 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/hand
 | `returnToStart.delayMs` | Wait after the goal is confirmed, for `trigger = timer`. | `5000` | Q9 |
 | `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min), counted from "returning". The return also ends at the start cell or on a pick-up; it always goes to `Standby` and says "standby". | `120000` | Q3 |
 
-The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. It does not change the attempt counter.
+The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. Only a goal reached by the exploration (attempt 1) arms the return, and it starts with one wall scan at the goal cell (the "goal look", forced even without unknown edges) so that the look-ahead shows the edges of the neighbouring goal cells. It does not change the attempt counter.
 
 ## 10. Start scan
 

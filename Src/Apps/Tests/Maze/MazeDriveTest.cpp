@@ -221,6 +221,46 @@ GTEST_TEST(MazeDrive, ACellWithUnknownEdgesIsScannedOnceAndOnlyWhenExploring)
   EXPECT_EQ(speedRun.choose(input, 0).next, DriveNext::walk) << "a speed run never scans";
 }
 
+GTEST_TEST(MazeDrive, TheGoalLookScansOnceEvenWithoutUnknownEdgesThenFollowsTheRoute)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  input.unknownEdges = false;
+  drive.requestScan();
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::scan);
+  EXPECT_EQ(drive.kind(), DriveKind::scan);
+  EXPECT_EQ(drive.choose(input, 3000).next, DriveNext::walk) << "the look counts as the scan of this cell";
+  input.cell = 10;
+  EXPECT_EQ(drive.choose(input, 6000).next, DriveNext::walk) << "only the cell where the look was requested is forced";
+  input.cell = 9;
+  EXPECT_EQ(drive.choose(input, 9000).next, DriveNext::walk) << "and it is not repeated when the robot is back";
+}
+
+GTEST_TEST(MazeDrive, TheGoalLookWaitsForAPlanOfThePoseAndIsNotKeptByAReset)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  drive.requestScan();
+  input.planCurrent = false; // The plan still describes the previous pose: nothing is consumed.
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::keep);
+  input.planCurrent = true;
+  EXPECT_EQ(drive.choose(input, 10).next, DriveNext::scan);
+
+  DriveController other;
+  other.requestScan();
+  other.reset();
+  EXPECT_EQ(other.choose(walkInput(), 0).next, DriveNext::walk) << "a new phase starts without a pending look";
+}
+
+GTEST_TEST(MazeDrive, ASpeedRunIsNeverForcedToLook)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  input.speedRun = true;
+  drive.requestScan();
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::walk);
+}
+
 GTEST_TEST(MazeDrive, ANewPhaseMayScanTheCellAgain)
 {
   DriveController drive;

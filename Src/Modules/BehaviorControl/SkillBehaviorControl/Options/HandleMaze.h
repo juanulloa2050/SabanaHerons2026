@@ -11,9 +11,10 @@
  *   speedRun         walk the speed-run route (known-open edges only), no wall scans ("speed run")
  *   standby          stand (picked up, penalized, or the game stopped playing; also after skipped frames); the map is kept ("standby", and "ready"
  *                    once when the robot is active again: put down, unpenalized, or gc playing)
- *   finished         stand, a goal cell is reached ("goal", "finished"; with returnToStart.enabled only "goal", then the trigger below)
+ *   finished         stand, a goal cell is reached ("goal", "finished"; after the exploration with returnToStart.enabled only "goal", then the trigger below)
  *   returnToStart    walk the optimistic route to the start cell of the MazePlan (unknown edges open), scanning cells with unknown
- *                    edges like the exploration ("returning"); ends at the start cell or after returnToStart.maxDurationMs, then
+ *                    edges like the exploration ("returning"); it begins with one wall scan at the goal cell (goal look) even if that cell has no
+ *                    unknown edges, because the scan's look-ahead sees the edges of the neighbouring goal cells; ends at the start cell or after returnToStart.maxDurationMs, then
  *                    standby ("standby"). Optional, see `returnToStart` in handleMaze.cfg: trigger = timer starts it delayMs after
  *                    "goal", trigger = button on a headFront tap.
  *
@@ -27,7 +28,7 @@
  * The robot says what it does with the Say skill, in parallel with the motion and only if `announce.enabled` of
  * handleMaze.cfg is true. The head buttons (a tap is reported after the streak has ended):
  *
- *   headFront  x1  starts the attempt: exploration, or the speed run if the map holds a route to the goal; in finished it
+ *   headFront  x1  starts the attempt: exploration, or the speed run if the map holds a route to the goal; in finished (after the exploration) it
  *                  starts the return if returnToStart.enabled and trigger = button
  *   headRear   x1  says the id of the last seen AprilTag ("tag 11"), or "no tag" if none was seen
  *                  in the last 2 s (self-test of the AprilTag detector, MZ-018)
@@ -215,6 +216,8 @@ void enterPhase(Maze::Phase phase)
   drive.reset();
   if(phase == Maze::Phase::speedRun)
     logSpeedRun();
+  else if(phase == Maze::Phase::returnToStart)
+    drive.requestScan(); // The goal look: its look-ahead shows the edges of the neighbouring goal cells before the first return move.
 }
 
 /** @return The heading to keep (walk) or to reach (turn) as the skills take it. */

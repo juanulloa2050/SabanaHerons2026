@@ -8,9 +8,11 @@
 
 #include "Platform/File.h"
 #include "Tools/Maze/MazeFile.h"
+#include "Tools/Maze/MazeOracle.h"
 #include "Tools/Maze/MazeRoutes.h"
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -265,42 +267,101 @@ namespace
 {
   using namespace Maze;
 
-  /**
-   * maze_19 as the robot knows it after attempt 1 reached cell 36 by the long eastern loop: the shortest walk to 36 that
-   * enters the goal block only at 36 (found with a breadth-first search over the true maze with the goal cells 27, 28
-   * and 35 banned). The robot saw every wall slot of the cells it walked, so those edges carry their true state and
-   * every other edge is still unknown. Cell 44, south of 36, is also known: with 44 unknown the edge 44-43 would count
-   * as open and "36 -> 44 -> 43" would tie with "36 -> 35 -> 43" (and be slightly cheaper, it saves one start-up), so the
-   * example of the ticket needs the robot to have looked into 44 before (the wall 44-43 is known).
-   */
-  MazeGraph mapAfterTheWalk(const MazeDescription& maze, const std::vector<int>& walked)
+  /** The maze heading from cell `from` to the neighbouring cell `to`. */
+  Heading headingBetween(int from, int to)
   {
-    MazeGraph map;
-    for(const int cell : walked)
-      for(int h = 0; h < headingCount; ++h)
-        map.set(cellRow(cell), cellCol(cell), static_cast<Heading>(h), maze.graph.get(cellRow(cell), cellCol(cell), static_cast<Heading>(h)));
-    return map;
+    for(int h = 0; h < headingCount; ++h)
+      if(cellId(cellRow(from) + rowDelta[static_cast<std::size_t>(h)], cellCol(from) + colDelta[static_cast<std::size_t>(h)]) == to)
+        return static_cast<Heading>(h);
+    ADD_FAILURE() << "cells " << from << " and " << to << " are not neighbours";
+    return Heading::north;
+  }
+
+  /**
+   * What the robot learns when it looks along `gaze` from the centre of `cell`: exactly the look-ahead that
+   * `OracledMazePerceptsProvider` reports (`Oracle::computeView` over the true maze, `maxRange = 2` as in
+   * oracledMazePerceptsProvider.cfg): for every cell along the gaze, its left, right and front edge.
+   */
+  void look(const MazeGraph& truth, MazeGraph& map, int cell, Heading gaze)
+  {
+    const Oracle::Camera camera{Vector2f::Zero(), 0.f, 1.2f};
+    Oracle::View view;
+    const Pose2f pose(Oracle::angleOf(gaze), Oracle::cellCentreOf(cellRow(cell), cellCol(cell)));
+    ASSERT_TRUE(Oracle::computeView(truth, pose, camera, 2, view));
+    for(const Oracle::LookAheadCell& seen : view.cells)
+    {
+      map.set(seen.row, seen.col, turned(view.gaze, -1), seen.left);
+      map.set(seen.row, seen.col, turned(view.gaze, 1), seen.right);
+      map.set(seen.row, seen.col, view.gaze, seen.front);
+    }
+  }
+
+  /** The wall scan of `MazeScanWalls` (+60 deg, -60 deg, 0): the gazes left of, right of and along `heading`. */
+  void scan(const MazeGraph& truth, MazeGraph& map, int cell, Heading heading)
+  {
+    look(truth, map, cell, turned(heading, -1));
+    look(truth, map, cell, turned(heading, 1));
+    look(truth, map, cell, heading);
+  }
+
+  /** The cells of a route, a turn on the spot counted once. */
+  std::vector<int> cellsOf(const RouteResult& route)
+  {
+    std::vector<int> cells;
+    for(const MazeState& state : route.states)
+      if(cells.empty() || cells.back() != cellId(state.row, state.col))
+        cells.push_back(cellId(state.row, state.col));
+    return cells;
   }
 }
 
+/**
+ * maze_19 as the robot knows it after attempt 1 reached cell 36 by the long eastern loop (the shortest walk to 36 that
+ * enters the goal block only at 36: a breadth-first search over the true maze with the goal cells 27, 28 and 35 banned).
+ * The map is what the scans of the walk reveal: at every walked cell but the goal, the three gazes of the wall scan
+ * (left, right, along the heading it arrived with), each with the look-ahead of the oracle. The real robot scans only
+ * cells that still have unknown edges, so this is an upper bound of its knowledge, and it is still short of the shortcut.
+ */
 GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
 {
   MazeDescription maze;
   std::string error;
   ASSERT_TRUE(MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/generated/maze_19.maze", maze, error)) << error;
   ASSERT_EQ(maze.startCell, 0);
-  const std::vector<int> walked = {0, 8, 16, 24, 25, 33, 34, 26, 18, 19, 20, 21, 13, 12, 4, 5, 6, 14, 22, 23, 31, 39, 38, 30, 29, 37, 36, 44};
-  const MazeGraph map = mapAfterTheWalk(maze, walked);
+  const std::vector<int> walked = {0, 8, 16, 24, 25, 33, 34, 26, 18, 19, 20, 21, 13, 12, 4, 5, 6, 14, 22, 23, 31, 39, 38, 30, 29, 37, 36};
+  MazeGraph map;
+  for(std::size_t i = 0; i + 1 < walked.size(); ++i)
+    scan(maze.graph, map, walked[i], headingBetween(walked[i], walked[i + 1]));
+  const Heading arrival = headingBetween(walked[walked.size() - 2], walked.back());
+  ASSERT_EQ(arrival, Heading::west) << "the robot stands in 36 after coming from 37";
+  const MazeState atGoal = stateAt(4, 4, arrival);
 
-  // The robot stands in 36 after coming from 37, so it faces west.
-  const RoutePair routes = planRoutes(map, stateAt(4, 4, Heading::west), MazeCosts(), maze.startCell);
+  // Before the goal look: the walk already showed that 35-43 is open (from 37, the gaze west sees 36 and 35 and the left
+  // edge of 35), but the edge 44-43 is still unknown. The optimistic way 36 -> 44 -> 43 ties with 36 -> 35 -> 43 and saves
+  // one start-up, so the plan takes it; either way it does not retrace the loop.
+  const RoutePair before = planRoutes(map, atGoal, MazeCosts(), maze.startCell);
+  EXPECT_TRUE(before.atGoal);
+  ASSERT_TRUE(before.returnToStart.found);
+  const std::vector<int> beforeCells = cellsOf(before.returnToStart);
+  std::cout << "maze_19 return before the goal look:";
+  for(const int cell : beforeCells)
+    std::cout << ' ' << cell;
+  std::cout << std::endl;
+  EXPECT_EQ(beforeCells.front(), 36);
+  EXPECT_EQ(beforeCells.back(), 0);
+  EXPECT_EQ(std::count(beforeCells.begin(), beforeCells.end(), 37), 0) << "the walked loop is not retraced";
+  EXPECT_EQ(map.get(4, 3, Heading::south), EdgeState::open) << "35-43 was seen from 37";
+  EXPECT_EQ(map.get(5, 4, Heading::west), EdgeState::unknown) << "44-43 is not known before the goal look";
+
+  // The goal look: one wall scan at 36. The gaze left of the heading (south) sees 44 and its west edge, the wall 44-43,
+  // so the optimistic way through 44 is gone and 36 -> 35 -> 43 remains.
+  scan(maze.graph, map, 36, arrival);
+  EXPECT_EQ(map.get(5, 4, Heading::west), EdgeState::wall);
+  const RoutePair routes = planRoutes(map, atGoal, MazeCosts(), maze.startCell);
   EXPECT_TRUE(routes.atGoal);
   EXPECT_FALSE(routes.atStart);
   ASSERT_TRUE(routes.returnToStart.found);
-  std::vector<int> cells;
-  for(const MazeState& state : routes.returnToStart.states)
-    if(cells.empty() || cells.back() != cellId(state.row, state.col))
-      cells.push_back(cellId(state.row, state.col));
+  const std::vector<int> cells = cellsOf(routes.returnToStart);
   ASSERT_GE(cells.size(), 5u);
   EXPECT_EQ(cells[0], 36);
   EXPECT_EQ(cells[1], 35);
@@ -309,7 +370,6 @@ GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
   EXPECT_EQ(cells[4], 34) << "35 -> 43 -> 42 -> 34 goes through unknown edges, 35 and 34 are separated by a wall";
   EXPECT_EQ(cells.back(), 0);
   EXPECT_EQ(std::count(cells.begin(), cells.end(), 37), 0) << "the walked loop is not retraced";
-  EXPECT_EQ(map.get(4, 3, Heading::south), EdgeState::unknown) << "the shortcut is unexplored";
   EXPECT_EQ(map.get(4, 2, Heading::east), EdgeState::wall);
 
   // The goal routes are unchanged by the extra target: the planner for the goal block still sees the goal.

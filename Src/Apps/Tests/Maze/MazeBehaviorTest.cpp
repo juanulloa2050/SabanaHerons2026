@@ -569,6 +569,23 @@ GTEST_TEST(MazeReturnToStart, DisabledStandsAtTheGoalForeverAndSaysFinished)
   }
 }
 
+GTEST_TEST(MazeReturnToStart, OnlyAGoalOfTheExplorationArmsTheReturn)
+{
+  for(const ReturnToStartConfig::Trigger trigger : {ReturnToStartConfig::timer, ReturnToStartConfig::button})
+  {
+    // Attempt 2 runs the speed run to the goal: "goal" and "finished" as without the return, and it stays there.
+    MazeBehavior behavior;
+    (void) behavior.update(returning(playingInput(), 1000, trigger));
+    (void) behavior.update(returning(withRoute(tap()), 2000, trigger));
+    ASSERT_EQ(behavior.phase(), Phase::speedRun);
+    const BehaviorStep step = behavior.update(returning(atGoal(), 10000, trigger));
+    EXPECT_EQ(step.phase, Phase::finished);
+    EXPECT_EQ(step.phrases, Said({"goal", "finished"}));
+    EXPECT_EQ(behavior.update(returning(playingInput(), 500000, trigger)).phase, Phase::finished) << "the timer never starts a return after a speed run";
+    EXPECT_EQ(behavior.update(returning(tap(), 500100, trigger)).phase, Phase::finished) << "neither does the button";
+  }
+}
+
 GTEST_TEST(MazeReturnToStart, TheTimerStartsTheReturnDelayMsAfterTheGoal)
 {
   MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);

@@ -52,6 +52,7 @@ namespace Maze
     driveKind = DriveKind::idle;
     scannedCell = -1;
     noRouteReported = false;
+    scanRequested = false;
   }
 
   bool DriveController::actionOver(bool skillDone, unsigned now) const
@@ -93,8 +94,9 @@ namespace Maze
     }
     noRouteReported = false;
     startTime = now;
-    if(!input.speedRun && scannedCell != input.cell && input.unknownEdges)
+    if(!input.speedRun && scannedCell != input.cell && (input.unknownEdges || scanRequested))
     {
+      scanRequested = false;
       scannedCell = input.cell;
       driveKind = DriveKind::scan;
       decision.next = DriveNext::scan;

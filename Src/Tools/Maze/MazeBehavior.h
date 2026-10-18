@@ -9,10 +9,9 @@
  *   waitingForStart -> exploration       headFront tap, no known route to the goal       "exploring"
  *   waitingForStart -> speedRun          headFront tap, a route over known-open edges     "speed run"
  *   waitingForStart -> notPlaying        the game stops playing, or the robot is penalized
- *   exploration     -> finished          the pose is in a goal cell                       "goal", "finished"
- *   speedRun        -> finished          the pose is in a goal cell                       "goal", "finished"
- *   exploration/speedRun -> finished     with returnToStart.enabled = false: "goal", "finished"
- *   exploration/speedRun -> finished     with returnToStart.enabled = true: "goal" only (the return follows)
+ *   exploration     -> finished          the pose is in a goal cell; returnToStart.enabled = false: "goal", "finished"; true: "goal" only
+ *                                        (the return follows)
+ *   speedRun        -> finished          the pose is in a goal cell                       "goal", "finished" (never followed by the return)
  *   finished        -> returnToStart     trigger = timer: delayMs after the goal; trigger = button: headFront tap  "returning"
  *   returnToStart   -> standby           the pose is in the start cell, or maxDurationMs have passed (also if no route was found)  "standby"
  *   exploration/speedRun/finished/returnToStart -> standby   the robot is not active (picked up, penalized or not playing)   "standby"
@@ -31,7 +30,9 @@
  *
  * "start <id>" is said once when the start cell becomes known by deduction (never when it is given). The phrases are
  * data, so a test can check every transition; speaking them (without blocking the motion) is the behaviour's job.
- * The return to the start (MZ-024.1) is optional (`returnToStart` in handleMaze.cfg); the clock is `BehaviorInput::timeMs`, so
+ * The return to the start (MZ-024.1) only follows a goal reached by the exploration (attempt 1). When it begins, `HandleMaze` makes the
+ * robot look around once at the goal cell (the wall scan, even without unknown edges): the look-ahead of the scan sees the edges of the
+ * neighbouring goal cells, which the first return plan uses. The return is optional (`returnToStart` in handleMaze.cfg); the clock is `BehaviorInput::timeMs`, so
  * the delay and the time limit are testable. The return does not touch the attempt counter. From standby at the start cell
  * the tap starts the speed run as after any attempt.
  * `Unpositioned`/`StartScan` (MZ-041) and `Sitting` (MZ-042) are not phases here.
@@ -129,6 +130,7 @@ namespace Maze
     bool startWasKnown = false;
     bool wasActive = false; /**< The robot was active in the previous frame. */
     int lastAttempt = 1;    /**< The attempt counter of the previous call. */
+    bool returnArmed = false;  /**< The goal was reached by the exploration and the return is enabled: `finished` waits for the trigger. */
     unsigned phaseStartMs = 0; /**< `timeMs` when the goal was reached (finished) or the return began (returnToStart). */
   };
 

@@ -87,8 +87,10 @@ namespace Maze
           next = Phase::finished;
           phaseStartMs = input.timeMs;
           say.push_back(Phrases::goal);
-          if(!input.returnToStart.enabled)
-            say.push_back(Phrases::finished); // With the return the robot does not stand: no "finished".
+          // Only a goal found by the exploration (attempt 1) is followed by the return; with it the robot does not stand: no "finished".
+          returnArmed = before == Phase::exploration && input.returnToStart.enabled;
+          if(!returnArmed)
+            say.push_back(Phrases::finished);
         }
         break;
       case Phase::finished:
@@ -102,7 +104,7 @@ namespace Maze
           next = Phase::standby;
           say.push_back(Phrases::ready);
         }
-        else if(input.returnToStart.enabled &&
+        else if(returnArmed &&
                 (input.returnToStart.trigger == ReturnToStartConfig::timer ? input.timeMs - phaseStartMs >= input.returnToStart.delayMs : input.headFront))
         {
           next = Phase::returnToStart;

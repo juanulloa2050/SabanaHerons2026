@@ -215,8 +215,9 @@ map when the robot crosses a cell boundary. The offline results are in `GYRO_HEA
 The return is off by default (`returnToStart.enabled = false`: the robot stands at the goal, as in step 3 above). To try it:
 
 1. In `Config/Scenarios/Maze/handleMaze.cfg` (or `MazeSafe`) set `returnToStart = {enabled = true; trigger = timer; delayMs = 5000; maxDurationMs = 120000;};`. Use `trigger = button` to start it by hand. Reopen the scene (the file is read when the behaviour is created).
-2. Run attempt 1 as above. At the goal the robot says "goal" only (no "finished").
-3. `trigger = timer`: after `delayMs` it says "returning" and walks back, trying unknown edges. `trigger = button`: it stands until `dr option:HandleMaze:headFront on` (the tap is free at the goal), then says "returning".
+2. Run attempt 1 as above. At the goal the robot says "goal" only (no "finished"). Only a goal reached by the exploration (attempt 1) arms the return; a speed-run goal still says "goal", "finished" and stays.
+3. `trigger = timer`: after `delayMs` it says "returning" and walks back, trying unknown edges. `trigger = button`: it stands until `dr option:HandleMaze:headFront on` (the tap is free at the goal), then says "returning". Before the first move the robot makes one wall scan (the "goal look", even if the goal cell has no unknown edges): its look-ahead shows the edges of the neighbouring goal cells, so the first return plan already knows them.
+   When the return begins the robot first makes one wall scan (the "goal look", even if the goal cell has no unknown edges): its look-ahead shows the edges of the neighbouring goal cells, so the first return plan already knows them.
 4. The return ends at the start cell, or after `maxDurationMs` (also if no route is found), or when the robot is picked up (`gc initial`): it says "standby" and stands. `dr option:HandleMaze:headFront on` then starts the speed run with the edges found on the way (console: `HandleMaze: speed run over ...`).
 
 Watch `get representation:MazePlan` (`returnToStart` route, `atStart`, `startCell`) and `vfd worldState representation:MazePlan` (the green dotted line is the return route). The unit test `MazeRoutes.TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop` checks the `maze_19.maze` example offline.
