@@ -18,6 +18,7 @@ namespace Maze
       case Phase::exploration: return "exploration";
       case Phase::standby: return "standby";
       case Phase::speedRun: return "speedRun";
+      case Phase::returnToStart: return "returnToStart";
       default: return "finished";
     }
   }
@@ -84,8 +85,10 @@ namespace Maze
         else if(input.atGoal)
         {
           next = Phase::finished;
+          phaseStartMs = input.timeMs;
           say.push_back(Phrases::goal);
-          say.push_back(Phrases::finished);
+          if(!input.returnToStart.enabled)
+            say.push_back(Phrases::finished); // With the return the robot does not stand: no "finished".
         }
         break;
       case Phase::finished:
@@ -98,6 +101,31 @@ namespace Maze
         {
           next = Phase::standby;
           say.push_back(Phrases::ready);
+        }
+        else if(input.returnToStart.enabled &&
+                (input.returnToStart.trigger == ReturnToStartConfig::timer ? input.timeMs - phaseStartMs >= input.returnToStart.delayMs : input.headFront))
+        {
+          next = Phase::returnToStart;
+          phaseStartMs = input.timeMs;
+          say.push_back(Phrases::returning);
+        }
+        break;
+      case Phase::returnToStart:
+        if(!active)
+        {
+          next = Phase::standby;
+          say.push_back(Phrases::standby);
+        }
+        else if(attemptGrew)
+        {
+          next = Phase::standby;
+          say.push_back(Phrases::ready);
+        }
+        else if(input.atStart || input.timeMs - phaseStartMs >= input.returnToStart.maxDurationMs)
+        {
+          // At the start, or out of time (also if no route was found): wait for the tap of the speed run.
+          next = Phase::standby;
+          say.push_back(Phrases::standby);
         }
         break;
       case Phase::standby:
