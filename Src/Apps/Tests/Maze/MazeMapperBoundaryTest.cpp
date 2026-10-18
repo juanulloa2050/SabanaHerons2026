@@ -25,15 +25,13 @@ namespace
   constexpr int cell19 = 19; // row 2, col 3
   constexpr int cell20 = 20; // row 2, col 4: open to the west, wall to the east
 
-  MazeDescription sceneMaze(int startCell)
+  MazeDescription sceneMaze()
   {
     MazeDescription maze;
     std::string error;
     EXPECT_TRUE(MazeFile::load(std::string(File::getBHDir()) + "/Config/Mazes/fixtures/boundary_test.maze", maze, error)) << error;
     EXPECT_EQ(maze.graph.get(2, 4, Heading::east), EdgeState::wall) << "fixture premise: cell 20 has a wall to the east";
     EXPECT_EQ(maze.graph.get(2, 3, Heading::east), EdgeState::open) << "fixture premise: cells 19 and 20 are open to each other";
-    maze.startCell = startCell;
-    maze.startHeading = Heading::south;
     return maze;
   }
 
@@ -58,7 +56,7 @@ namespace
     for(int cell = 0; cell < cellCount; ++cell)
       for(int h = 0; h < headingCount; ++h)
       {
-        const EdgeState believed = run.fusion.graph.get(cellRow(cell), cellCol(cell), static_cast<Heading>(h));
+        const EdgeState believed = run.fusion().graph.get(cellRow(cell), cellCol(cell), static_cast<Heading>(h));
         if(believed != EdgeState::unknown && believed != run.config.maze.graph.get(cellRow(cell), cellCol(cell), static_cast<Heading>(h)))
           ++wrong;
       }
@@ -69,15 +67,16 @@ namespace
   void learnCell20(WalkingRobot& run)
   {
     run.stand(120);
-    ASSERT_EQ(run.fusion.graph.get(2, 4, Heading::east), EdgeState::wall);
-    ASSERT_EQ(run.fusion.graph.get(2, 4, Heading::west), EdgeState::open);
+    ASSERT_EQ(run.fusion().graph.get(2, 4, Heading::east), EdgeState::wall);
+    ASSERT_EQ(run.fusion().graph.get(2, 4, Heading::west), EdgeState::open);
     ASSERT_EQ(wrongEdges(run), 0);
   }
 }
 
 GTEST_TEST(MazeMapperBoundary, DraggingTheRobotNextDoorDoesNotEraseTheWallItLearned)
 {
-  WalkingRobot run(cognitionRate(sceneMaze(cell20)));
+  WalkingRobot run(cognitionRate(sceneMaze()));
+  run.placeAt(cell20, Heading::south);
   learnCell20(run);
 
   // Dragged in the scene from cell 20 to cell 19: no odometry, the estimate lags until a tag corrects it. The head needs
@@ -87,7 +86,7 @@ GTEST_TEST(MazeMapperBoundary, DraggingTheRobotNextDoorDoesNotEraseTheWallItLear
   run.onFrame = [&](const WalkingRobot& robot)
   {
     framesWithWrongEdge += wrongEdges(robot) > 0 ? 1 : 0;
-    wallErased = wallErased || robot.fusion.graph.get(2, 4, Heading::east) != EdgeState::wall;
+    wallErased = wallErased || robot.fusion().graph.get(2, 4, Heading::east) != EdgeState::wall;
   };
   run.carryTo(cell19, Heading::south);
   const float tagViewAngle = run.config.maxTagViewAngle;
@@ -105,7 +104,8 @@ GTEST_TEST(MazeMapperBoundary, DraggingTheRobotNextDoorDoesNotEraseTheWallItLear
 
 GTEST_TEST(MazeMapperBoundary, AnEstimateAcrossTheBoundaryDoesNotWriteTheNeighbourOnTheCell)
 {
-  WalkingRobot run(cognitionRate(sceneMaze(cell20)));
+  WalkingRobot run(cognitionRate(sceneMaze()));
+  run.placeAt(cell20, Heading::south);
   learnCell20(run);
 
   // The robot is 10 mm inside cell 19, the estimate 10 mm inside cell 20 (the tags are overruled every frame): the cell is ambiguous.
@@ -119,7 +119,7 @@ GTEST_TEST(MazeMapperBoundary, AnEstimateAcrossTheBoundaryDoesNotWriteTheNeighbo
     run.localization.pose.translation = estimate;
   }
   std::cout << "[MZ-020] boundary: wrong edges after 3 s " << wrongEdges(run) << std::endl;
-  EXPECT_EQ(run.fusion.graph.get(2, 4, Heading::east), EdgeState::wall) << "the east wall of cell 20 was erased";
+  EXPECT_EQ(run.fusion().graph.get(2, 4, Heading::east), EdgeState::wall) << "the east wall of cell 20 was erased";
   EXPECT_EQ(wrongEdges(run), 0);
   EXPECT_GT(run.stats.skippedLookAheads, 0u) << "the centre gate never fired: the rate limit alone protected the wall";
 }

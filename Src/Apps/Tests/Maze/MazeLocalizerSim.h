@@ -4,7 +4,12 @@
  * Test-only simulation of a walking robot for the acceptance runs of MazeLocalizer and MazeMapper. A true pose
  * moves through a real maze along the actions of the planner; the sim derives from it what the sensors would
  * report (noisy odometry, a gyro that drifts, AprilTag detections and the wall look-ahead of the oracle) and
- * feeds the pure cores exactly like the modules do (same helpers: PlayingTracker, mapActions, chooseFace).
+ * feeds the pure cores exactly like the modules do (same helpers: PlayingTracker, mapActions, and the shared
+ * `StartAnchoredMap` with the start deduction, which also moves the localizer into the frame of the working start hypothesis).
+ *
+ * With `startGiven = false` the start is deduced: the localizer and the map work in the frame of the working hypothesis,
+ * which is not the frame of the true maze until the start is known. The error statistics compare the estimate with the truth
+ * moved into that frame.
  *
  * What it does not model: a real walk (the true pose follows the cell centres exactly, no sway, no stopping
  * errors), image processing (the oracle sees every tag in reach), the head (it looks along the robot x-axis
@@ -21,6 +26,7 @@
 #include "Tools/Maze/MazeOracle.h"
 #include "Tools/Maze/MazePlanner.h"
 #include "Tools/Maze/MazeSession.h"
+#include "Tools/Maze/MazeStartAnchoredMap.h"
 #include "Tools/Maze/MazeTagLayout.h"
 
 #include <algorithm>
@@ -28,6 +34,7 @@
 #include <cmath>
 #include <functional>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -63,6 +70,8 @@ namespace Maze
       int maxRange = 2;                        /**< Cells ahead that the oracle sees. */
       float maxTagViewAngle = Angle::fromDegrees(70.f);
       bool useGyro = true;
+      bool startGiven = true;                  /**< The start of the maze is given (`start.cell`); otherwise the mapper deduces it. */
+      bool noTagsInStartCell = false;          /**< No tag detection while the robot is in the start cell, e.g. no tag within sight of the start. */
       bool observeWhileMoving = true;          /**< False: the map learns only while the robot stands. */
       LocalizationQuality worstAcceptedQuality = LocalizationQuality::poor;
       float maxOffsetFromCentre = 150.f;       /**< Like the mapper: the look-ahead is used only this close (mm, per axis) to the centre of the estimated cell. */
@@ -99,36 +108,67 @@ namespace Maze
     class WalkingRobot
     {
     public:
-      explicit WalkingRobot(const Config& config) : config(config), rng(config.seed), fusion(config.fusion), localization(config.localization)
+      explicit WalkingRobot(const Config& config) : config(config), rng(config.seed), anchored(anchoredParameters(config)), localization(config.localization)
       {
         truth = Pose2f(angleOf(config.maze.startHeading), Oracle::cellCentreOf(cellRow(config.maze.startCell), cellCol(config.maze.startCell)));
-        fusion.startCell = config.maze.startCell;
+        anchored.layout = config.layout;
+        localizerFrame = anchored.anchor();
+        if(config.startGiven && !giveStart(config.maze.startCell, config.maze.startHeading))
+          throw std::invalid_argument("the start of the maze is not a corner facing into the maze; use placeAt to start elsewhere");
+      }
+
+      /** Gives the start like `start.cell` of handleMaze.cfg, before the first frame; it may differ from the true start of the maze. */
+      bool giveStart(int cell, Heading heading)
+      {
+        if(!anchored.setGiven(cell, heading))
+          return false;
+        localizerFrame = anchored.anchor();
+        return true;
       }
 
       /** Ground truth. */
       Pose2f truth;
       unsigned time = 1000;
       bool playing = true;
+      bool penalized = false; /**< Penalized (for example by the chest button) while the game state still says playing. */
+      FallDownState::State body = FallDownState::upright; /**< The body state: `pickedUp` is a pick-up; fallen, falling, ... are falls, which do not end the attempt. */
       Config config;
       Stats stats;
       std::mt19937 rng;
-      MazeMapFusion fusion;
+      StartAnchoredMap anchored;   /**< The map and the start deduction, as MazeMapper runs them. */
       MazeLocalization localization;
       unsigned resets = 0;
       std::function<void(const WalkingRobot&)> onFrame; /**< Called after every frame, e.g. to watch the quality. */
+
+      /** The map in the maze frame of the working start hypothesis (the true one once the start is known). */
+      [[nodiscard]] const MazeMapFusion& fusion() const { return anchored.map(); }
+
+      /** The start of the true maze. */
+      [[nodiscard]] Hypothesis trueStart() const { return {config.maze.startCell, config.maze.startHeading}; }
+
+      /** The start whose maze frame the localizer works in. */
+      [[nodiscard]] const Hypothesis& localizerStart() const { return localizerFrame; }
+
+      /** The ground truth in the maze frame of the localizer; the same as `truth` when that is the true frame. */
+      [[nodiscard]] Pose2f truthInLocalizerFrame() const
+      {
+        if(localizerFrame == trueStart())
+          return truth;
+        return StartDeduction::startToMaze(localizerFrame) * StartDeduction::startToMaze(trueStart()).inverse() * truth;
+      }
 
       /** True cell and heading of the robot. */
       [[nodiscard]] bool trueCell(int& row, int& col) const { return Oracle::cellContaining(truth.translation, row, col); }
       [[nodiscard]] Heading trueHeading() const { return headingOf(truth.rotation); }
 
-      [[nodiscard]] float positionError() const { return (localization.pose.translation - truth.translation).norm(); }
-      [[nodiscard]] float headingError() const { return std::abs(Angle::normalize(localization.pose.rotation - truth.rotation)); }
+      [[nodiscard]] float positionError() const { return (localization.pose.translation - truthInLocalizerFrame().translation).norm(); }
+      [[nodiscard]] float headingError() const { return std::abs(Angle::normalize(localization.pose.rotation - truthInLocalizerFrame().rotation)); }
 
-      /** The estimated cell equals the true one. */
+      /** The estimated cell equals the true one (in the frame of the localizer). */
       [[nodiscard]] bool cellCorrect() const
       {
         int tr, tc, er, ec;
-        return trueCell(tr, tc) && localization.cell(er, ec) && tr == er && tc == ec;
+        return Oracle::cellContaining(truthInLocalizerFrame().translation, tr, tc) && localization.cell(er, ec) && tr == er && tc == ec;
       }
 
       /** One frame; the true pose first moves by `motion` (robot frame). */
@@ -176,10 +216,43 @@ namespace Maze
         truth = Pose2f(angleOf(heading), Oracle::cellCentreOf(cellRow(cell), cellCol(cell)));
       }
 
+      /**
+       * Starts the run somewhere else than at the start of the maze: the truth and the localizer are put at `cell` facing `heading`,
+       * as if the robot had been positioned there. Only for a given start, whose frame is the frame of the true maze; call it
+       * before the first frame, which would otherwise put the pose at the start.
+       */
+      void placeAt(int cell, Heading heading)
+      {
+        carryTo(cell, heading);
+        localization.reset(cell, heading, Angle::normalize(truth.rotation + config.noise.gyroReference + gyroDrift()), time);
+        (void) localizerSession.update(isActive(playing, penalized, body)); // The first frame is over.
+      }
+
       /** Moves the robot's state to not playing (pick-up, Standby) or back to playing; the frame runs with the new state. */
       void setPlaying(bool value)
       {
         playing = value;
+        tick();
+      }
+
+      /** Penalizes the robot or releases it; the game state keeps playing. The frame runs with the new state. */
+      void setPenalized(bool value)
+      {
+        penalized = value;
+        tick();
+      }
+
+      /** Lifts the robot (a pick-up while the game keeps playing) or puts it down; the frame runs with the new state. */
+      void setPickedUp(bool value)
+      {
+        body = value ? FallDownState::pickedUp : FallDownState::upright;
+        tick();
+      }
+
+      /** Sets the body state (for example `fallen`); the frame runs with the new state. */
+      void setBody(FallDownState::State value)
+      {
+        body = value;
         tick();
       }
 
@@ -222,10 +295,15 @@ namespace Maze
         delta.rotation += normal(0.f, noise.odometryRotationPerMetre) * trueDelta.translation.norm() / 1000.f;
         const float gyroYaw = Angle::normalize(truth.rotation + noise.gyroReference + gyroDrift() + normal(0.f, Angle::fromDegrees(noise.gyroNoiseDeg)));
 
-        // MazeLocalizer::step
-        if(localizerSession.update(playing).resetPose())
+        // MazeLocalizer::step: follow the working start hypothesis of the last frame, then reset if the robot became active.
+        if(!(localizerFrame == anchored.anchor()))
         {
-          localization.reset(config.maze.startCell, config.maze.startHeading, gyroYaw, time);
+          localization.transform(StartDeduction::startToMaze(anchored.anchor()) * StartDeduction::startToMaze(localizerFrame).inverse());
+          localizerFrame = anchored.anchor();
+        }
+        if(localizerSession.update(isActive(playing, penalized, body)).resetPose())
+        {
+          localization.reset(localizerFrame.cell, localizerFrame.heading, gyroYaw, time);
           ++resets;
         }
         localization.predict(delta, gyroYaw, config.useGyro);
@@ -276,7 +354,9 @@ namespace Maze
         Oracle::View& view = percept.view;
         std::vector<AprilTagDetection>& detections = percept.detections;
         percept.inMaze = noise.dropoutRate < 1.f && Oracle::computeView(config.maze.graph, truth, camera, config.maxRange, view);
-        if(percept.inMaze)
+        int startRow = 0, startCol = 0;
+        const bool hidden = config.noTagsInStartCell && trueCell(startRow, startCol) && cellId(startRow, startCol) == config.maze.startCell;
+        if(percept.inMaze && !hidden)
           for(const Oracle::VisibleTag& tag : Oracle::visibleTags(config.maze.graph, config.layout, view, camera, config.maxRange, config.maxTagViewAngle))
             if(!dropped())
               detections.push_back({tag.cell, noisyTag(tag.tagInRobot)});
@@ -290,8 +370,11 @@ namespace Maze
           ++stats.tagFramesByHeading[h];
         }
         bool fixedThisFrame = false;
+        const bool startKnown = anchored.status().known; // Under a start that is not known a tag would pull the pose to the wrong place.
         for(const AprilTagDetection& detection : detections)
         {
+          if(!startKnown)
+            break;
           if(localization.fixWithTag(detection.id, detection.tagInRobot, time, config.layout).accepted)
           {
             ++stats.fixes;
@@ -308,29 +391,29 @@ namespace Maze
 
       }
 
-      /** MazeMapper::update, every frame; the observations only when a percept arrived. */
+      /** MazeMapper::step, every frame; the observations only when a percept arrived. */
       void mapperUpdate(const Percept& percept, const Pose2f& trueDelta)
       {
-        if(mapperSession.update(playing).newAttempt)
-          fusion.newAttempt();
-        int row = 0, col = 0;
-        const bool insideCell = localization.cell(row, col);
-        const MapActions actions = mapActions(playing, insideCell, qualityAccepted(localization.quality(time), config.worstAcceptedQuality));
+        const bool active = isActive(playing, penalized, body);
+        if(mapperSession.update(active).newAttempt)
+          anchored.newAttempt();
+        const MapActions actions = mapActions(active, qualityAccepted(localization.quality(time), config.worstAcceptedQuality));
         if(actions.markVisited)
-          fusion.markVisited(row, col);
-        if(actions.observe && percept.present && percept.inMaze && (config.observeWhileMoving || trueDelta.translation.norm() + std::abs(trueDelta.rotation) < 1e-3f))
+          anchored.markVisited(localization.pose);
+        if(actions.observe)
         {
-          if(nearCellCentre(localization.pose.translation.x(), localization.pose.translation.y(), row, col, config.maxOffsetFromCentre))
-            observeWalls(percept.view, row, col);
-          else
-            ++stats.skippedLookAheads;
-          for(const AprilTagDetection& detection : percept.detections)
+          anchored.observePosition(localization.pose);
+          if(percept.present && percept.inMaze && (config.observeWhileMoving || trueDelta.translation.norm() + std::abs(trueDelta.rotation) < 1e-3f))
           {
-            const FaceChoice choice = chooseFace(detection.id, localization.pose.rotation, detection.tagInRobot, config.layout);
-            if(choice.found && choice.angleError <= config.localization.maxFaceAngleError)
-              fusion.observeTag(detection.id, choice.face, time);
+            if(anchored.lookAheadUsable(localization.pose))
+              observeWalls(percept.view);
+            else
+              ++stats.skippedLookAheads;
+            for(const AprilTagDetection& detection : percept.detections)
+              anchored.observeTag(localization.pose, detection.id, detection.tagInRobot, time);
           }
         }
+        anchored.endFrame();
       }
 
       Pose3f noisyTag(const Pose3f& exact)
@@ -347,7 +430,7 @@ namespace Maze
       }
 
       /** The wall percept of the oracle as MazeMapper turns it into cell observations. */
-      void observeWalls(const Oracle::View& view, int row, int col)
+      void observeWalls(const Oracle::View& view)
       {
         // lookAheadTurns of OracledMazePerceptsProvider, and the gaze the mapper reconstructs from the localized heading.
         int turns = static_cast<int>(std::lround(Angle::normalize(Oracle::angleOf(view.gaze) - view.robotRotation) / (pi / 2.f)));
@@ -367,9 +450,19 @@ namespace Maze
           observation.distance = std::max(0.f, normal((Oracle::cellCentreOf(cell.row, cell.col) - view.robot).norm(), config.noise.wallDistanceStdDev));
           cells.push_back(observation);
         }
-        fusion.observeCellsAhead(row, col, gaze, cells, time);
+        anchored.observeCellsAhead(localization.pose, gaze, cells, time);
       }
 
+      static AnchoredMapParameters anchoredParameters(const Config& config)
+      {
+        AnchoredMapParameters parameters;
+        parameters.fusion = config.fusion;
+        parameters.maxFaceAngleError = config.localization.maxFaceAngleError;
+        parameters.maxOffsetFromCentre = config.maxOffsetFromCentre;
+        return parameters;
+      }
+
+      Hypothesis localizerFrame; /**< The start whose maze frame the localizer works in. */
       unsigned lastPerceptTime = 0;
       PlayingTracker localizerSession;
       PlayingTracker mapperSession;
@@ -476,7 +569,7 @@ namespace Maze
         state.heading = run.localization.heading();
         state.moving = moving;
 
-        planner.computeCostToGo(learnOnArrival ? arrival : run.fusion.graph, UnknownPolicy::asOpen);
+        planner.computeCostToGo(learnOnArrival ? arrival : run.fusion().graph, UnknownPolicy::asOpen);
         Action action = Action::forward;
         if(!planner.nextAction(state, action))
         {

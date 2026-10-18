@@ -231,37 +231,37 @@ GTEST_TEST(MazeLocalizerAcceptance, PickUpAndStandbyKeepTheMapAndStartTheSecondA
   WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
   const std::vector<Action> route = explorationRoute(maze);
   run.stand(1);
-  ASSERT_EQ(run.fusion.attempt, 1);
+  ASSERT_EQ(run.fusion().attempt, 1);
   for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
     run.perform(route[i]);
   int decided = 0;
   for(int row = 0; row < size; ++row)
     for(int col = 0; col < size; ++col)
       for(int h = 0; h < headingCount; ++h)
-        decided += run.fusion.graph.get(row, col, static_cast<Heading>(h)) != EdgeState::unknown ? 1 : 0;
+        decided += run.fusion().graph.get(row, col, static_cast<Heading>(h)) != EdgeState::unknown ? 1 : 0;
   ASSERT_GT(decided, 4 * size);
 
-  const MazeMapFusion before = run.fusion;
+  const MazeMapFusion before = run.fusion();
   // Pick-up: the game state leaves playing, the robot is carried across the maze and sees other walls meanwhile.
   run.setPlaying(false);
   run.carryTo(45, Heading::west);
   run.stand(100);
-  EXPECT_TRUE(run.fusion == before) << "the map must not learn while carried";
-  EXPECT_EQ(run.fusion.attempt, 1);
+  EXPECT_TRUE(run.fusion() == before) << "the map must not learn while carried";
+  EXPECT_EQ(run.fusion().attempt, 1);
   // Put back at the start, Standby ends, playing again.
   run.carryTo(maze.startCell, maze.startHeading);
   // The frame of the transition itself sees nothing (dropout), so that the map can be compared before it learns again.
   run.config.noise.dropoutRate = 1.f;
   run.setPlaying(true);
   run.config.noise.dropoutRate = 0.f;
-  EXPECT_TRUE(run.fusion == before);
-  EXPECT_EQ(run.fusion.attempt, 2);
+  EXPECT_TRUE(run.fusion() == before);
+  EXPECT_EQ(run.fusion().attempt, 2);
   EXPECT_EQ(run.resets, 2u);
   const Vector2f startCentre = Oracle::cellCentreOf(cellRow(maze.startCell), cellCol(maze.startCell));
   EXPECT_LT((run.localization.pose.translation - startCentre).norm(), 30.f);
   EXPECT_EQ(run.localization.heading(), maze.startHeading);
   EXPECT_TRUE(run.cellCorrect());
-  note("pick-up and Standby after 8 actions: " + std::to_string(decided) + " edges known, map identical, attempt " + std::to_string(run.fusion.attempt) +
+  note("pick-up and Standby after 8 actions: " + std::to_string(decided) + " edges known, map identical, attempt " + std::to_string(run.fusion().attempt) +
        ", pose reset to cell " + std::to_string(maze.startCell));
 
   // The second attempt keeps working on the same map.
@@ -269,6 +269,88 @@ GTEST_TEST(MazeLocalizerAcceptance, PickUpAndStandbyKeepTheMapAndStartTheSecondA
   for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
     run.perform(route[i]);
   EXPECT_TRUE(run.cellCorrect());
+}
+
+GTEST_TEST(MazeLocalizerAcceptance, PickUpDuringPlayingStartsTheNextAttemptWhenPutDown)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.fusion().attempt, 1);
+  ASSERT_EQ(run.resets, 1u);
+
+  const MazeMapFusion before = run.fusion();
+  run.setPickedUp(true); // The game keeps playing.
+  run.carryTo(45, Heading::west);
+  run.stand(100);
+  EXPECT_TRUE(run.fusion() == before) << "the map must not learn while picked up";
+  EXPECT_EQ(run.fusion().attempt, 1);
+  run.carryTo(maze.startCell, maze.startHeading);
+  run.config.noise.dropoutRate = 1.f;
+  run.setPickedUp(false);
+  run.config.noise.dropoutRate = 0.f;
+  EXPECT_EQ(run.fusion().attempt, 2);
+  EXPECT_EQ(run.resets, 2u);
+  EXPECT_TRUE(run.fusion() == before) << "the map is kept";
+  const Vector2f startCentre = Oracle::cellCentreOf(cellRow(maze.startCell), cellCol(maze.startCell));
+  EXPECT_LT((run.localization.pose.translation - startCentre).norm(), 30.f);
+  EXPECT_EQ(run.localization.heading(), maze.startHeading);
+}
+
+GTEST_TEST(MazeLocalizerAcceptance, PenaltyDuringPlayingActsLikeAPickUp)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.fusion().attempt, 1);
+  ASSERT_EQ(run.resets, 1u);
+
+  const MazeMapFusion before = run.fusion();
+  run.setPenalized(true); // The chest button: the game state keeps playing.
+  run.carryTo(45, Heading::west);
+  run.stand(100);
+  EXPECT_TRUE(run.fusion() == before) << "the map must not learn while penalized";
+  EXPECT_EQ(run.fusion().attempt, 1);
+  EXPECT_EQ(run.resets, 1u);
+  run.carryTo(maze.startCell, maze.startHeading);
+  run.config.noise.dropoutRate = 1.f;
+  run.setPenalized(false);
+  run.config.noise.dropoutRate = 0.f;
+  EXPECT_EQ(run.fusion().attempt, 2);
+  EXPECT_EQ(run.resets, 2u);
+  EXPECT_TRUE(run.fusion() == before) << "the map is kept";
+  const Vector2f startCentre = Oracle::cellCentreOf(cellRow(maze.startCell), cellCol(maze.startCell));
+  EXPECT_LT((run.localization.pose.translation - startCentre).norm(), 30.f);
+  EXPECT_EQ(run.localization.heading(), maze.startHeading);
+}
+
+GTEST_TEST(MazeLocalizerAcceptance, AFallDuringPlayingNeitherResetsThePoseNorCountsAnAttempt)
+{
+  const MazeDescription maze = loadMaze(1);
+  WalkingRobot run(configFor(maze, layoutOf("allFaces", "north, east, south, west")));
+  const std::vector<Action> route = explorationRoute(maze);
+  run.stand(1);
+  for(std::size_t i = 0; i < 8 && i < route.size(); ++i)
+    run.perform(route[i]);
+  ASSERT_EQ(run.resets, 1u);
+  const Vector2f poseBefore = run.localization.pose.translation;
+  // A fall: the body state goes through falling and fallen, then the robot is upright again. None of them is a pick-up.
+  run.setBody(FallDownState::falling);
+  run.setBody(FallDownState::fallen);
+  run.stand(100);
+  run.setBody(FallDownState::squatting);
+  run.stand(10);
+  run.setBody(FallDownState::upright);
+  run.stand(150);
+  EXPECT_EQ(run.fusion().attempt, 1);
+  EXPECT_EQ(run.resets, 1u);
+  EXPECT_LT((run.localization.pose.translation - poseBefore).norm(), 50.f);
 }
 
 GTEST_TEST(MazeLocalizerAcceptance, OracleLookAheadKeepsTheRobotOutOfTheDeadEndAtCell11)
@@ -325,7 +407,7 @@ GTEST_TEST(MazeLocalizerAcceptance, OracleLookAheadKeepsTheRobotOutOfTheDeadEndA
       for(int h = 0; h < headingCount; ++h)
       {
         const Heading heading = static_cast<Heading>(h);
-        const EdgeState state = run.fusion.graph.get(row, col, heading);
+        const EdgeState state = run.fusion().graph.get(row, col, heading);
         if(state == EdgeState::unknown)
           continue;
         ++decided;
@@ -335,8 +417,8 @@ GTEST_TEST(MazeLocalizerAcceptance, OracleLookAheadKeepsTheRobotOutOfTheDeadEndA
     }
   EXPECT_EQ(decidedWrong, 0);
   EXPECT_GT(decidedUnvisited, 0);
-  EXPECT_EQ(run.fusion.graph.get(1, 3, Heading::east), EdgeState::wall);
-  EXPECT_EQ(run.fusion.graph.get(1, 3, Heading::south), EdgeState::wall);
+  EXPECT_EQ(run.fusion().graph.get(1, 3, Heading::east), EdgeState::wall);
+  EXPECT_EQ(run.fusion().graph.get(1, 3, Heading::south), EdgeState::wall);
   note("oracle look-ahead (maxRange 2, every frame): " + std::to_string(exploration.visitedCells.size()) + " cells to the goal, never enters cell 11, " +
        std::to_string(decided) + " edge-sides decided, of which " + std::to_string(decidedUnvisited) + " belong to cells never entered, " +
        std::to_string(decidedWrong) + " wrong; the east and south walls of cell 11 are decided from outside");
@@ -369,13 +451,12 @@ GTEST_TEST(MazeLocalizerAcceptance, FramesToCloseTheDeadEndFromCell10)
   const MazeDescription maze = loadMaze(1);
   // Cell 10 facing east: cell 11 is one ahead (500 mm, full weight); three observations of full weight decide an edge.
   Config config = configFor(maze, layoutOf("allFaces", "north, east, south, west"));
-  config.maze.startCell = 10;
-  config.maze.startHeading = Heading::east;
   WalkingRobot run(config);
+  run.placeAt(10, Heading::east);
   int frames = 0;
   const auto closed = [&]()
   {
-    return run.fusion.graph.get(1, 3, Heading::east) == EdgeState::wall && run.fusion.graph.get(1, 3, Heading::south) == EdgeState::wall;
+    return run.fusion().graph.get(1, 3, Heading::east) == EdgeState::wall && run.fusion().graph.get(1, 3, Heading::south) == EdgeState::wall;
   };
   while(!closed() && frames < 20)
   {
@@ -475,9 +556,8 @@ GTEST_TEST(MazeLocalizerAcceptance, NorthFaceOnlyKeepsTheCellWhileFacingNorthAnd
 
   // Walk it north: the tags on the north faces ahead are in view; compare with walking it south (back) with the same layout.
   Config config = configFor(maze, north);
-  config.maze.startCell = bestCell;
-  config.maze.startHeading = Heading::north;
   WalkingRobot up(config);
+  up.placeAt(bestCell, Heading::north);
   const RouteResult upResult = walk(up, std::vector<Action>(static_cast<std::size_t>(bestLength), Action::forward));
   note("facing north along that corridor: " + describe(upResult));
   EXPECT_EQ(upResult.cellsCorrect, upResult.checkpoints);
@@ -485,10 +565,8 @@ GTEST_TEST(MazeLocalizerAcceptance, NorthFaceOnlyKeepsTheCellWhileFacingNorthAnd
   EXPECT_GT(upResult.stats.fixes, 0u);
   EXPECT_LE(upResult.finalPosition, 80.f);
 
-  Config down = config;
-  down.maze.startCell = bestCell - bestLength * size;
-  down.maze.startHeading = Heading::south;
-  WalkingRobot downRun(down);
+  WalkingRobot downRun(config);
+  downRun.placeAt(bestCell - bestLength * size, Heading::south);
   const RouteResult downResult = walk(downRun, std::vector<Action>(static_cast<std::size_t>(bestLength), Action::forward));
   note("facing south back along the corridor (only north faces carry tags): " + describe(downResult));
   EXPECT_EQ(downResult.stats.fixes, 0u);

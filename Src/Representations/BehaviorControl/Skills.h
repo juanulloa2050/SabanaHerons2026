@@ -12,6 +12,7 @@
 #include "Representations/Configuration/CalibrationRequest.h"
 #include "Representations/Configuration/KickInfo.h"
 #include "Representations/MotionControl/ArmKeyFrameRequest.h"
+#include "Representations/Modeling/MazeCellPose.h"
 #include "Representations/MotionControl/HeadMotionRequest.h"
 #include "Representations/MotionControl/MotionRequest.h"
 #include "Tools/BehaviorControl/Framework/Skill/Skill.h"

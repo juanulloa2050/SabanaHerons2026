@@ -466,3 +466,23 @@ SKILL_INTERFACE(AutonomousCameraCalibration);
  * Lets the robot start the calibration process.
  */
 SKILL_INTERFACE(CalibrationControl);
+
+/**
+ * Walks to the centre of a neighbouring maze cell and keeps the maze heading (heading lock). The robot aims at the cell
+ * centre, which also centres it in the corridor. The skill is done when the robot is close to the centre and faces the heading.
+ * @param targetRow The row of the target cell (0 is the north row)
+ * @param targetCol The column of the target cell (0 is the west column)
+ * @param heading The maze heading to keep
+ */
+SKILL_INTERFACE(MazeFollowCorridor, (int) targetRow, (int) targetCol, (MazeCellPose::Heading) heading);
+
+/**
+ * Turns in place, at a cell centre, to a maze heading using the RobotPose rotation. Done when the heading is reached.
+ * @param heading The maze heading to face
+ */
+SKILL_INTERFACE(MazeTurn, (MazeCellPose::Heading) heading);
+
+/**
+ * Pans the head left, right and forward (under 2 s) so that the wall perceptor sees the sides of a cell. Done at the end.
+ */
+SKILL_INTERFACE(MazeScanWalls);

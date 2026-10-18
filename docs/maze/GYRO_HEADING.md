@@ -16,7 +16,7 @@ All angles are in the maze frame: counterclockwise from east, maze north = +90°
 
 | Step | Formula |
 |---|---|
-| Reference | At each transition into `playing` ("positioned at start") the localizer stores `startAngle` (from `startHeading`) and `offset` = gyro yaw at that moment. |
+| Reference | At each transition into `playing` ("positioned at start") the localizer stores `startAngle` (from `start.heading` of `handleMaze.cfg`, through `MazeStart`) and `offset` = gyro yaw at that moment. |
 | Rotation | `rotation = startAngle + (yaw − offset)` |
 | Heading | `heading = snap90(rotation)`: the nearest of north, east, south, west. ±44° snaps to the same heading, ±46° to the next one (unit-tested). |
 | Re-alignment | A tag seen with an angle ≤ `squareOnAngle` (25° by default) between the camera ray and the tag normal (`squareOnAngle`) corrects the heading by `rotationGain` (0.5) and moves `offset` so that the gyro agrees with the corrected pose. Walls are axis-aligned, so a square-on tag gives the true heading. |

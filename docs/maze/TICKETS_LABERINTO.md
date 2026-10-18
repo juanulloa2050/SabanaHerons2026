@@ -92,7 +92,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
-| [ ] | MZ-024 | HandleMaze state machine + skills + start-cell deduction | Bryam | 3 | 6 | no | MZ-011, MZ-020 |
+| [x] | MZ-024 | HandleMaze state machine + skills + start-cell deduction | Bryam | 3 | 6 | no | MZ-011, MZ-020 |
 | [ ] | MZ-025 | Watchdog, safe mode, wall-follower | Bryam | 3 | 2.5 | no | MZ-024 |
 | [ ] | MZ-026 | Simulation campaign + report | Wilson | 3 | 3 | no | MZ-021, MZ-024 |
 | [ ] | MZ-028 | Configuration tuning from lab data | Wilson | 3 | 1.5 | no | MZ-024, MZ-023*, MZ-027* |
@@ -770,7 +770,7 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 6 h (5 h + 1 h start-cell deduction) |
 | Depends on | MZ-011, MZ-020 |
@@ -789,18 +789,36 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
   - The start is a corner with walls on 3 sides and the robot faces the open side (rules; Q6). That leaves 8 hypotheses: 4 corners × 2 possible open sides.
   - The mapper and localizer work in a **start-relative frame** until the start is known. Exploration does not wait: the goal is the central 2×2 block, which is the same cells under all 8 hypotheses.
   - Every decoded tag removes the hypotheses that cannot explain it (its id names a cell, `MazeTagLayout::candidateFaces` names the face). When one hypothesis is left, the map and pose are re-anchored to the absolute grid, `MazeMap` stores the start cell, and the robot says "start <id>". Each corner's neighbours are unique (0 → 1, 8 · 7 → 6, 15 · 56 → 48, 57 · 63 → 55, 62), so one tag near the start is usually enough.
-  - If `start.cell` is given and a tag contradicts it, the given value wins and the conflict is logged (the given value is the operator's decision).
-  - A value other than `-1`, `0`, `7`, `56`, `63` is rejected when the configuration loads.
+  - If `start.cell` is given and a tag contradicts it, the given value wins and the conflict is logged (the given value is the operator's decision). The warning names the kind of observation (`tag`, `boundary edge`, `position`).
+  - A value other than `-1`, `0`, `7`, `56`, `63` is rejected when the configuration loads (error, treated as `-1`).
+  - **`start.heading`** (added 2026-10-16): a corner has two open sides, so a given `start.cell` also needs the heading the robot faces (`north`, `east`, `south`, `west`; it must point into the maze). It is ignored when `start.cell` is `-1`; an invalid one is an error and `start.cell` is treated as `-1`. It replaces `startCell`/`startHeading` in `mazeLocalizer.cfg`/`mazeMapper.cfg`: `handleMaze.cfg` is the single source.
+- **Pick-up rule.** The robot is *active* when the game state is `playing` and `FallDownState` is not `pickedUp` (upright without ground contact for a minimum time). Penalized counts as picked up: the robot is active only when it is playing, not penalized and not picked up (`Maze::isActive`). Leaving active (a pick-up, a penalty such as the chest button, or `gc initial` in simulation) goes to `Standby` ("standby"); the localizer puts the pose at the start and the attempt counter grows when it is active again, and the robot says "ready" once per re-activation (put down, unpenalized, `gc playing`) before the tap says "exploring" or "speed run". While penalized, `HandlePlayerState` stands and says "Penalized" / "Not penalized" and `HandleMaze` is not executed at all (CABSL stops at the first root option that acts); `MazeBehavior` sees the new `attempt` of `MazeMap` when the robot is unpenalized, goes to `Standby` and says "ready" (no "standby" is said for a penalty), so it never walks without a tap. A fall is not a pick-up and changes neither.
+- **Real robot (no GameController).** Chest tap from `initial` → penalized → playing; a chest tap while playing → penalized (B-Human says "Penalized"; `HandleMaze` does not run), another tap → playing ("Not penalized", then `Standby` and "ready"); a pick-up = `Standby`; 3 head buttons held 1 s → `unstiff` (sits, limp).
 
 **Acceptance criteria**
-- [ ] In simulation, the full flow works on 3 mazes: WaitingForStart → Exploration → goal → pick-up → Standby → SpeedRun → Finished.
-- [ ] With `start.cell = -1`, on 4 generated mazes (one per start corner, `--start`), the start cell and heading are deduced correctly and "start <id>" is spoken.
-- [ ] With `start.cell = -1` and no tag in view at the start, the robot explores in the start-relative frame, and after re-anchoring its map equals the map of the same run with `start.cell` given.
-- [ ] With `start.cell` given, the deduction is skipped, and a contradicting tag is logged without changing the start.
-- [ ] In attempt 2, the plan uses known-open edges only (unit-tested in MZ-011, checked in a log).
-- [ ] Each row of the *State announcements* table is spoken (check the console `Say` output in SimRobot, and on the robot in Lab 3). "exploring" is spoken again on a second run.
-- [ ] With `announce.enabled = false`, nothing is spoken.
-- [ ] Changing `t_turn90` in `mazePlanner.cfg` changes the plan on a maze where two routes differ only by their turns (check in simulation).
+- [x] In simulation, the full flow works on 3 mazes: WaitingForStart → Exploration → goal → pick-up → Standby → SpeedRun → Finished.
+- [x] With `start.cell = -1`, on 4 generated mazes (one per start corner, `--start`), the start cell and heading are deduced correctly and "start <id>" is spoken.
+- [x] With `start.cell = -1` and no tag in view at the start, the robot explores in the start-relative frame, and after re-anchoring its map equals the map of the same run with `start.cell` given. *(Offline; see the table.)*
+- [x] With `start.cell` given, the deduction is skipped, and a contradicting tag is logged without changing the start.
+- [x] In attempt 2, the plan uses known-open edges only (unit-tested in MZ-011, checked in a log).
+- [x] Each row of the *State announcements* table is spoken (check the console `Say` output in SimRobot, and on the robot in Lab 3). "exploring" is spoken again on a second run. *(SimRobot done; the robot check stays with Lab 3, MZ-027.)*
+- [x] With `announce.enabled = false`, nothing is spoken.
+- [x] Changing `t_turn90` in `mazePlanner.cfg` changes the plan on a maze where two routes differ only by their turns (check in simulation).
+
+*Evidence: unit and acceptance tests (`Build/Linux/Tests/Develop/Tests`, 304 passed) and the SimRobot runs of 18 Oct 2026 (steps in `SIMULACION_LABERINTO.md`, *Running the full flow*).*
+
+| Criterion | Offline evidence | SimRobot (18 Oct 2026) |
+|---|---|---|
+| Full flow on 3 mazes | `MazeBehavior` tests (every transition and phrase), `MazeDrive` tests (action locking, scan once per cell, timeouts), pick-up tests of the localizer and mapper. | Done: waitingForStart → exploration → finished → standby → speedRun → finished on the fixtures and generated mazes. |
+| Deduction on 4 corners | `MazeStartAcceptance`: all-faces tags deduce 8 of 8 starts within 1 cell; north/west-only tags without a tag in the start cell: worst 4 cells, always correct. | Done on `start_0_south`, `start_7_west`, `start_56_north`, `start_63_west`: "start hypothesis … (revision 1, 1 left, known)" and "start <id>" spoken. |
+| No tag at the start, map equals given-start map | `MazeStartAcceptance`: deduced and given-start maps equal for 4 corners with exact sensors, pose error < 1 mm. | Not compared in SimRobot: every fixture shows a tag from the start cell, so the start was known at revision 1. |
+| Given start, contradicting tag | `MazeStartAcceptance`: 80 conflicts, start unchanged; a carried robot put down elsewhere counts conflicts and never changes a known start. | Done: `start.cell = 7` on a cell-0 maze warns ("Latest: tag" / "boundary edge"), `MazeStart` stays 7. A wrong given start corrupts the map, so attempt 2 found no route (the watchdog is MZ-025). |
+| Attempt 2 known-open edges only | `MazeRoutes`: the speed run never uses an edge that is not known open. | Done: "all edges known to be open" (after the log fix `12b66340`; the log had counted turns as edges). |
+| Announcements, second run | `MazeBehavior`: every phrase of the table, "exploring" again in attempt 2, "ready" after a pick-up or penalty; `SpeechQueue` tests. | Done: ready, tag, motion test, exploring (twice), goal, finished, standby, speed run, start <id>; `pr manual` / `pr none` → "Penalized", "Not penalized", "ready", no walking without a tap. |
+| `announce.enabled = false` | `MazeBehavior`: no phrases, phases unchanged. | Done: silent. |
+| `t_turn90` changes the plan | `MazeRoutes`: default `turn90Ms` gives a 6-cell staircase with 5 turns, 5000 gives an 11-cell detour with 2 turns; a runtime cost change invalidates the cached plan. | Done: `set parameters:MazePlannerProvider` changed the speed-run route. |
+
+Open after MZ-024: whether dragging the robot in the SimRobot 3D view reports `FallDownState` `pickedUp` was not tried (`gc initial` / `gc playing` and `pr` were used); the robot checks belong to Lab 3 (MZ-027).
 
 ### MZ-025 — Watchdog, safe mode and wall-follower fallback
 
