@@ -200,7 +200,7 @@ In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `
 
 ## 9. Return to start
 
-File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg`. Ticket: MZ-024.1. Status: **implemented in MZ-024.1** (`returnToStart = {...}`; a file without the entry keeps the defaults, so the old flow stays).
+File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg`. Ticket: MZ-024.1. Status: **implemented in MZ-024.1** (`returnToStart = {...}`; a file without the entry keeps the defaults below, so the old flow stays). Both files set `enabled = true` and `trigger = button` (18 Oct 2026).
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|

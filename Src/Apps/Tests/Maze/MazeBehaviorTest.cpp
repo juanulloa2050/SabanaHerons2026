@@ -713,7 +713,7 @@ GTEST_TEST(MazeReturnToStart, TheFullFlowWithTheReturn)
   EXPECT_EQ(behavior.phase(), Phase::speedRun);
 }
 
-GTEST_TEST(MazeAnnounce, TheShippedConfigsDoNotEnableTheReturn)
+GTEST_TEST(MazeAnnounce, TheShippedConfigsEnableTheReturnOnTheButton)
 {
   static const bool registered = (FunctionList::execute(), true);
   (void) registered;
@@ -721,8 +721,8 @@ GTEST_TEST(MazeAnnounce, TheShippedConfigsDoNotEnableTheReturn)
   {
     AnnounceFile file;
     EXPECT_TRUE(AnnounceFile::load(std::string(File::getBHDir()) + "/Config/Scenarios/" + scenario + "/handleMaze.cfg", file)) << scenario;
-    EXPECT_FALSE(file.returnToStart.enabled) << scenario;
-    EXPECT_EQ(file.returnToStart.trigger, ReturnToStartConfig::timer) << scenario;
+    EXPECT_TRUE(file.returnToStart.enabled) << scenario;
+    EXPECT_EQ(file.returnToStart.trigger, ReturnToStartConfig::button) << scenario;
     EXPECT_EQ(file.returnToStart.delayMs, 5000u) << scenario;
     EXPECT_EQ(file.returnToStart.maxDurationMs, 120000u) << scenario;
   }
