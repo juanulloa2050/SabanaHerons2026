@@ -100,8 +100,8 @@ namespace Maze
       }
     }
 
-    bool computeWallView(const std::vector<Vector2f>& boundaryPointsInRobot, const Pose2f& robotInMaze,
-                         const Vector2f& cameraInRobot, float gazeYawInRobot, int range, const Params& params, Result& result)
+    bool computeWallView(const std::vector<Vector2f>& boundaryPointsInRobot, const std::vector<Vector2f>& clearPointsInRobot,
+                         const Pose2f& robotInMaze, const Vector2f& cameraInRobot, float gazeYawInRobot, int range, const Params& params, Result& result)
     {
       result = Result();
       const Vector2f robot = robotInMaze.translation;
@@ -117,12 +117,14 @@ namespace Maze
       result.lookAheadTurns = turns;
 
       Support support;
-      std::vector<Vector2f> points;
+      std::vector<Vector2f> points; // every point that can show open edges
       for(const Vector2f& pointInRobot : boundaryPointsInRobot)
       {
         points.push_back(robot + rotated(pointInRobot, rotation));
         addPoint(support, points.back(), params.snapToleranceMm, params.vertexMarginMm);
       }
+      for(const Vector2f& pointInRobot : clearPointsInRobot)
+        points.push_back(robot + rotated(pointInRobot, rotation));
       const Vector2f camera = robot + rotated(cameraInRobot, rotation);
 
       const Vector2f forward = directionOf(gaze);

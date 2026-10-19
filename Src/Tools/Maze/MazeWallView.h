@@ -19,9 +19,11 @@
  * points of a perpendicular or a collinear wall. The edge states are:
  *  - wall: at least `minSupportPoints` points support the edge.
  *  - open: not a wall and the floor is visible past the edge: the line from the camera to some boundary point
- *    crosses the edge (not closer than `vertexMarginMm` to its ends) and the point lies at least
+ *    or clear point crosses the edge (not closer than `vertexMarginMm` to its ends) and the point lies at least
  *    `openClearanceMm` farther than the crossing. A point that far behind the crossing cannot lie on the
- *    wall of this edge, whatever the noise.
+ *    wall of this edge, whatever the noise. A clear point is the farthest floor point of an image column
+ *    without a wall boundary; it gives open evidence only, never wall support. The look-ahead never reaches
+ *    beyond `range`, whatever the points: edges of farther cells are not evaluated.
  *  - unknown: otherwise, in particular for edges out of the field of view.
  */
 
@@ -74,13 +76,15 @@ namespace Maze
     /**
      * Builds the look-ahead.
      * @param boundaryPointsInRobot Floor points of the wall boundary in the robot frame in mm.
+     * @param clearPointsInRobot Farthest visible floor points of the columns without a boundary, robot frame in mm.
      * @param robotInMaze Robot pose in the maze frame (mm, rad).
      * @param cameraInRobot Camera position in the robot frame in mm (x, y).
      * @param gazeYawInRobot Direction the camera looks in, relative to the robot, in rad.
      * @param range Largest `ahead`; no cell beyond it is reported.
      * @return Whether the robot is inside the maze; otherwise `result` is empty.
      */
-    [[nodiscard]] bool computeWallView(const std::vector<Vector2f>& boundaryPointsInRobot, const Pose2f& robotInMaze,
+    [[nodiscard]] bool computeWallView(const std::vector<Vector2f>& boundaryPointsInRobot,
+                                       const std::vector<Vector2f>& clearPointsInRobot, const Pose2f& robotInMaze,
                                        const Vector2f& cameraInRobot, float gazeYawInRobot, int range,
                                        const Params& params, Result& result);
   }
