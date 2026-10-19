@@ -230,3 +230,40 @@ GTEST_TEST(MazeWallScan, StepOfColumnsAndHorizonRow)
   for(const ColumnBoundary& boundary : scanColumns({image.data(), width, height, width}, height - 20, projectionOf(), Params()))
     EXPECT_FALSE(boundary.found());
 }
+
+GTEST_TEST(MazeWallScan, ReportsTheFloorBrightnessAtTheBottom)
+{
+  Scene scene;
+  const std::vector<unsigned char> image = render(scene);
+  float floorReference = -1.f;
+  for(const ColumnBoundary& boundary : scanColumns({image.data(), width, height, width}, horizon(), projectionOf(), Params(), &floorReference))
+    EXPECT_NEAR(boundary.bottom, 100.f, 0.5f);
+  EXPECT_NEAR(floorReference, 100.f, 0.5f);
+
+  // A wall that fills the bottom of the image: no boundary, and the bottom is as bright as the wall.
+  scene.wallX = 100.f;
+  const std::vector<unsigned char> close = render(scene);
+  for(const ColumnBoundary& boundary : scanColumns({close.data(), width, height, width}, horizon(), projectionOf(), Params(), &floorReference))
+  {
+    EXPECT_FALSE(boundary.found());
+    EXPECT_NEAR(boundary.bottom, 200.f, 0.5f);
+  }
+}
+
+GTEST_TEST(MazeWallScan, WallDarkerThanFloorNeedsThePolarity)
+{
+  // The simulator lights the horizontal floor more than the vertical walls.
+  Scene scene;
+  scene.floorBrightness = 200;
+  scene.wallBrightness = scene.aboveWallBrightness = 100;
+  for(const ColumnBoundary& boundary : scan(scene))
+    EXPECT_FALSE(boundary.found()) << "column " << boundary.column;
+
+  Params darker;
+  darker.wallBrighterThanFloor = false;
+  for(const ColumnBoundary& boundary : scan(scene, darker))
+  {
+    ASSERT_TRUE(boundary.found()) << "column " << boundary.column;
+    EXPECT_NEAR(boundary.row, expectedRow(scene.wallX, boundary.column), 1);
+  }
+}

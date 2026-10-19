@@ -42,9 +42,11 @@ namespace Maze
       }
     }
 
-    std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow, const HeightProjection& projection, const Params& params)
+    std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow, const HeightProjection& projection, const Params& params, float* floorReference)
     {
       std::vector<ColumnBoundary> result;
+      if(floorReference)
+        *floorReference = 0.f;
       const int k = std::max(1, params.smoothRows);
       if(!image.data || image.width <= 0 || image.height < 2 * k + 2 || params.columnStep <= 0)
         return result;
@@ -66,7 +68,11 @@ namespace Maze
           sum += profile[static_cast<std::size_t>(y)];
         bottoms.push_back(sum / static_cast<float>(referenceRows));
       }
-      const float floorReference = median(bottoms);
+      const float floorBrightness = median(bottoms);
+      if(floorReference)
+        *floorReference = floorBrightness;
+      for(std::size_t i = 0; i < result.size(); ++i)
+        result[i].bottom = bottoms[i];
 
       const int top = std::max(horizonRow, k);
       for(std::size_t i = 0; i < result.size(); ++i)
@@ -77,7 +83,8 @@ namespace Maze
           sums[y + 1] = sums[y] + profile[y];
         const auto above = [&](int y) { return (sums[static_cast<std::size_t>(y)] - sums[static_cast<std::size_t>(y - k)]) / static_cast<float>(k); };
         const auto below = [&](int y) { return (sums[static_cast<std::size_t>(y + k + 1)] - sums[static_cast<std::size_t>(y + 1)]) / static_cast<float>(k); };
-        const auto step = [&](int y) { return above(y) - below(y); };
+        const float sign = params.wallBrighterThanFloor ? 1.f : -1.f; // brightness differences are measured in the direction of the wall
+        const auto step = [&](int y) { return sign * (above(y) - below(y)); };
 
         int y = image.height - 1 - k;
         while(y >= top)
@@ -100,14 +107,14 @@ namespace Maze
           y = next;
 
           // The floor above has to be a wall: contrast to the floor reference, and wall up to the check height.
-          if(above(best) - floorReference < params.minWallContrast)
+          if(sign * (above(best) - floorBrightness) < params.minWallContrast)
             continue;
           int rowAtHeight = 0;
           if(!projection || !projection(result[i].column, best, params.minWallCheckHeightMm, rowAtHeight))
             continue;
           bool wall = true;
           for(int row = best - 1; row >= std::max(0, rowAtHeight) && wall; --row)
-            wall = profile[static_cast<std::size_t>(row)] - floorReference >= params.minWallContrast / 2.f;
+            wall = sign * (profile[static_cast<std::size_t>(row)] - floorBrightness) >= params.minWallContrast / 2.f;
           if(!wall)
             continue;
           result[i].row = best;

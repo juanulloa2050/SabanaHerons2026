@@ -20,7 +20,9 @@
  *     `minWallCheckHeightMm` (below the AprilTags, whose lower edge is at 220 mm or more): every row up to
  *     that height has to exceed the floor reference by `minWallContrast / 2`. A narrow bright marking on
  *     the floor ends after a few rows and fails.
- * Walls darker than the floor are not detected. The minimum supported contrast between wall and floor is
+ * Walls darker than the floor are only detected with `wallBrighterThanFloor` false, which turns the direction of all
+ * brightness differences around (a bright-to-dark step going up); a darker goal patch is then no longer rejected by
+ * its far edge, and its near edge needs the extent check to fail. The minimum supported contrast between wall and floor is
  * `minGradient` (default 12 grey levels). Limitation: the floor reference assumes that the floor is the
  * majority of the bottom rows, so a robot that stands on the goal patch and looks across it would take the
  * patch for the floor.
@@ -47,6 +49,7 @@ namespace Maze
       int columnStep = 8;                  /**< Distance between the scanned columns in pixels. */
       int smoothRows = 3;                  /**< Rows averaged on each side of a candidate. */
       int columnHalfWidth = 1;             /**< Columns on each side of the scanned one that are averaged. */
+      bool wallBrighterThanFloor = true;   /**< The wall is brighter than the floor; false for a wall darker than the floor. */
       float minGradient = 12.f;            /**< Least brightness step of a boundary in grey levels. */
       float minWallContrast = 8.f;         /**< Least brightness of the wall above the floor reference in grey levels. */
       float minWallCheckHeightMm = 150.f;  /**< Height up to which the column has to stay wall. */
@@ -59,6 +62,7 @@ namespace Maze
       int column = 0;      /**< Scanned column. */
       int row = -1;        /**< Last floor row, -1 if the column has no accepted boundary. */
       float strength = 0.f; /**< Brightness step of the boundary in grey levels. */
+      float bottom = 0.f;   /**< Mean brightness of the bottom `floorReferenceRows` rows of the column, the floor next to the robot. */
 
       [[nodiscard]] bool found() const
       {
@@ -79,9 +83,11 @@ namespace Maze
      * Scans the columns `columnStep / 2`, `columnStep / 2 + columnStep`, ... from the bottom row up to `horizonRow`.
      * @param horizonRow Topmost row of a boundary; rows above are not searched.
      * @param projection Used for the vertical extent check; a boundary for which it is undefined is rejected.
+     * @param floorReference Receives the floor reference (the median of the `bottom` values), if not null.
      * @return One entry per scanned column, in increasing column order.
      */
     [[nodiscard]] std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow,
-                                                          const HeightProjection& projection, const Params& params = Params());
+                                                          const HeightProjection& projection, const Params& params = Params(),
+                                                          float* floorReference = nullptr);
   }
 }
