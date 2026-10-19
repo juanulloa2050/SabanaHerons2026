@@ -136,7 +136,7 @@ pose and `current.maze`. It does not use the camera image. On the real robot the
 `get` prints one snapshot: run it again after moving the robot. For a live view, double-click
 `representation:AprilTagPercept` or `representation:WallPercept` under the robot's `data` entry in the scene tree.
 
-Oracle parameters (noise, dropout, range) live in `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg`.
+Oracle parameters (noise, dropout, wall range, tag distance) live in `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg`.
 To change one for this session only, run `get parameters:OracledMazePerceptsProvider`, copy the printed
 `set parameters:OracledMazePerceptsProvider …` line, edit the value (e.g. `dropoutRate = 1;` gives empty
 percepts) and run it.

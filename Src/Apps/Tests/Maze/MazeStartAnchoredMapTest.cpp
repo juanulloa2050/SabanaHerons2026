@@ -39,7 +39,7 @@ namespace
     Oracle::View view;
     Pose3f tagInRobot;
     EXPECT_TRUE(Oracle::computeView(openMaze(), truth, camera, 2, view));
-    EXPECT_TRUE(Oracle::observeTag(view, camera, 2, Angle::fromDegrees(80.f), cell, face, 300.f, tagInRobot));
+    EXPECT_TRUE(Oracle::observeTag(view, camera, 1250.f, Angle::fromDegrees(80.f), cell, face, 300.f, tagInRobot));
     return tagInRobot;
   }
 

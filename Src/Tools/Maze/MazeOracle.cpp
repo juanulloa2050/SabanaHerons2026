@@ -145,7 +145,7 @@ namespace Maze
       return rotated(mazePoint - view.robot, -view.robotRotation);
     }
 
-    bool observeTag(const View& view, const Camera& camera, int maxRange, float maxTagViewAngle,
+    bool observeTag(const View& view, const Camera& camera, float maxTagDistance, float maxTagViewAngle,
                     int cell, Heading face, float centreHeight, Pose3f& tagInRobot, float tagSize)
     {
       const Vector2f centre = cellCentreOf(cellRow(cell), cellCol(cell));
@@ -155,7 +155,7 @@ namespace Maze
       // Close enough, inside the horizontal field of view of the camera.
       const Vector2f positionInRobot = toRobot(view, tag);
       const Vector2f toTag = positionInRobot - camera.positionInRobot;
-      if(toTag.norm() > static_cast<float>(maxRange) * cellSizeMm + halfCellMm)
+      if(toTag.norm() > maxTagDistance)
         return false;
       // The whole tag, not only its centre, has to be in view: both side edges of the black square.
       const Vector2f along(-normal.y(), normal.x());
@@ -208,7 +208,7 @@ namespace Maze
     }
 
     std::vector<VisibleTag> visibleTags(const MazeGraph& maze, const MazeTagLayout& layout, const View& view,
-                                        const Camera& camera, int maxRange, float maxTagViewAngle)
+                                        const Camera& camera, float maxTagDistance, float maxTagViewAngle)
     {
       std::vector<VisibleTag> tags;
       for(int cell = 0; cell < cellCount; ++cell)
@@ -217,7 +217,7 @@ namespace Maze
           const Heading face = static_cast<Heading>(h);
           VisibleTag tag{cell, face, Pose3f()};
           if(!layout.hasTag(cell, face, maze) ||
-             !observeTag(view, camera, maxRange, maxTagViewAngle, cell, face, layout.centreHeight, tag.tagInRobot, layout.size))
+             !observeTag(view, camera, maxTagDistance, maxTagViewAngle, cell, face, layout.centreHeight, tag.tagInRobot, layout.size))
             continue;
           const Vector2f centre = cellCentreOf(cellRow(cell), cellCol(cell)) + directionOf(face) * halfCellMm;
           const Vector2f along(-directionOf(face).y(), directionOf(face).x());

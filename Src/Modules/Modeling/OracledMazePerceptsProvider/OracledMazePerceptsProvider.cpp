@@ -129,7 +129,7 @@ void OracledMazePerceptsProvider::update(AprilTagPercept& aprilTagPercept)
   if(dropoutRate >= 1.f || !updateMaze() || !computeView(view))
     return;
   // Every visible tag, wherever it is: not only those of the look-ahead corridor.
-  for(const Maze::Oracle::VisibleTag& tag : Maze::Oracle::visibleTags(maze.graph, layout, view, camera(), maxRange, static_cast<float>(maxTagViewAngle)))
+  for(const Maze::Oracle::VisibleTag& tag : Maze::Oracle::visibleTags(maze.graph, layout, view, camera(), maxTagDistance, static_cast<float>(maxTagViewAngle)))
     if(!dropped())
       aprilTagPercept.detections.push_back(detect(tag));
 }

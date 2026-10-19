@@ -59,6 +59,7 @@ File: `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg` (and `MazeSafe`). 
 | `tagRotationStdDev` | Gaussian noise of the tag rotation per axis. | `1deg` | — |
 | `wallDistanceStdDev` | Gaussian noise of wall and cell distances, in mm. | `10` | — |
 | `maxTagViewAngle` | Largest angle between the tag normal and the direction to the camera. | `70deg` | — |
+| `maxTagDistance` | Farthest tag, in mm from the camera, that is seen. Independent of `maxRange` (walls only). Before it was `maxRange * 500 + 250` = 1250; the real detector allows 3000 (`aprilTagDetector.cfg`). | `2000` | — |
 
 Compile-time constant (not in the `.cfg`): `reloadIntervalMs` = 1000 ms, time between two looks at the maze file (`OracledMazePerceptsProvider.h`).
 

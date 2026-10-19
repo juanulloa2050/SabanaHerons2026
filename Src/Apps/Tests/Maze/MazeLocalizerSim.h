@@ -68,6 +68,7 @@ namespace Maze
       float headScanAmplitude = 0.f;           /**< Head yaw scan amplitude in rad (sine with `headScanPeriodMs`); 0 looks straight ahead. */
       float headScanPeriodMs = 4000.f;
       int maxRange = 2;                        /**< Cells ahead that the oracle sees. */
+      float maxTagDistance = 1250.f;           /**< Farthest tag the oracle sees in mm (the previous maxRange * 500 + 250 with maxRange 2). */
       float maxTagViewAngle = Angle::fromDegrees(70.f);
       bool useGyro = true;
       bool startGiven = true;                  /**< The start of the maze is given (`start.cell`); otherwise the mapper deduces it. */
@@ -357,7 +358,7 @@ namespace Maze
         int startRow = 0, startCol = 0;
         const bool hidden = config.noTagsInStartCell && trueCell(startRow, startCol) && cellId(startRow, startCol) == config.maze.startCell;
         if(percept.inMaze && !hidden)
-          for(const Oracle::VisibleTag& tag : Oracle::visibleTags(config.maze.graph, config.layout, view, camera, config.maxRange, config.maxTagViewAngle))
+          for(const Oracle::VisibleTag& tag : Oracle::visibleTags(config.maze.graph, config.layout, view, camera, config.maxTagDistance, config.maxTagViewAngle))
             if(!dropped())
               detections.push_back({tag.cell, noisyTag(tag.tagInRobot)});
 
