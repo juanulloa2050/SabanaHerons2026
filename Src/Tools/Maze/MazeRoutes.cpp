@@ -42,7 +42,7 @@ namespace Maze
     return costsValid(costs) ? costs : MazeCosts();
   }
 
-  RoutePair planRoutes(const MazeGraph& map, const MazeState& start, const MazeCosts& costs)
+  RoutePair planRoutes(const MazeGraph& map, const MazeState& start, const MazeCosts& costs, int startCell)
   {
     RoutePair pair;
     if(!MazePlanner::isValid(start))
@@ -52,6 +52,14 @@ namespace Maze
     planner.computeCostToGo(map, UnknownPolicy::asOpen);
     pair.exploration = describe(planner, map, UnknownPolicy::asOpen, start, planner.routeFromTable(start));
     pair.speedRun = describe(planner, map, UnknownPolicy::asWall, start, planner.speedRun(map, start));
+    if(startCell >= 0 && startCell < cellCount)
+    {
+      pair.atStart = cellId(start.row, start.col) == startCell;
+      MazePlanner returnPlanner(costs);
+      returnPlanner.setTargets({startCell});
+      returnPlanner.computeCostToGo(map, UnknownPolicy::asOpen);
+      pair.returnToStart = describe(returnPlanner, map, UnknownPolicy::asOpen, start, returnPlanner.routeFromTable(start));
+    }
     return pair;
   }
 }

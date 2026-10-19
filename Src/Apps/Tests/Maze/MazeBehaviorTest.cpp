@@ -1,8 +1,8 @@
 /**
  * @file MazeBehaviorTest.cpp
  *
- * Tests of the phase machine of HandleMaze (ticket MZ-024): every transition, the phrase of each, the second run, and
- * the announce switch. The CABSL options and the skills are not involved.
+ * Tests of the phase machine of HandleMaze (tickets MZ-024 and MZ-024.1): every transition, the phrase of each, the second
+ * run, the announce switch and the optional return to the start. The CABSL options and the skills are not involved.
  */
 
 #include "Platform/File.h"
@@ -78,6 +78,27 @@ namespace
   {
     MazeBehavior behavior = exploring();
     (void) behavior.update(pickedUp());
+    return behavior;
+  }
+
+  /** `input` at time `timeMs` with the return configured as `trigger` (enabled), delay 5 s and limit 120 s unless given. */
+  BehaviorInput returning(BehaviorInput input, unsigned timeMs, ReturnToStartConfig::Trigger trigger = ReturnToStartConfig::timer)
+  {
+    input.timeMs = timeMs;
+    input.returnToStart.enabled = true;
+    input.returnToStart.trigger = trigger;
+    return input;
+  }
+
+  /** A machine with the return enabled that reached the goal at 10 s. */
+  MazeBehavior waitingAtTheGoal(ReturnToStartConfig::Trigger trigger)
+  {
+    MazeBehavior behavior;
+    (void) behavior.update(returning(playingInput(), 1000, trigger));
+    (void) behavior.update(returning(tap(), 2000, trigger));
+    const BehaviorStep step = behavior.update(returning(atGoal(), 10000, trigger));
+    EXPECT_EQ(step.phase, Phase::finished);
+    EXPECT_EQ(step.phrases, Said({"goal"})) << "the robot does not stand when the return follows: no \"finished\"";
     return behavior;
   }
 
@@ -484,6 +505,7 @@ GTEST_TEST(MazeBehavior, PhaseNames)
 {
   EXPECT_STREQ(phaseName(Phase::speedRun), "speedRun");
   EXPECT_STREQ(phaseName(Phase::waitingForStart), "waitingForStart");
+  EXPECT_STREQ(phaseName(Phase::returnToStart), "returnToStart");
 }
 
 GTEST_TEST(MazeAnnounce, TheShippedConfigsAnnounce)
@@ -519,4 +541,218 @@ GTEST_TEST(MazeAnnounce, EnabledFalseSilencesAndOtherEntriesAreIgnored)
   AnnounceFile missing;
   EXPECT_FALSE(AnnounceFile::load(std::string(File::getBHDir()) + "/Config/Scenarios/Maze/doesNotExist.cfg", missing));
   EXPECT_TRUE(missing.announce.enabled) << "announcements are on by default";
+}
+
+GTEST_TEST(MazeReturnToStart, DefaultsAreDisabledTimerFiveSecondsTwoMinutes)
+{
+  const ReturnToStartConfig config;
+  EXPECT_FALSE(config.enabled);
+  EXPECT_EQ(config.trigger, ReturnToStartConfig::timer);
+  EXPECT_EQ(config.delayMs, 5000u);
+  EXPECT_EQ(config.maxDurationMs, 120000u);
+}
+
+GTEST_TEST(MazeReturnToStart, DisabledStandsAtTheGoalForeverAndSaysFinished)
+{
+  MazeBehavior behavior = exploring();
+  BehaviorInput goal = atGoal();
+  goal.timeMs = 10000;
+  EXPECT_EQ(behavior.update(goal).phrases, Said({"goal", "finished"}));
+  for(unsigned time = 11000; time < 1000000; time += 50000)
+  {
+    BehaviorInput input = playingInput();
+    input.timeMs = time;
+    input.returnToStart.trigger = ReturnToStartConfig::timer; // enabled stays false
+    EXPECT_EQ(behavior.update(input).phase, Phase::finished) << time;
+    input.headFront = true;
+    EXPECT_EQ(behavior.update(input).phase, Phase::finished) << "a tap does nothing when the return is disabled";
+  }
+}
+
+GTEST_TEST(MazeReturnToStart, OnlyAGoalOfTheExplorationArmsTheReturn)
+{
+  for(const ReturnToStartConfig::Trigger trigger : {ReturnToStartConfig::timer, ReturnToStartConfig::button})
+  {
+    // Attempt 2 runs the speed run to the goal: "goal" and "finished" as without the return, and it stays there.
+    MazeBehavior behavior;
+    (void) behavior.update(returning(playingInput(), 1000, trigger));
+    (void) behavior.update(returning(withRoute(tap()), 2000, trigger));
+    ASSERT_EQ(behavior.phase(), Phase::speedRun);
+    const BehaviorStep step = behavior.update(returning(atGoal(), 10000, trigger));
+    EXPECT_EQ(step.phase, Phase::finished);
+    EXPECT_EQ(step.phrases, Said({"goal", "finished"}));
+    EXPECT_EQ(behavior.update(returning(playingInput(), 500000, trigger)).phase, Phase::finished) << "the timer never starts a return after a speed run";
+    EXPECT_EQ(behavior.update(returning(tap(), 500100, trigger)).phase, Phase::finished) << "neither does the button";
+  }
+}
+
+GTEST_TEST(MazeReturnToStart, TheTimerStartsTheReturnDelayMsAfterTheGoal)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  EXPECT_EQ(behavior.update(returning(playingInput(), 14999)).phase, Phase::finished) << "1 ms before the delay";
+  BehaviorInput tapped = returning(tap(), 14999);
+  EXPECT_EQ(behavior.update(tapped).phase, Phase::finished) << "the tap is no trigger for the timer";
+  const BehaviorStep step = behavior.update(returning(playingInput(), 15000));
+  EXPECT_EQ(step.phase, Phase::returnToStart);
+  EXPECT_TRUE(step.changed);
+  EXPECT_EQ(step.phrases, Said({"returning"}));
+  EXPECT_TRUE(behavior.update(returning(playingInput(), 15020)).phrases.empty());
+}
+
+GTEST_TEST(MazeReturnToStart, TheDelayIsConfigurable)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  BehaviorInput input = returning(playingInput(), 10500);
+  input.returnToStart.delayMs = 500;
+  EXPECT_EQ(behavior.update(input).phase, Phase::returnToStart);
+}
+
+GTEST_TEST(MazeReturnToStart, TheButtonStartsTheReturnOnlyOnATap)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::button);
+  EXPECT_EQ(behavior.update(returning(playingInput(), 500000, ReturnToStartConfig::button)).phase, Phase::finished) << "time alone never starts it";
+  const BehaviorStep step = behavior.update(returning(tap(), 500100, ReturnToStartConfig::button));
+  EXPECT_EQ(step.phase, Phase::returnToStart);
+  EXPECT_EQ(step.phrases, Said({"returning"}));
+}
+
+GTEST_TEST(MazeReturnToStart, TheReturnEndsAtTheStartInStandby)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  (void) behavior.update(returning(playingInput(), 15000));
+  EXPECT_EQ(behavior.update(returning(playingInput(), 60000)).phase, Phase::returnToStart);
+  BehaviorInput arrived = returning(playingInput(), 61000);
+  arrived.atStart = true;
+  const BehaviorStep step = behavior.update(arrived);
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"standby"}));
+  // At the start the tap runs the speed run as after any attempt (the return explored, so the map may hold a route).
+  const BehaviorStep run = behavior.update(returning(withRoute(tap()), 62000));
+  EXPECT_EQ(run.phase, Phase::speedRun);
+  EXPECT_EQ(run.phrases, Said({"speed run"}));
+}
+
+GTEST_TEST(MazeReturnToStart, TheReturnEndsAtMaxDurationAlsoWithoutARoute)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  (void) behavior.update(returning(playingInput(), 15000)); // atStart stays false: no route, nothing to do
+  EXPECT_EQ(behavior.update(returning(playingInput(), 15000 + 119999)).phase, Phase::returnToStart);
+  const BehaviorStep step = behavior.update(returning(playingInput(), 15000 + 120000));
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"standby"}));
+}
+
+GTEST_TEST(MazeReturnToStart, APickUpEndsTheReturnInStandby)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  (void) behavior.update(returning(playingInput(), 15000));
+  BehaviorInput lifted = returning(pickedUp(), 20000);
+  const BehaviorStep step = behavior.update(lifted);
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"standby"}));
+}
+
+GTEST_TEST(MazeReturnToStart, ANewAttemptDuringTheReturnGoesToStandbyAndSaysReady)
+{
+  MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+  (void) behavior.update(returning(playingInput(), 15000));
+  BehaviorInput grown = returning(playingInput(), 20000);
+  grown.attempt = 2;
+  const BehaviorStep step = behavior.update(grown);
+  EXPECT_EQ(step.phase, Phase::standby);
+  EXPECT_EQ(step.phrases, Said({"ready"}));
+}
+
+GTEST_TEST(MazeReturnToStart, APickUpOrANewAttemptWhileWaitingAtTheGoalBeatsTheTrigger)
+{
+  {
+    MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+    const BehaviorStep step = behavior.update(returning(pickedUp(), 100000));
+    EXPECT_EQ(step.phase, Phase::standby) << "the delay has passed, but the robot is lifted";
+    EXPECT_EQ(step.phrases, Said({"standby"}));
+  }
+  {
+    MazeBehavior behavior = waitingAtTheGoal(ReturnToStartConfig::timer);
+    BehaviorInput grown = returning(playingInput(), 100000);
+    grown.attempt = 2;
+    const BehaviorStep step = behavior.update(grown);
+    EXPECT_EQ(step.phase, Phase::standby);
+    EXPECT_EQ(step.phrases, Said({"ready"}));
+  }
+}
+
+GTEST_TEST(MazeReturnToStart, TheClockSurvivesAWrapOfTheFrameTime)
+{
+  MazeBehavior behavior;
+  const unsigned late = 0xFFFFFF00u;
+  (void) behavior.update(returning(playingInput(), late - 2000));
+  (void) behavior.update(returning(tap(), late - 1000));
+  (void) behavior.update(returning(atGoal(), late));
+  EXPECT_EQ(behavior.update(returning(playingInput(), late + 4000u)).phase, Phase::finished);
+  EXPECT_EQ(behavior.update(returning(playingInput(), late + 5000u)).phase, Phase::returnToStart) << "5 s later, across the wrap";
+}
+
+GTEST_TEST(MazeReturnToStart, TheFullFlowWithTheReturn)
+{
+  MazeBehavior behavior;
+  std::vector<std::string> said;
+  const auto run = [&](const BehaviorInput& input)
+  {
+    const BehaviorStep step = behavior.update(input);
+    said.insert(said.end(), step.phrases.begin(), step.phrases.end());
+  };
+  run(returning(playingInput(), 0));    // ready
+  run(returning(tap(), 100));           // exploring
+  run(returning(atGoal(), 1000));       // goal
+  run(returning(playingInput(), 6000)); // returning
+  BehaviorInput home = returning(playingInput(), 9000);
+  home.atStart = true;
+  run(home);                            // standby
+  run(returning(withRoute(tap()), 9500)); // speed run
+  EXPECT_EQ(said, Said({"ready", "exploring", "goal", "returning", "standby", "speed run"}));
+  EXPECT_EQ(behavior.phase(), Phase::speedRun);
+}
+
+GTEST_TEST(MazeAnnounce, TheShippedConfigsEnableTheReturnOnTheButton)
+{
+  static const bool registered = (FunctionList::execute(), true);
+  (void) registered;
+  for(const char* scenario : {"Maze", "MazeSafe"})
+  {
+    AnnounceFile file;
+    EXPECT_TRUE(AnnounceFile::load(std::string(File::getBHDir()) + "/Config/Scenarios/" + scenario + "/handleMaze.cfg", file)) << scenario;
+    EXPECT_TRUE(file.returnToStart.enabled) << scenario;
+    EXPECT_EQ(file.returnToStart.trigger, ReturnToStartConfig::button) << scenario;
+    EXPECT_EQ(file.returnToStart.delayMs, 5000u) << scenario;
+    EXPECT_EQ(file.returnToStart.maxDurationMs, 120000u) << scenario;
+  }
+}
+
+GTEST_TEST(MazeAnnounce, TheReturnSettingsAreReadAndDefaultWhenMissing)
+{
+  static const bool registered = (FunctionList::execute(), true);
+  (void) registered;
+  const std::string name = std::string("mazeAnnounceTest_") + ::testing::UnitTest::GetInstance()->current_test_info()->name() + ".cfg";
+  const std::string path = (std::filesystem::temp_directory_path() / name).string();
+  {
+    std::ofstream out(path);
+    ASSERT_TRUE(out.is_open()) << path;
+    out << "announce = {enabled = true;};\nreturnToStart = {\n  enabled = true;\n  trigger = button;\n  delayMs = 1500;\n  maxDurationMs = 90000;\n};\n";
+  }
+  AnnounceFile file;
+  EXPECT_TRUE(AnnounceFile::load(path, file));
+  EXPECT_TRUE(file.returnToStart.enabled);
+  EXPECT_EQ(file.returnToStart.trigger, ReturnToStartConfig::button);
+  EXPECT_EQ(file.returnToStart.delayMs, 1500u);
+  EXPECT_EQ(file.returnToStart.maxDurationMs, 90000u);
+  {
+    std::ofstream out(path);
+    ASSERT_TRUE(out.is_open()) << path;
+    out << "announce = {enabled = true;};\n";
+  }
+  AnnounceFile older;
+  EXPECT_TRUE(AnnounceFile::load(path, older));
+  EXPECT_FALSE(older.returnToStart.enabled) << "a handleMaze.cfg from before MZ-024.1 keeps the old behaviour";
+  EXPECT_EQ(older.returnToStart.delayMs, 5000u);
+  std::remove(path.c_str());
 }

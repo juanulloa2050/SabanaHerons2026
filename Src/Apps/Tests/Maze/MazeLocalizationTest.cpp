@@ -45,7 +45,7 @@ namespace
     Oracle::View view;
     if(!Oracle::computeView(openMaze(), truth, camera, 2, view))
       return false;
-    return Oracle::observeTag(view, camera, 2, deg(80.f), cell, face, 300.f, tagInRobot);
+    return Oracle::observeTag(view, camera, 1250.f, deg(80.f), cell, face, 300.f, tagInRobot);
   }
 
   Pose2f truthIn(int row, int col, float dx, float dy, float rotation)

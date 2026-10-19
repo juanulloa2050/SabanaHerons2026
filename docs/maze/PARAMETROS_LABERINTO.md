@@ -59,6 +59,7 @@ File: `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg` (and `MazeSafe`). 
 | `tagRotationStdDev` | Gaussian noise of the tag rotation per axis. | `1deg` | — |
 | `wallDistanceStdDev` | Gaussian noise of wall and cell distances, in mm. | `10` | — |
 | `maxTagViewAngle` | Largest angle between the tag normal and the direction to the camera. | `70deg` | — |
+| `maxTagDistance` | Farthest tag, in mm from the camera, that is seen. Independent of `maxRange` (walls only). Before it was `maxRange * 500 + 250` = 1250; the real detector allows 3000 (`aprilTagDetector.cfg`). | `2000` | — |
 
 Compile-time constant (not in the `.cfg`): `reloadIntervalMs` = 1000 ms, time between two looks at the maze file (`OracledMazePerceptsProvider.h`).
 
@@ -199,14 +200,16 @@ In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `
 
 ## 9. Return to start
 
-File: `Config/Scenarios/Maze/handleMaze.cfg`. Ticket: MZ-024.1 (proposed). Status: **planned in MZ-024.1**.
+File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg`. Ticket: MZ-024.1. Status: **implemented in MZ-024.1** (`returnToStart = {...}`; a file without the entry keeps the defaults below, so the old flow stays). Both files set `enabled = true` and `trigger = button` (18 Oct 2026).
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `returnToStart.enabled` | `false`: stand at the goal (`Finished`); `true`: explore back to the start. | `false` | Q3, Q9 |
+| `returnToStart.enabled` | `false`: stand at the goal (`Finished`, says "goal" and "finished"); `true`: says "goal" only, then explores back to the start (says "returning"). | `false` | Q3, Q9 |
 | `returnToStart.trigger` | `timer`: start `delayMs` after the goal is confirmed; `button`: start on a `headFront` tap at the goal. | `timer` | Q9 |
 | `returnToStart.delayMs` | Wait after the goal is confirmed, for `trigger = timer`. | `5000` | Q9 |
-| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min). | `120000` | Q3 |
+| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min), counted from "returning". The return also ends at the start cell or on a pick-up; it always goes to `Standby` and says "standby". | `120000` | Q3 |
+
+The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. Only a goal reached by the exploration (attempt 1) arms the return, and it starts with one wall scan at the goal cell (the "goal look", forced even without unknown edges) so that the look-ahead shows the edges of the neighbouring goal cells. It does not change the attempt counter.
 
 ## 10. Start scan
 

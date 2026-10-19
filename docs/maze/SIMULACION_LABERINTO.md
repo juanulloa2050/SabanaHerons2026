@@ -136,7 +136,7 @@ pose and `current.maze`. It does not use the camera image. On the real robot the
 `get` prints one snapshot: run it again after moving the robot. For a live view, double-click
 `representation:AprilTagPercept` or `representation:WallPercept` under the robot's `data` entry in the scene tree.
 
-Oracle parameters (noise, dropout, range) live in `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg`.
+Oracle parameters (noise, dropout, wall range, tag distance) live in `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg`.
 To change one for this session only, run `get parameters:OracledMazePerceptsProvider`, copy the printed
 `set parameters:OracledMazePerceptsProvider …` line, edit the value (e.g. `dropoutRate = 1;` gives empty
 percepts) and run it.
@@ -209,6 +209,30 @@ map when the robot crosses a cell boundary. The offline results are in `GYRO_HEA
 | 6. Gestures | `dr option:HandleMaze:headRear on`, `dr option:HandleMaze:headMiddleTwice on` | Only while standing (`waitingForStart`, `standby`, `finished`): "tag <id>" / "no tag", and the motion test. |
 
 `announce.enabled = false` in `handleMaze.cfg` silences all speech; the phases do not change (the console lines stay).
+
+### Running the return to start (MZ-024.1)
+
+`Config/Scenarios/Maze/handleMaze.cfg` and `MazeSafe` turn the return on with the button trigger (`returnToStart = {enabled = true; trigger = button; ...}`). Button order for the whole run, starting from a freshly opened scene:
+
+| Step | Console | Expected |
+|---|---|---|
+| 1. Views | `vfd worldState representation:MazeMap`, `vfd worldState representation:MazePlan` | The believed walls and the routes in the `worldState` view. |
+| 2. Exploration | `dr option:HandleMaze:headFront on` | Says "exploring" and explores until the goal, then says "goal" and stands. |
+| 3. Return | `dr option:HandleMaze:headFront on` | Says "returning", looks around at the goal, walks back to the start and says "standby". |
+| 4. At the start | `pr manual`, `pr none` | The pose is reset to the start cell and heading (`MazeLocalizer: pose reset to the start`). |
+| 5. Turn 180° | Shift + drag the robot in the 3D view until it faces the open side of the start cell | The robot faces the start heading the reset assumed. |
+| 6. Attempt 2 | `dr option:HandleMaze:headFront on` | Says "speed run" and prints the route with "all edges known to be open". |
+
+Turn the robot by hand (step 5) instead of letting it turn at the start: a 180° turn at the start without a pick-up can leave the localizer locked on a wrong pose (quality `superb`, tag fixes accepted), and the mapper then writes wrong walls.
+
+To change the settings, edit `returnToStart` in `handleMaze.cfg` and reopen the scene (the file is read when the behaviour is created):
+
+1. `enabled = false` makes the robot stand at the goal, as in step 3 of *Running the full flow*. `trigger = timer` starts the return `delayMs` after the goal instead of the tap.
+2. Run attempt 1 as above. At the goal the robot says "goal" only (no "finished"). Only a goal reached by the exploration (attempt 1) arms the return; a speed-run goal still says "goal", "finished" and stays.
+3. `trigger = timer`: after `delayMs` it says "returning" and walks back, trying unknown edges. `trigger = button`: it stands until `dr option:HandleMaze:headFront on` (the tap is free at the goal), then says "returning". Before the first move the robot makes one wall scan (the "goal look", even if the goal cell has no unknown edges): its look-ahead shows the edges of the neighbouring goal cells, so the first return plan already knows them.
+4. The return ends at the start cell, or after `maxDurationMs` (also if no route is found), or when the robot is picked up (`gc initial`): it says "standby" and stands. `dr option:HandleMaze:headFront on` then starts the speed run with the edges found on the way (console: `HandleMaze: speed run over ...`).
+
+Watch `get representation:MazePlan` (`returnToStart` route, `atStart`, `startCell`) and `vfd worldState representation:MazePlan` (the green dotted line is the return route). The unit test `MazeRoutes.TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop` checks the `maze_19.maze` example offline.
 
 What to look at:
 

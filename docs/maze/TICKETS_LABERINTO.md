@@ -109,7 +109,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 | MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
-| MZ-024.1 | Exploring return to start (subtask of MZ-024, proposed) | Bryam | Proposed | 3 | no | MZ-024 |
+| MZ-024.1 | Exploring return to start (subtask of MZ-024, done) | Bryam | Done | 3 | no | MZ-024 |
 
 These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 3.0 h, plus the 2 h of MZ-038 now inside MZ-020 (47.75 → 52.75 h), and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-042 → MZ-041 → MZ-039. MZ-045 (3 h, not in these numbers) is built only if the MZ-020 logs show the cell is lost between tag fixes.
 
@@ -1167,6 +1167,7 @@ proposed.
 
 | Field | Value |
 |---|---|
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 3 h |
 | Depends on | MZ-024 |
@@ -1193,11 +1194,23 @@ the same loop back. Every edge seen on the way goes into `MazeMap`, so attempt 2
 | `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min; whether it counts inside the 5 min is Q3) | 120000 |
 
 **Acceptance criteria**
-- [ ] Unit test: on `maze_19.maze` with the map known after the walk in the example, a return plan from cell 36 to the start passes through 35 → 43 → 42 → 34 (unknown edges assumed open), not back along the walked loop.
-- [ ] The existing planner tests pass unchanged with the default target (the goal block).
-- [ ] In simulation with `trigger = timer`, the return starts `delayMs` (±0.5 s) after the "goal" announcement; with `trigger = button`, it starts only after the `headFront` tap.
-- [ ] With `returnToStart.enabled = false`, the robot stays at the goal (`Finished`), as before.
-- [ ] In simulation on 3 mazes, the robot reaches the start cell, or stops at `maxDurationMs`, and goes to `Standby`; the edges found on the way are in `MazeMap`, and the attempt-2 plan uses them (check in a log).
+- [x] Unit test: on `maze_19.maze` with the map known after the walk in the example, a return plan from cell 36 to the start passes through 35 → 43 → 42 → 34 (unknown edges assumed open), not back along the walked loop. *(After the goal look; see below.)*
+- [x] The existing planner tests pass unchanged with the default target (the goal block).
+- [x] In simulation with `trigger = timer`, the return starts `delayMs` (±0.5 s) after the "goal" announcement; with `trigger = button`, it starts only after the `headFront` tap. *(The exact delay is checked offline with the injected clock.)*
+- [x] With `returnToStart.enabled = false`, the robot stays at the goal (`Finished`), as before.
+- [x] In simulation on 3 mazes, the robot reaches the start cell, or stops at `maxDurationMs`, and goes to `Standby`; the edges found on the way are in `MazeMap`, and the attempt-2 plan uses them (check in a log).
+
+**Evidence:** unit and acceptance tests (`Build/Linux/Tests/Develop/Tests`, 329 passed) and the SimRobot runs of 18 Oct 2026 (button order in `SIMULACION_LABERINTO.md`, *Running the return to start*). `handleMaze.cfg` (`Maze` and `MazeSafe`) now sets `enabled = true` and `trigger = button`.
+
+- Example log (`maze_19`, after the return, `pr manual`/`pr none`, robot turned by hand): `HandleMaze: speed run over 16 cells [0 8 16 24 24 25 25 33 33 34 34 42 42 43 43 35] ... all edges known to be open.`
+- Known limitation, outside this ticket: if the robot turns 180° at the start without a pick-up (the speed run then begins with `turnAround`), the localizer can lock on a wrong pose (one run: true cell 0 facing south, estimate cell 32 facing north, `quality = superb`, 8957 tag fixes, 0 rejections), and the mapper writes wrong walls. The procedure is therefore a penalty (`pr manual`/`pr none`, or a pick-up on the robot) and a turn by hand before attempt 2. Tag fixes only match faces within 45° of the estimate, so a heading lost by more than that is never recovered.
+- Start deduction while standing needs a tag whose whole square is inside the camera's field of view; `maze_19` (corridor ending 3 cells away) needed the oracle's `maxTagDistance` raised to 2000 mm (`oracledMazePerceptsProvider.cfg`; the real detector allows 3000 mm).
+
+**Offline evidence (branch `feat/MZ-024.1-return-to-start`).**
+- `MazeRoutes.TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop`: `maze_19`, map known after the walk (the oracle look-ahead of the wall scan at every cell of the long eastern loop). Before the goal look the return is 36 → 44 → 43 → 42 → 34 → … (44-43 unknown ties with 35 and saves a start-up); after the goal look (one wall scan at 36, the gaze south sees 44 and the wall 44-43) it is 36 → 35 → 43 → 42 → 34 → … → 0 and never enters 37.
+- Goal look and attempt: when the return begins, `HandleMaze` forces one `MazeScanWalls` at the goal cell even without unknown edges (`DriveController::requestScan`, tests in `MazeDriveTest`); only a goal reached by the exploration arms the return (`MazeReturnToStart.OnlyAGoalOfTheExplorationArmsTheReturn`).
+- The planner tests are unchanged and pass with the default target; `MazePlanner.TheDefaultTargetSetIsTheGoalBlock` compares the default with an explicit goal block.
+- `MazeReturnToStart.*` (phase machine, injected clock): disabled → "goal", "finished" and no return; timer at `delayMs` (before/after); button only on a tap; end at the start, at `maxDurationMs` (also without route) or on pick-up; new attempt during the return → `standby`.
 
 ---
 

@@ -1,7 +1,7 @@
 /**
  * @file HandleMaze.h
  *
- * This file defines the options of the maze behavior (ticket MZ-024, roadmap 4.7). The phase of the attempt is decided
+ * This file defines the options of the maze behavior (tickets MZ-024 and MZ-024.1, roadmap 4.7). The phase of the attempt is decided
  * by the pure state machine Maze::MazeBehavior (Tools/Maze/MazeBehavior.h); the common transition of HandleMaze feeds it and
  * goes to the CABSL state of the phase it returns:
  *
@@ -11,7 +11,12 @@
  *   speedRun         walk the speed-run route (known-open edges only), no wall scans ("speed run")
  *   standby          stand (picked up, penalized, or the game stopped playing; also after skipped frames); the map is kept ("standby", and "ready"
  *                    once when the robot is active again: put down, unpenalized, or gc playing)
- *   finished         stand, a goal cell is reached ("goal", "finished")
+ *   finished         stand, a goal cell is reached ("goal", "finished"; after the exploration with returnToStart.enabled only "goal", then the trigger below)
+ *   returnToStart    walk the optimistic route to the start cell of the MazePlan (unknown edges open), scanning cells with unknown
+ *                    edges like the exploration ("returning"); it begins with one wall scan at the goal cell (goal look) even if that cell has no
+ *                    unknown edges, because the scan's look-ahead sees the edges of the neighbouring goal cells; ends at the start cell or after returnToStart.maxDurationMs, then
+ *                    standby ("standby"). Optional, see `returnToStart` in handleMaze.cfg: trigger = timer starts it delayMs after
+ *                    "goal", trigger = button on a headFront tap.
  *
  * A penalized robot (GameState::isPenalized, also the chest-button penalty of a robot without GameController, which leaves
  * the game state at playing) counts as picked up. HandlePlayerState (listed before HandleMaze in skillBehaviorControl.cfg)
@@ -23,7 +28,8 @@
  * The robot says what it does with the Say skill, in parallel with the motion and only if `announce.enabled` of
  * handleMaze.cfg is true. The head buttons (a tap is reported after the streak has ended):
  *
- *   headFront  x1  starts the attempt: exploration, or the speed run if the map holds a route to the goal
+ *   headFront  x1  starts the attempt: exploration, or the speed run if the map holds a route to the goal; in finished (after the exploration) it
+ *                  starts the return if returnToStart.enabled and trigger = button
  *   headRear   x1  says the id of the last seen AprilTag ("tag 11"), or "no tag" if none was seen
  *                  in the last 2 s (self-test of the AprilTag detector, MZ-018)
  *   headMiddle x2  says "motion test" and runs the motion test sequence
@@ -107,7 +113,16 @@ Maze::SpeechQueue speechQueue; /**< What the robot has still to say (bounded, se
 bool motionTestRunning = false; /**< The motion test (or its announcement) is running: head taps do not start an attempt. */
 unsigned ignoreTapsUntil = 0; /**< The end of a motion test can report a tap late; it does not start an attempt. */
 
-bool driveSpeedRun = false; /**< The route that MazeDrive follows: the speed run (true) or the exploration. */
+/** The route that MazeDrive follows. The return explores like the exploration (it scans unknown edges), only the target differs. */
+enum class DriveRoute
+{
+  exploration,
+  speedRun,
+  returnToStart,
+};
+
+DriveRoute driveRoute = DriveRoute::exploration; /**< The route that MazeDrive follows. */
+Maze::ReturnToStartConfig returnConfig; /**< `returnToStart` of handleMaze.cfg, read by the constructor. */
 Maze::DriveController drive; /**< The action that runs, its target and the scan bookkeeping. */
 
 /** Queues something to say; nothing is said if the announcements are off. */
@@ -152,6 +167,9 @@ Maze::BehaviorInput mazeInput() const
   input.startKnown = theMazeStart.known;
   input.startGiven = theMazeStart.given;
   input.startCell = theMazeStart.cell;
+  input.timeMs = theFrameInfo.time;
+  input.atStart = theMazePlan.valid && theMazePlan.atStart;
+  input.returnToStart = returnConfig;
   return input;
 }
 
@@ -198,6 +216,8 @@ void enterPhase(Maze::Phase phase)
   drive.reset();
   if(phase == Maze::Phase::speedRun)
     logSpeedRun();
+  else if(phase == Maze::Phase::returnToStart)
+    drive.requestScan(); // The goal look: its look-ahead shows the edges of the neighbouring goal cells before the first return move.
 }
 
 /** @return The heading to keep (walk) or to reach (turn) as the skills take it. */
@@ -246,11 +266,13 @@ bool driveActionOver() const
 /**
  * Reads the plan at a cell centre and locks the next action until its skill is done. The exploration route changes
  * whenever the map learns an edge, so only its first action is binding; the speed run takes the first action of the
- * route as well, which is the same list because the map no longer changes along known-open edges.
+ * route as well, which is the same list because the map no longer changes along known-open edges. The return to the start
+ * explores like the exploration (the drive still scans cells with unknown edges), so it is no speed run for the drive.
  */
-Maze::DriveNext chooseNextDriveAction(bool speedRun)
+Maze::DriveNext chooseNextDriveAction(DriveRoute driveRoute)
 {
-  const MazeRoute& route = speedRun ? theMazePlan.speedRun : theMazePlan.exploration;
+  const bool speedRun = driveRoute == DriveRoute::speedRun;
+  const MazeRoute& route = speedRun ? theMazePlan.speedRun : driveRoute == DriveRoute::returnToStart ? theMazePlan.returnToStart : theMazePlan.exploration;
   Maze::DriveInput input;
   input.speedRun = speedRun;
   input.planValid = theMazePlan.valid;
@@ -265,7 +287,7 @@ Maze::DriveNext chooseNextDriveAction(bool speedRun)
   input.unknownEdges = currentCellHasUnknownEdges();
   const Maze::DriveDecision decision = drive.choose(input, theFrameInfo.time);
   if(decision.reportNoRoute)
-    OUTPUT_TEXT("HandleMaze: no " << (speedRun ? "speed run" : "exploration") << " route from cell " << theMazeCellPose.cell() << ", standing.");
+    OUTPUT_TEXT("HandleMaze: no " << (speedRun ? "speed run" : driveRoute == DriveRoute::returnToStart ? "return" : "exploration") << " route from cell " << theMazeCellPose.cell() << ", standing.");
   return decision.next;
 }
 
@@ -323,6 +345,8 @@ option(HandleMaze)
         goto speedRun;
       case Maze::Phase::finished:
         goto finished;
+      case Maze::Phase::returnToStart:
+        goto returnToStart;
       default:
         goto notPlaying;
     }
@@ -352,7 +376,7 @@ option(HandleMaze)
     action
     {
       speak();
-      driveSpeedRun = false;
+      driveRoute = DriveRoute::exploration;
       MazeDrive();
     }
   }
@@ -371,7 +395,7 @@ option(HandleMaze)
     action
     {
       speak();
-      driveSpeedRun = true;
+      driveRoute = DriveRoute::speedRun;
       MazeDrive();
     }
   }
@@ -384,13 +408,23 @@ option(HandleMaze)
       HandleMazeButtons();
     }
   }
+
+  state(returnToStart)
+  {
+    action
+    {
+      speak();
+      driveRoute = DriveRoute::returnToStart;
+      MazeDrive();
+    }
+  }
 }
 
 /**
  * Walks the route of the plan, one action at a time: the plan is read at a cell centre, its first action is locked until
  * its skill is done, then the plan is read again. In the exploration, a cell with unknown edges is scanned first.
- * The member `driveSpeedRun` tells which route to follow: the speed-run route (known-open edges only, no scans) or the
- * exploration route.
+ * The member `driveRoute` tells which route to follow: the speed-run route (known-open edges only, no scans), the
+ * exploration route or the optimistic route back to the start cell.
  */
 option(MazeDrive)
 {
@@ -398,7 +432,7 @@ option(MazeDrive)
   {
     if(driveActionOver())
     {
-      switch(chooseNextDriveAction(driveSpeedRun))
+      switch(chooseNextDriveAction(driveRoute))
       {
         case Maze::DriveNext::walk:
           goto walk;

@@ -8,7 +8,7 @@
  * The model is an approximation that ignores the vertical field of view.
  *
  * Tags: every wall face that the layout tags is a candidate, wherever it is. A tag is reported when it
- * is within `maxRange` cells, the whole black square (both side edges) is inside the horizontal field of
+ * is within `maxTagDistance` mm of the camera, the whole black square (both side edges) is inside the horizontal field of
  * view, it faces the camera within `maxTagViewAngle`, and no wall blocks the 2D line from the camera to
  * the tag centre or to either side edge (walls are higher than the camera). A wall blocks as its centre
  * line extended by half its thickness at both ends, so a ray grazing a wall end counts as blocked.
@@ -54,6 +54,7 @@ MODULE(OracledMazePerceptsProvider,
     (Angle) tagRotationStdDev,     /**< Standard deviation of the tag rotation per axis. */
     (float) wallDistanceStdDev,    /**< Standard deviation of wall and cell distances in mm. */
     (Angle) maxTagViewAngle,       /**< Largest angle between the tag normal and the direction to the camera. */
+    (float) maxTagDistance,        /**< Farthest tag in mm from the camera that is seen; independent of `maxRange`. */
   }),
 });
 

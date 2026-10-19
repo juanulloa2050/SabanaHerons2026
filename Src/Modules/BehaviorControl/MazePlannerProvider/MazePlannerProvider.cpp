@@ -53,6 +53,7 @@ Maze::PlanKey MazePlannerProvider::currentKey() const
   key.row = theMazeCellPose.row;
   key.col = theMazeCellPose.col;
   key.heading = static_cast<int>(theMazeCellPose.heading);
+  key.startCell = theMazeMap.startCell;
   key.valid = theMazeCellPose.insideMaze;
   return key;
 }
@@ -96,6 +97,7 @@ void MazePlannerProvider::update(MazePlan& mazePlan)
     cached.heading = theMazeCellPose.heading;
     cached.mapChangeCounter = theMazeMap.changeCounter;
     cached.valid = theMazeCellPose.insideMaze;
+    cached.startCell = theMazeMap.startCell;
     plannedKey = key;
     computed = true;
     if(cached.valid)
@@ -106,10 +108,12 @@ void MazePlannerProvider::update(MazePlan& mazePlan)
       start.col = theMazeCellPose.col;
       start.heading = static_cast<Maze::Heading>(static_cast<int>(theMazeCellPose.heading));
       start.moving = false;
-      const Maze::RoutePair routes = Maze::planRoutes(theMazeMap.toGraph(), start, costs());
+      const Maze::RoutePair routes = Maze::planRoutes(theMazeMap.toGraph(), start, costs(), theMazeMap.startCell);
       cached.atGoal = routes.atGoal;
       fill(cached.exploration, routes.exploration);
       fill(cached.speedRun, routes.speedRun);
+      cached.atStart = routes.atStart;
+      fill(cached.returnToStart, routes.returnToStart);
     }
   }
   mazePlan = cached;

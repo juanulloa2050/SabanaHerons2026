@@ -118,7 +118,10 @@ SkillBehaviorControl::SkillBehaviorControl() :
   // Only the maze scenarios have handleMaze.cfg; the announcements stay on if it is missing.
   Maze::AnnounceFile announce;
   if(Maze::AnnounceFile::load("handleMaze.cfg", announce))
+  {
     announceEnabled = announce.announce.enabled;
+    returnConfig = announce.returnToStart;
+  }
 }
 
 std::vector<ModuleBase::Info> SkillBehaviorControl::getExtModuleInfo()

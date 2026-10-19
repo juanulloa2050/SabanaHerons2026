@@ -109,6 +109,12 @@ namespace Maze
     /** @return Whether the action that runs is over: its skill is done, or it is too slow so that the plan is read again. */
     [[nodiscard]] bool actionOver(bool skillDone, unsigned now) const;
 
+    /**
+     * The next cell centre is scanned even if the cell has no unknown edges (the goal look of the return: the look-ahead of
+     * the scan sees the edges of the neighbouring cells). Never in a speed run; counts as the scan of that cell. Call it after `reset`.
+     */
+    void requestScan() { scanRequested = true; }
+
     /** Picks the next action and locks it. */
     DriveDecision choose(const DriveInput& input, unsigned now);
 
@@ -125,5 +131,6 @@ namespace Maze
     Heading lockedHeading = Heading::north; /**< The heading to keep (walk) or to reach (turn). */
     int scannedCell = -1;                   /**< The cell where the walls were scanned last in this phase. */
     bool noRouteReported = false;
+    bool scanRequested = false; /**< `requestScan` was called and the forced scan has not happened yet. */
   };
 }

@@ -10,7 +10,8 @@
  * along the gaze snapped to the nearest maze heading, up to `maxRange` cells and not beyond a front
  * wall. The vertical field of view is ignored.
  *
- * AprilTags do not use the corridor: every wall face the layout tags is a candidate, see `visibleTags`.
+ * AprilTags do not use the corridor: every wall face the layout tags is a candidate within a maximum
+ * distance in mm, independent of `maxRange`, see `visibleTags`.
  */
 
 #pragma once
@@ -110,14 +111,15 @@ namespace Maze
     [[nodiscard]] Vector2f toRobot(const View& view, const Vector2f& mazePoint);
 
     /**
-     * Whether the tag on `face` of `cell` is within reach: close enough, with the whole black square of
+     * Whether the tag on `face` of `cell` is within reach: at most `maxTagDistance` mm from the camera, with the whole black square of
      * width `tagSize` (along the wall) inside the horizontal field of view, and facing the camera by at most
      * `maxTagViewAngle`. Whether the layout puts a tag there and whether a wall hides it is not checked.
+     * @param maxTagDistance Largest distance in mm from the camera to the tag centre.
      * @param tagSize Edge of the black square in mm; 0 checks only the tag centre.
      * @param tagInRobot Receives the pose of the tag: x to the right and y up when looking at it, z along
      *                   the wall normal into the cell, at height `centreHeight` in mm.
      */
-    [[nodiscard]] bool observeTag(const View& view, const Camera& camera, int maxRange, float maxTagViewAngle,
+    [[nodiscard]] bool observeTag(const View& view, const Camera& camera, float maxTagDistance, float maxTagViewAngle,
                                   int cell, Heading face, float centreHeight, Pose3f& tagInRobot, float tagSize = 0.f);
 
     /**
@@ -133,6 +135,6 @@ namespace Maze
      * of `view` plays no role: tags beside or beyond the gaze corridor are seen if they are visible.
      */
     [[nodiscard]] std::vector<VisibleTag> visibleTags(const MazeGraph& maze, const MazeTagLayout& layout, const View& view,
-                                                      const Camera& camera, int maxRange, float maxTagViewAngle);
+                                                      const Camera& camera, float maxTagDistance, float maxTagViewAngle);
   }
 }

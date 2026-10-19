@@ -2,10 +2,10 @@
  * @file MazePlannerProvider.h
  *
  * Provides the `MazePlan`: for the current cell pose and wall map, the exploration route (unknown edges are open,
- * attempt 1) and the speed-run route (only edges known to be open, attempt 2), both computed with the time-weighted
+ * attempt 1) and the speed-run route (only edges known to be open, attempt 2) and the return route to the start cell of the `MazeMap` (unknown edges open, MZ-024.1), all computed with the time-weighted
  * planner of Tools/Maze/MazePlanner.h. The behaviour decides which one it follows, so the provider needs no mode.
  *
- * The plan is recomputed only when the `MazeMap::changeCounter`, the cell or the heading of the `MazeCellPose` or the costs change
+ * The plan is recomputed only when the `MazeMap::changeCounter`, the `MazeMap::startCell`, the cell or the heading of the `MazeCellPose` or the costs change
  * (a planning takes well under a millisecond on the 8x8 grid on a development PC; MazeRoutesTest prints the time and only
  * guards against a gross regression, it is no real-time guarantee on the robot). A pose outside the maze gives
  * a plan that is not valid and has no route.
