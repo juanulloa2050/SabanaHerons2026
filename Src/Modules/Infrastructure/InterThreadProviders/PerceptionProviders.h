@@ -14,6 +14,7 @@
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Perception/ImagePreprocessing/ImageCoordinateSystem.h"
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
+#include "Representations/Perception/MazePercepts/WallPercept.h"
 #include "Framework/Module.h"
 
 // The perception threads already draw these representations
@@ -60,4 +61,18 @@ MODULE(PerceptionAprilTagPerceptProvider,
 class PerceptionAprilTagPerceptProvider : public PerceptionAprilTagPerceptProviderBase
 {
   void update(AprilTagPercept& theAprilTagPercept) override;
+};
+
+// Walls only come from the upper camera as well
+DECLARE(WallPercept);
+
+MODULE(PerceptionWallPerceptProvider,
+{,
+  REQUIRES(UpperWallPercept),
+  PROVIDES(WallPercept),
+});
+
+class PerceptionWallPerceptProvider : public PerceptionWallPerceptProviderBase
+{
+  void update(WallPercept& theWallPercept) override;
 };

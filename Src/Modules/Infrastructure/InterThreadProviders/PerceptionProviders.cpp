@@ -21,6 +21,7 @@
 #include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include "Representations/Perception/ImagePreprocessing/FieldBoundary.h"
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
+#include "Representations/Perception/MazePercepts/WallPercept.h"
 #include "Representations/Perception/ObstaclesPercepts/ObstaclesFieldPercept.h"
 
 MAKE_MODULE(PerceptionImageCoordinateSystemProvider);
@@ -50,6 +51,15 @@ MAKE_MODULE(PerceptionAprilTagPerceptProvider);
 void PerceptionAprilTagPerceptProvider::update(AprilTagPercept& theAprilTagPercept)
 {
   theAprilTagPercept = theUpperAprilTagPercept;
+}
+
+// Walls are only perceived in the upper camera thread; as for the AprilTags, always copy the newest upper result.
+// The timestamp of the percept is the upper frame time, so consumers distinguish repeated frames by it.
+MAKE_MODULE(PerceptionWallPerceptProvider);
+
+void PerceptionWallPerceptProvider::update(WallPercept& theWallPercept)
+{
+  theWallPercept = theUpperWallPercept;
 }
 
 // Define a module that updates a representation with the newer one of both aliases

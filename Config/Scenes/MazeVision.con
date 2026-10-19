@@ -1,0 +1,20 @@
+call Includes/Normal
+# Like Maze.con, but the walls come from the real WallPerceptor on the camera image (MZ-019). Only the AprilTags are
+# faked from the ground truth pose until the real detector is evaluated in simulation.
+# The maze comes from Config/Scenes/Includes/Maze/current.maze, written by maze_to_scene.py next to the scene.
+for Cognition mr AprilTagPercept OracledMazePerceptsProvider
+# Hide the game clock and score board: no game time or goals in the maze.
+dr debugDrawing3d:representation:GameState off
+call Includes/Views
+# In this scene the walls render darker than the floor, which the scenario config of the WallPerceptor accounts for
+# (wallBrighterThanFloor = false in wallPerceptor.cfg).
+# Wall perceptor views: boundary pixels in the upper camera image (green boundary, red clear column), the points and
+# the percept in the robot frame on the field view "wallPerceptor".
+vid all module:WallPerceptor:boundary
+vf wallPerceptor
+vfd wallPerceptor module:WallPerceptor:points
+vfd wallPerceptor representation:WallPercept:field
+# No automatic referee: it would penalize the robot for standing in the opponent half.
+ar off
+gc playing
+dr unmute on
