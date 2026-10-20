@@ -210,21 +210,21 @@ GTEST_TEST(MazeWallView, ComparisonWithOracle)
 
 GTEST_TEST(MazeWallView, CorridorWithSideOpeningEqualsOracle)
 {
-  // Gaze east from (4,1): walls on both sides, an opening to the north at (4,2), a dead end at (4,3).
+  // Gaze east from (6,1) (outside the goal block, whose inner edges are never walls): walls on both sides, an opening to the north at (6,2), a dead end at (6,3).
   Maze::MazeGraph maze;
   for(int row = 0; row < Maze::size; ++row)
     for(int col = 0; col < Maze::size; ++col)
       for(int h = 0; h < Maze::headingCount; ++h)
         maze.set(row, col, static_cast<Maze::Heading>(h), Maze::EdgeState::open);
   for(const int col : {1, 3})
-    maze.set(4, col, Maze::Heading::north, Maze::EdgeState::wall);
+    maze.set(6, col, Maze::Heading::north, Maze::EdgeState::wall);
   for(const int col : {1, 2, 3})
-    maze.set(4, col, Maze::Heading::south, Maze::EdgeState::wall);
-  maze.set(4, 3, Maze::Heading::east, Maze::EdgeState::wall);
+    maze.set(6, col, Maze::Heading::south, Maze::EdgeState::wall);
+  maze.set(6, 3, Maze::Heading::east, Maze::EdgeState::wall);
 
   for(const float noise : {0.f, 50.f})
   {
-    const Pose2f robot(0.f, Oracle::cellCentreOf(4, 1));
+    const Pose2f robot(0.f, Oracle::cellCentreOf(6, 1));
     const Oracle::View truth = oracleView(maze, robot, 0.f, 3);
     const Sensed sensed = castRays(maze, robot, 0.f, 1.4f, noise);
     const Result result = viewOf(sensed.boundary, robot, 0.f, 3, Params(), sensed.clear);
@@ -247,7 +247,7 @@ GTEST_TEST(MazeWallView, CorridorWithSideOpeningEqualsOracle)
 
 GTEST_TEST(MazeWallView, LongOpenCorridorIsOpenWithinRangeFromClearRays)
 {
-  // A corridor along row 4 with a wall on both sides and the border far behind the sight of 2500 mm.
+  // A corridor along row 6 with a wall on both sides and the border far behind the sight of 2500 mm.
   Maze::MazeGraph maze;
   for(int row = 0; row < Maze::size; ++row)
     for(int col = 0; col < Maze::size; ++col)
@@ -255,11 +255,11 @@ GTEST_TEST(MazeWallView, LongOpenCorridorIsOpenWithinRangeFromClearRays)
         maze.set(row, col, static_cast<Maze::Heading>(h), Maze::EdgeState::open);
   for(int col = 0; col < Maze::size; ++col)
   {
-    maze.set(4, col, Maze::Heading::north, Maze::EdgeState::wall);
-    maze.set(4, col, Maze::Heading::south, Maze::EdgeState::wall);
+    maze.set(6, col, Maze::Heading::north, Maze::EdgeState::wall);
+    maze.set(6, col, Maze::Heading::south, Maze::EdgeState::wall);
   }
 
-  const Pose2f robot(0.f, Oracle::cellCentreOf(4, 0));
+  const Pose2f robot(0.f, Oracle::cellCentreOf(6, 0));
   const Oracle::View truth = oracleView(maze, robot, 0.f, 3);
   ASSERT_EQ(truth.cells.size(), 4u);
   // Looking straight down the corridor all rays see no wall in reach: no boundary points, so only the clear rays tell
@@ -309,7 +309,7 @@ GTEST_TEST(MazeWallView, PointsOffTheGridAreDropped)
 GTEST_TEST(MazeWallView, NothingBeyondTheRange)
 {
   // A wall 3.25 cells ahead: it only shows once the range reaches it.
-  const Pose2f robot(0.f, Oracle::cellCentreOf(3, 0));
+  const Pose2f robot(0.f, Oracle::cellCentreOf(1, 0));
   std::vector<Vector2f> points;
   for(int i = -5; i <= 5; ++i)
     points.emplace_back(250.f + 3.f * 500.f, 40.f * static_cast<float>(i));
@@ -331,7 +331,7 @@ GTEST_TEST(MazeWallView, NothingBeyondTheRange)
 GTEST_TEST(MazeWallView, WalkStopsAfterTheFirstFrontWall)
 {
   // Walls at 1.25 and 2.25 cells ahead in the same corridor: the view ends at the first one.
-  const Pose2f robot(0.f, Oracle::cellCentreOf(3, 0));
+  const Pose2f robot(0.f, Oracle::cellCentreOf(1, 0));
   std::vector<Vector2f> points;
   for(const float x : {250.f + 500.f, 250.f + 1000.f})
     for(int i = -5; i <= 5; ++i)
@@ -369,4 +369,34 @@ GTEST_TEST(MazeWallView, LookAheadRangeFollowsTheMotion)
 {
   EXPECT_EQ(lookAheadRange(true, 2, 3), 3);
   EXPECT_EQ(lookAheadRange(false, 2, 3), 2);
+}
+
+GTEST_TEST(MazeWallView, NoWallsBetweenTheCellsOfTheGoalBlock)
+{
+  // Points along the edge between the goal cells (3,3) and (3,4), which the patch edges can fake.
+  const Pose2f robot(0.f, Oracle::cellCentreOf(3, 3));
+  std::vector<Vector2f> inner;
+  for(int i = -5; i <= 5; ++i)
+    inner.emplace_back(250.f, 40.f * static_cast<float>(i));
+  EXPECT_NE(viewOf(inner, robot, 0.f, 1).cellsAhead[0].front, Maze::EdgeState::wall);
+  Params withoutPrior;
+  withoutPrior.noGoalBlockWalls = false;
+  EXPECT_EQ(viewOf(inner, robot, 0.f, 1, withoutPrior).cellsAhead[0].front, Maze::EdgeState::wall);
+
+  // A floor seen past the edge still makes it open, the prior only forbids the wall.
+  EXPECT_EQ(viewOf(inner, robot, 0.f, 1, Params(), {Vector2f(1000.f, 0.f)}).cellsAhead[0].front, Maze::EdgeState::open);
+
+  // The edge between the goal cell and the cell outside it is an ordinary one.
+  std::vector<Vector2f> outer;
+  for(int i = -5; i <= 5; ++i)
+    outer.emplace_back(40.f * static_cast<float>(i), 250.f);
+  EXPECT_EQ(viewOf(outer, robot, pi / 2.f, 1).cellsAhead[0].front, Maze::EdgeState::wall);
+
+  // Outside the goal block nothing changes: the wall between (3,2) and the goal cell (3,3), and the north wall of (3,2).
+  const Pose2f outside(0.f, Oracle::cellCentreOf(3, 2));
+  EXPECT_EQ(viewOf(outer, outside, pi / 2.f, 1).cellsAhead[0].front, Maze::EdgeState::wall);
+  std::vector<Vector2f> outsideWall;
+  for(int i = -5; i <= 5; ++i)
+    outsideWall.emplace_back(250.f, 40.f * static_cast<float>(i));
+  EXPECT_EQ(viewOf(outsideWall, outside, 0.f, 1).cellsAhead[0].front, Maze::EdgeState::wall);
 }

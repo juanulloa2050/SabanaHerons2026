@@ -64,6 +64,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
     scanParams.maxFloorRunRows = maxFloorRunRows;
     scanParams.minCheckRows = minCheckRows;
     scanParams.floorReferenceRows = floorReferenceRows;
+    scanParams.maxWallSaturation = maxWallSaturation;
 
     // The point `heightMm` above a floor pixel, back in the image.
     const Maze::WallScan::HeightProjection projection = [this](int column, int row, float heightMm, int& rowAtHeight)
@@ -77,8 +78,10 @@ void WallPerceptor::update(WallPercept& wallPercept)
     };
 
     const Maze::WallScan::GreyImage image = {reinterpret_cast<const unsigned char*>(gray[0]), static_cast<int>(gray.width), static_cast<int>(gray.height), static_cast<int>(gray.width)};
+    const Image<PixelTypes::GrayscaledPixel>& saturated = theECImage.saturated;
+    const Maze::WallScan::GreyImage saturation = {reinterpret_cast<const unsigned char*>(saturated[0]), static_cast<int>(saturated.width), static_cast<int>(saturated.height), static_cast<int>(saturated.width)};
     float floorReference = 0.f;
-    const std::vector<Maze::WallScan::ColumnBoundary> boundaries = Maze::WallScan::scanColumns(image, horizon, projection, scanParams, &floorReference);
+    const std::vector<Maze::WallScan::ColumnBoundary> boundaries = Maze::WallScan::scanColumns(image, horizon, projection, scanParams, &floorReference, &saturation);
 
     floorModel.observe(boundaries, floorReference, theFrameInfo.time);
 
@@ -118,6 +121,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
     viewParams.minSupportPoints = minSupportPoints;
     viewParams.openClearanceMm = openClearanceMm;
     viewParams.vertexMarginMm = vertexMarginMm;
+    viewParams.noGoalBlockWalls = noGoalBlockWalls;
 
     const Vector3f gazeInRobot = theCameraMatrix.rotation * Vector3f(1.f, 0.f, 0.f);
     const int range = Maze::WallView::lookAheadRange(theMotionInfo.executedPhase == MotionPhase::stand, lookAheadRangeWalking, lookAheadRangeStanding);

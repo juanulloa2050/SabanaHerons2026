@@ -29,6 +29,11 @@
  *     a wall), and no run of more than `maxFloorRunRows` floor-like rows occurs. A patch ends 1000 mm behind its
  *     near edge, and the floor behind it shows as such a run, as does a narrow marking. Rows beyond the top of the
  *     image are not checked, but `minCheckRows` have to remain.
+ * 4. Not coloured. Walls and floor have no colour by the rules, a floor marking such as the goal patch has. With a
+ *     saturation buffer and `maxWallSaturation` > 0, a candidate is rejected if the `saturationRows` rows above it (after
+ *     the `smoothRows` of the edge ramp) are more saturated than the floor reference (the median of the bottom rows) by more
+ *     than that. It catches what the checks above cannot: a patch that continues to the top of the image, or that touches a
+ *     wall, looks like a wall in the grey image. The grey gradient stays the detector; colour only vetoes.
  * A column in which a step was met but no boundary accepted is `rejected`: its floor is not known to be free, so it
  * must not give clear (open) evidence.
  * Limitations: a patch edge that is below the lowest visible floor row cannot be rejected, because the patch is then
@@ -69,6 +74,8 @@ namespace Maze
       int maxFloorRunRows = 4;             /**< Longest run of floor-like rows allowed above a boundary within the check height. */
       int minCheckRows = 3;                /**< Rows that have to remain for the check after cutting at the image top. */
       int floorReferenceRows = 8;          /**< Bottom rows that give the floor reference. */
+      float maxWallSaturation = 0.f;       /**< Most that the saturation above a boundary may exceed the saturation of the floor, in levels of the saturation buffer; 0 or less switches the veto off. */
+      int saturationRows = 8;              /**< Rows above a boundary (leaving out the ramp of the edge, `smoothRows` rows) that give the saturation of the region above it. */
     };
 
     /** The boundary of one scanned column. */
@@ -100,11 +107,12 @@ namespace Maze
      * @param horizonRow Topmost row of a boundary; rows above are not searched.
      * @param projection Used for the vertical extent check; a boundary for which it is undefined is rejected.
      * @param floorReference Receives the floor reference (the median of the `bottom` values), if not null.
+     * @param saturation Optional saturation of each pixel, in a buffer of the size of the image; used for the saturation veto.
      * @return One entry per scanned column, in increasing column order.
      */
     [[nodiscard]] std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow,
                                                           const HeightProjection& projection, const Params& params = Params(),
-                                                          float* floorReference = nullptr);
+                                                          float* floorReference = nullptr, const GreyImage* saturation = nullptr);
 
     /**
      * The row of the topmost floor that is within `maxDistanceMm` of the camera, searched from the bottom row up.

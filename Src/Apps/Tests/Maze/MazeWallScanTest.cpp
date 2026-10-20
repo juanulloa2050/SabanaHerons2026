@@ -20,6 +20,7 @@ namespace
   {
     float from, to;
     unsigned char brightness;
+    unsigned char saturation = 0; // the saturation of a floor marking, the floor and the walls have none
   };
 
   struct Scene
@@ -117,6 +118,27 @@ namespace
     return image;
   }
 
+  /** The saturation of the same scene: only the patches have some. */
+  std::vector<unsigned char> renderSaturation(const Scene& scene)
+  {
+    const Pinhole camera(scene.pitchDeg);
+    std::vector<unsigned char> image(width * height, 0);
+    for(int v = 0; v < height; ++v)
+      for(int u = 0; u < width; ++u)
+      {
+        float x, y;
+        if(!camera.floorPoint(static_cast<float>(u), static_cast<float>(v), x, y))
+          continue;
+        const float wallX = u < width / 3 && scene.leftWallX > 0.f ? scene.leftWallX : scene.wallX;
+        if(x > wallX)
+          continue;
+        for(const Patch& patch : scene.patches)
+          if(x >= patch.from && x <= patch.to)
+            image[static_cast<std::size_t>(v * width + u)] = patch.saturation;
+      }
+    return image;
+  }
+
   /** The point `heightMm` above a floor pixel. */
   HeightProjection projectionOf(float pitchDeg)
   {
@@ -140,6 +162,13 @@ namespace
   {
     const std::vector<unsigned char> image = render(scene);
     return scanColumns({image.data(), width, height, width}, horizon(scene.pitchDeg), projectionOf(scene.pitchDeg), params);
+  }
+
+  std::vector<ColumnBoundary> scanWithSaturation(const Scene& scene, const Params& params)
+  {
+    const std::vector<unsigned char> image = render(scene), saturation = renderSaturation(scene);
+    const GreyImage saturationImage = {saturation.data(), width, height, width};
+    return scanColumns({image.data(), width, height, width}, horizon(scene.pitchDeg), projectionOf(scene.pitchDeg), params, nullptr, &saturationImage);
   }
 
   /** Row of the last floor row of a wall at `wallX`, seen in `column`. */
@@ -515,4 +544,41 @@ GTEST_TEST(MazeWallScan, RejectedStepIsNoFreeFloor)
   free.aboveWallBrightness = free.floorBrightness;
   for(const ColumnBoundary& boundary : scan(free))
     EXPECT_FALSE(boundary.rejected);
+}
+
+GTEST_TEST(MazeWallScan, SaturationVetoesAGoalPatchThatLooksLikeAWall)
+{
+  // A patch with the grey of the wall that goes on past the top of the image: its near edge passes every grey check, which is a
+  // documented limitation of the grey scan. The patch is coloured, a wall is not.
+  Scene scene = polarity(false);
+  scene.wallX = 1e7f;
+  scene.patches.push_back({700.f, 1e7f, scene.wallBrightness, 50}); // above the horizon the image is wall-grey too
+  Params params;
+  EXPECT_EQ(countFound(scan(scene, params)), static_cast<int>(scan(scene, params).size())); // the grey scan alone is fooled
+  params.maxWallSaturation = 25.f;
+  EXPECT_EQ(countFound(scanWithSaturation(scene, params)), 0);
+  for(const ColumnBoundary& boundary : scanWithSaturation(scene, params))
+    EXPECT_TRUE(boundary.rejected) << "column " << boundary.column;
+  // Switched off, or without a buffer, nothing is vetoed.
+  params.maxWallSaturation = 0.f;
+  EXPECT_EQ(countFound(scanWithSaturation(scene, params)), static_cast<int>(scan(scene, params).size()));
+  params.maxWallSaturation = 25.f;
+  EXPECT_EQ(countFound(scan(scene, params)), static_cast<int>(scan(scene, params).size()));
+}
+
+GTEST_TEST(MazeWallScan, SaturationVetoLeavesWallsAndSlightlyColouredFloorAlone)
+{
+  Params params;
+  params.maxWallSaturation = 25.f;
+  Scene scene = polarity(false);
+  scene.wallX = 1500.f;
+  for(const ColumnBoundary& boundary : scanWithSaturation(scene, params))
+  {
+    ASSERT_TRUE(boundary.found()) << "column " << boundary.column;
+    EXPECT_NEAR(boundary.row, expectedRow(1500.f, boundary.column), 1);
+  }
+  // A patch below the threshold (a little colour noise) is no reason to drop the wall behind it.
+  scene.patches.push_back({700.f, 1100.f, scene.floorBrightness, 10});
+  for(const ColumnBoundary& boundary : scanWithSaturation(scene, params))
+    EXPECT_TRUE(boundary.found()) << "column " << boundary.column;
 }

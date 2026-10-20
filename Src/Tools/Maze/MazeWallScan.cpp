@@ -7,6 +7,7 @@
 #include "MazeWallScan.h"
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 namespace Maze
 {
@@ -43,7 +44,8 @@ namespace Maze
       }
     }
 
-    std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow, const HeightProjection& projection, const Params& params, float* floorReference)
+    std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow, const HeightProjection& projection, const Params& params, float* floorReference,
+                                            const GreyImage* saturation)
     {
       std::vector<ColumnBoundary> result;
       if(floorReference)
@@ -52,11 +54,15 @@ namespace Maze
       if(!image.data || image.width <= 0 || image.height < 2 * k + 2 || params.columnStep <= 0)
         return result;
 
-      std::vector<std::vector<float>> profiles;
+      // The saturation veto needs a buffer of the size of the image.
+      const bool vetoSaturation = saturation && saturation->data && params.maxWallSaturation > 0.f && saturation->width == image.width && saturation->height == image.height;
+      std::vector<std::vector<float>> profiles, saturationProfiles;
       for(int column = params.columnStep / 2; column < image.width; column += params.columnStep)
       {
         result.push_back({column, -1, 0.f});
         profiles.push_back(columnProfile(image, column, params.columnHalfWidth));
+        if(vetoSaturation)
+          saturationProfiles.push_back(columnProfile(*saturation, column, params.columnHalfWidth));
       }
 
       // Floor reference: the median over the columns of the mean of the bottom rows.
@@ -70,6 +76,14 @@ namespace Maze
         bottoms.push_back(sum / static_cast<float>(referenceRows));
       }
       const float floorBrightness = median(bottoms);
+      float floorSaturation = 0.f;
+      if(vetoSaturation)
+      {
+        std::vector<float> saturationBottoms;
+        for(const std::vector<float>& profile : saturationProfiles)
+          saturationBottoms.push_back(std::accumulate(profile.end() - referenceRows, profile.end(), 0.f) / static_cast<float>(referenceRows));
+        floorSaturation = median(saturationBottoms);
+      }
       if(floorReference)
         *floorReference = floorBrightness;
       for(std::size_t i = 0; i < result.size(); ++i)
@@ -120,6 +134,18 @@ namespace Maze
 
           // From here on the column holds something that is no free floor, whether or not it turns out to be a wall boundary.
           result[i].rejected = true;
+          // Walls and floor are not coloured: a coloured region above the step is a floor marking such as the goal patch.
+          if(vetoSaturation)
+          {
+            const int last = best - k - 1, first = std::max(0, last - params.saturationRows + 1);
+            if(last >= first)
+            {
+              const std::vector<float>& profile = saturationProfiles[i];
+              const float mean = std::accumulate(profile.begin() + first, profile.begin() + last + 1, 0.f) / static_cast<float>(last - first + 1);
+              if(mean - floorSaturation > params.maxWallSaturation)
+                continue;
+            }
+          }
           // The floor above has to be a wall: contrast to the floor reference in the direction of the step ...
           if(sign * (above(best) - floorBrightness) < params.minWallContrast)
             continue;

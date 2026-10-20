@@ -25,6 +25,8 @@
  *    without a wall boundary; it gives open evidence only, never wall support. The look-ahead never reaches
  *    beyond `range`, whatever the points: edges of farther cells are not evaluated.
  *  - unknown: otherwise, in particular for edges out of the field of view.
+ * The edges between two cells of the goal block (`Maze::isGoal`) are never walls with `noGoalBlockWalls`, whatever the
+ * points: the goal is marked on the floor and its edges give false wall points. They are open or unknown.
  */
 
 #pragma once
@@ -44,6 +46,7 @@ namespace Maze
       int minSupportPoints = 3;       /**< Points needed for a wall. */
       float openClearanceMm = 150.f;  /**< How much farther than the edge the floor has to be visible for an open edge. */
       float vertexMarginMm = 60.f;    /**< Points and crossings closer than this to a grid vertex are ignored, see above. */
+      bool noGoalBlockWalls = true;   /**< The rules give no walls between the cells of the goal block: those edges are never walls. */
     };
 
     /** A wall segment in the robot frame (mm). */

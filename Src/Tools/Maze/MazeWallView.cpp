@@ -84,10 +84,18 @@ namespace Maze
         return t > 0.f && t < 1.f && u >= 0.f && u <= 1.f && (1.f - t) * r.norm() >= clearanceMm;
       }
 
+      /** Whether the edge lies between two cells of the goal block. */
+      bool insideGoalBlock(int row, int col, Heading heading)
+      {
+        return isGoal(row, col) && isGoal(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]);
+      }
+
       EdgeState classify(const Support& support, const std::vector<Vector2f>& points, const Vector2f& camera,
                          int row, int col, Heading heading, const Params& params)
       {
-        if(supportOf(support, row, col, heading) >= params.minSupportPoints)
+        // The goal cells have no walls between them, whatever the points say (the colour of the goal patch gives edges).
+        const bool noWall = params.noGoalBlockWalls && insideGoalBlock(row, col, heading);
+        if(!noWall && supportOf(support, row, col, heading) >= params.minSupportPoints)
           return EdgeState::wall;
         const Vector2f direction = directionOf(heading);
         const Vector2f along(-direction.y(), direction.x());

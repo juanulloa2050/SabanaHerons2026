@@ -5,7 +5,8 @@
  * semantics of the simulation oracle: near walls and a look-ahead along the gaze, cell by cell.
  *
  * Steps (the rules are in Tools/Maze/MazeWallScan.h and Tools/Maze/MazeWallView.h, both unit tested):
- *  1. The image columns are scanned for the floor-to-wall boundary, a brightness step and not a colour.
+ *  1. The image columns are scanned for the floor-to-wall boundary, a brightness step and not a colour. The saturation
+ *     of `ECImage` only vetoes: a step with a coloured region above it is the goal patch, not a wall (`maxWallSaturation`).
  *  2. Each boundary pixel is projected to the floor with `Transformation::imageToRobot`. A column without a
  *     boundary sees floor up to the horizon row, whose floor point gives open evidence (a clear point).
  *  3. The points are snapped to the 500 mm grid with the robot pose and become wall and open edges.
@@ -70,6 +71,7 @@ MODULE(WallPerceptor,
     (int) maxFloorRunRows,            /**< Longest run of floor-like rows allowed above a boundary within the check height. */
     (int) minCheckRows,               /**< Rows that have to remain for the check after cutting at the image top. */
     (int) floorReferenceRows,         /**< Bottom rows that give the floor reference. */
+    (float) maxWallSaturation,        /**< A step is no wall boundary if the region above it is more saturated than the floor by more than this (goal patch veto); 0 switches it off. */
     (float) maxScanDistanceMm,        /**< Floor farther than this from the camera is not searched; sets the horizon row. */
     (float) floorTolerance,           /**< Largest difference in grey levels between the bottom of a clear column and the learned floor. */
     (float) floorTrackingRate,        /**< Part of the difference to a new floor reference that the learned floor follows. */
@@ -79,6 +81,7 @@ MODULE(WallPerceptor,
     (int) minSupportPoints,           /**< Points needed for a wall. */
     (float) openClearanceMm,          /**< How much farther than an edge the floor has to be visible for an open edge. */
     (float) vertexMarginMm,           /**< Points closer than this to a grid vertex are ignored. */
+    (bool) noGoalBlockWalls,          /**< The edges between the cells of the goal block are never walls (rules prior). */
     (int) lookAheadRangeWalking,      /**< Cells ahead that are reported while walking. */
     (int) lookAheadRangeStanding,     /**< Cells ahead that are reported while standing. */
   }),
