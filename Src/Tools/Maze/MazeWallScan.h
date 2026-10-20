@@ -131,7 +131,7 @@ namespace Maze
      * bottoms is floor). The first lesson sets the brightness, later ones move it by `trackingRate` of the difference, so
      * the model follows a change of the lighting. After `maxAgeMs` without a lesson the model is forgotten. Until
      * a lesson, `isFloor` is false for every column (cold start: no clear points). `reset` forgets at once, for a
-     * new attempt, a pick-up or a penalty.
+     * new attempt, a pick-up or a penalty. A time before the last lesson (the clock went back) forgets as well.
      */
     class FloorModel
     {

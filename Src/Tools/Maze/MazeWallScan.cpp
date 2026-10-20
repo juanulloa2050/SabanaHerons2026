@@ -202,6 +202,8 @@ namespace Maze
 
     void FloorModel::observe(const std::vector<ColumnBoundary>& columns, float floorReference, unsigned timeMs)
     {
+      if(learned && timeMs < lastLessonMs)
+        learned = false; // The clock went back (a new session): the old floor is from another time, start again.
       const std::size_t found = static_cast<std::size_t>(std::count_if(columns.begin(), columns.end(), [](const ColumnBoundary& column) { return column.found(); }));
       if(found == 0 || found * 2 < columns.size())
         return;
@@ -212,7 +214,7 @@ namespace Maze
 
     bool FloorModel::known(unsigned timeMs) const
     {
-      return learned && timeMs - lastLessonMs <= params.maxAgeMs;
+      return learned && timeMs >= lastLessonMs && timeMs - lastLessonMs <= params.maxAgeMs;
     }
 
     bool FloorModel::isFloor(float bottomBrightness, unsigned timeMs) const

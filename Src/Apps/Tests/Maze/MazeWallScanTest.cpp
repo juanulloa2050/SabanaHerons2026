@@ -452,6 +452,30 @@ GTEST_TEST(MazeWallScan, FloorModelResetForgetsTheFloor)
   EXPECT_FLOAT_EQ(model.brightness(), 60.f); // the new floor, not a mix with the old one
 }
 
+GTEST_TEST(MazeWallScan, FloorModelTreatsAClockThatWentBackAsAReset)
+{
+  FloorModel model;
+  model.observe(columns(10, 10), 120.f, 50000);
+  ASSERT_TRUE(model.known(50000));
+  // A time before the last lesson is no age (the unsigned difference would wrap): the floor is not known.
+  EXPECT_FALSE(model.known(1000));
+  EXPECT_FALSE(model.isFloor(120.f, 1000));
+  // A frame that teaches nothing drops the old floor, one that teaches starts from its own reference, not a mix.
+  model.observe(columns(2, 10), 60.f, 1000);
+  EXPECT_FALSE(model.known(1000));
+  model.observe(columns(10, 10), 60.f, 1033);
+  EXPECT_TRUE(model.known(1033));
+  EXPECT_FLOAT_EQ(model.brightness(), 60.f);
+  // The same when the first frame after the jump teaches.
+  FloorModel direct;
+  direct.observe(columns(10, 10), 120.f, 50000);
+  direct.observe(columns(10, 10), 60.f, 1000);
+  EXPECT_FLOAT_EQ(direct.brightness(), 60.f);
+  // Time standing still is not a jump back.
+  direct.observe(columns(10, 10), 60.f, 1000);
+  EXPECT_TRUE(direct.known(1000));
+}
+
 GTEST_TEST(MazeWallScan, FloorModelFollowsAChangeOfTheLighting)
 {
   FloorModel model;
