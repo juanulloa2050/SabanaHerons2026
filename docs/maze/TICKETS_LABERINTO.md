@@ -717,7 +717,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 - For each maze: run `maze_to_scene.py`, copy the Maze scenario and the console script under a `MazeCampaign_<id>` name (next to the templates, removed after the run, in `.gitignore`), start the simulation and write `maze,attempt,noise,reached_goal,time_s,wall_contacts,max_stall_s`, one row per attempt.
 - **Mechanism.** The simulation-only module `MazeRunMetricsProvider` (`for Cognition mr MazeRunMetrics MazeRunMetricsProvider`, appended to the console script of the run; its settings are in `mazeRunMetricsProvider.cfg`, with `startTapAfterMs = 0` it does nothing) measures every attempt from the ground truth robot pose and the maze file. The sequence and the metrics are in the pure class `Maze::RunTracker` (`Tools/Maze/MazeRunTracker.h`, unit tests in `MazeRunTrackerTest.cpp`); the module only feeds it. It taps the head front through the debug request (a `dr` line in the console script would come before the behaviour is ready and be lost) and prints one line per finished attempt on the standard error stream, then a last one:
   ```
-  MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"status":"goal"}
+  MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"speed_run":false,"status":"goal"}
   MZ021_DONE
   ```
   `status` is `goal`, `timeout` or `not_started`. The runner reads these lines (key `attempt`) and kills the process at `MZ021_DONE`. The representation `MazeRunMetrics` holds the live values (`get representation:MazeRunMetrics` in a manual run).
