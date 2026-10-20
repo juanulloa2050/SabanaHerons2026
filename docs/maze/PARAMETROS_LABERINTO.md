@@ -81,15 +81,71 @@ MZ-028 may lower the `Maze` `maxSpeed` x by 10 % if Lab 3 shows wall contacts or
 
 ## 5. Wall perceptor and corridor look-ahead
 
-File: not created yet (the ticket does not name a `.cfg`; module `Src/Modules/Perception/WallPerceptor/`). Ticket: MZ-019. Status: **planned in MZ-019**. The three values are set from the range-error measurements of that ticket.
+File: `Config/Scenarios/Maze/wallPerceptor.cfg` (and `MazeSafe`, same values). Module `Src/Modules/Perception/WallPerceptor/` (Upper), cores in `Src/Tools/Maze/MazeWallScan.h` and `MazeWallView.h`. Ticket: MZ-019. Status: **exists** (set from the simulation evaluation of MZ-019, see `SIMULACION_LABERINTO.md` step 7; not yet checked on real images, Q13 and Lab 1 logs pending). Can be changed live: `get parameters:WallPerceptor`, edit, run the printed `set` line; copy the final values into both `.cfg` files.
+
+### Look-ahead and grid snap
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `lookAheadRangeWalking` | Cells ahead whose side walls are reported while the robot walks (the torso pitches). | `2` | — |
-| `lookAheadRangeStanding` | Cells ahead reported while the robot stands and scans (up to 4 if the measurements allow). | `3` | — |
-| `snapToleranceMm` | A wall measurement is kept only if it lies within this distance of a 500 mm grid edge. | `150` | — |
+| `lookAheadRangeWalking` | Cells ahead of the robot's cell whose side walls are reported while the robot walks (the torso pitches). Walking distance error (table below) is 35 / 90 mm (mean / p95) at 1.5 m but 85-128 / 157-918 mm at 2.0 m, beyond `snapToleranceMm`, so only the next cell is reported. | `1` | — |
+| `lookAheadRangeStanding` | Cells ahead reported while the robot stands and scans. Standing p95 stays at or under 24 mm up to 2.5 m (the farthest bin measured). | `3` | — |
+| `snapToleranceMm` | A boundary point is kept only if it lies within this distance of a 500 mm grid line. 150 covers the standing error (24 mm p95 up to 2.5 m) and the walking error (95 mm p95 up to 1.5 m); a point 250 mm from a line cannot be told from its neighbour anyway. | `150` | — |
+| `minSupportPoints` | Points needed on an edge for a wall. | `3` | — |
+| `openClearanceMm` | An edge is open if the sight line crosses it and the floor is visible at least this far beyond it, in mm. | `150` | — |
+| `vertexMarginMm` | Points closer than this to a grid vertex are ignored, in mm; 50 mm of noise there credited a neighbour edge. | `60` | — |
+| `noGoalBlockWalls` | By the rules the four cells of the goal block have no walls between them: those edges are never reported as walls. | `true` | — |
 
-Q13 does not change these values. The boundary is found by brightness gradient, not colour; a colour threshold may be added only after Q13 is answered and shows a clear contrast (no such parameter exists yet).
+The percept carries the range it used (`WallPercept.lookAheadRange`), because the Upper and Cognition copies of `MotionInfo` can differ for a few frames around a start or a stop; the evaluator checks the reported cells against that range.
+
+### Boundary scan
+
+The boundary is the brightness step between floor and wall in the grey `ECImage`, in either direction: in the simulator the walls render **darker** than the floor (grey 106 against 254), by the rules they are lighter, and the real polarity is unknown (Q13). Q13 does not change these values; a colour threshold may be added only after Q13 is answered and shows a clear contrast.
+
+| Parameter | Meaning | Default | Depends on question |
+|---|---|---|---|
+| `columnStep` | Distance between the scanned image columns, in pixels. | `8` | — |
+| `smoothRows` | Rows averaged on each side of a candidate boundary. | `3` | — |
+| `columnHalfWidth` | Columns on each side of the scanned one that are averaged. | `1` | — |
+| `minGradient` | Least brightness step of the floor-to-wall boundary, in grey levels (the minimum wall/floor contrast). | `12` | Q13 |
+| `maxFloorDeviation` | The bottom rows of a column and the rows below a boundary must be at most this far from the floor reference, in grey levels. A column with wall at its bottom has no boundary (the edges of an AprilTag are no boundary). | `30` | — |
+| `minWallContrast` | Least brightness of the wall above the floor reference, in grey levels; rejects the far edge of the goal patch. | `8` | Q13 |
+| `minWallCheckHeightMm` | Height up to which a column has to stay wall, in mm: near the camera height, below the wall top (600 mm). | `550` | — |
+| `minWallRowFraction` | Part of the rows up to that height that must not look like floor (a tag counts as wall). | `0.75` | — |
+| `maxFloorRunRows` | Longest run of floor-like rows allowed; floor behind a goal patch or a marking shows as such a run. | `4` | — |
+| `minCheckRows` | Rows that have to remain for the check when the check height is above the top of the image. | `3` | — |
+| `floorReferenceRows` | Bottom image rows that give the floor reference. | `8` | — |
+| `maxWallSaturation` | The goal is marked by a floor colour, walls and floor have none: a step whose region above is more saturated than the floor (levels of the `ECImage` saturated channel) by more than this is a floor marking, not a wall. 0 switches the veto off. Measured in simulation: goal patch 51, wall 0, floor 0; camera noise on a real grey is about 10. | `25` | Q13 |
+| `maxScanDistanceMm` | Floor farther than this from the camera is not searched, in mm; sets the horizon row. | `3500` | — |
+
+### Learned floor
+
+A column without a boundary is free floor (evidence for "open" up to the horizon) only if its bottom rows match the floor brightness learned from earlier frames; otherwise a near wall fills the column. A step that was seen but not accepted gives no clear evidence either.
+
+| Parameter | Meaning | Default | Depends on question |
+|---|---|---|---|
+| `floorTolerance` | A column without a boundary is free floor only if its bottom rows are this close to the learned floor brightness, in grey levels. | `8` | — |
+| `floorTrackingRate` | Part of the difference to a new floor reference that the learned floor follows per image with enough boundaries (at least half of the columns). | `0.1` | — |
+| `floorMaxAgeMs` | The learned floor is forgotten after this time without such an image, in ms. It is also reset when the robot becomes active (`PlayingTracker::resetPose`) and when the clock goes back. | `10000` | — |
+
+### Measured distance error
+
+Source of `lookAheadRangeWalking`, `lookAheadRangeStanding` and `snapToleranceMm`: rendered images in simulation (`MazeEval`, mazes 1, 19 and 7, one 420 s run each, ground-truth pose; the T3.1 run at HEAD `e2ebdbce`). Distance of each boundary point to the nearest true wall line, mean / p95 in mm, binned by distance from the robot (bin ±250 mm). The projection did not change between the first and the second matrix, so the values hold for the current code.
+
+| Distance | Standing (mean / p95) | Walking (mean / p95) |
+|---|---|---|
+| 0.5 m | 3-13 / 3-7 | 14-18 / 22-69 |
+| 1.0 m | 3-4 / 5 | 17-22 / 42-53 |
+| 1.5 m | 2-8 / 6-20 (maze_7: 27 / 52) | 32-36 / 70-94 |
+| 2.0 m | 6 / 15 (maze_7: 42 / 70, 36 samples) | 85-128 / 157-918 |
+| 2.5 m | 13 / 24 (maze_19 only) | 64-96 / 179-203 |
+
+Ranges are over the three mazes; the same-colour scene gives the same order (walking 1.5 m: 37 / 101). Standing 2.0 m and 2.5 m have few or no samples in two of the mazes. These are rendered-image values: Lab 1 logs (MZ-017) do not exist, so nothing here is measured on the real camera.
+
+### Interplay with the mapper
+
+The wall percept feeds `MazeMapper` (section 6) through `cellsAhead`; the mapper's `minObservationInterval`, distance weights and `maxOffsetFromCentre` apply to it as to any wall observation. Tags win over the wall percept: once an edge has a seen tag (a wall by definition), open observations from the wall percept for that edge are ignored. The flag is per edge and never clears while the fusion lives, so a misdecoded tag blocks open evidence for that edge for good. The observation of the cell the robot stands in (from its position) still counts.
+
+Known limits: while the robot stands on the goal patch every frame is rejected (the floor reference is the coloured patch), so the goal cells give no evidence from inside; the saturation veto and `noGoalBlockWalls` handle the patch seen from outside.
 
 ## 6. Localizer and mapper
 

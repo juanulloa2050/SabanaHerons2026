@@ -637,11 +637,44 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Acceptance criteria**
 - [ ] In simulation, wall present or absent is ≥98 % correct for the 4 sides of visited cells (10 cells, 3 mazes).
 - [ ] On Lab 1 corridor logs, the side-wall distance is within ±3 cm of the tape measurement.
-- [ ] In simulation, the side walls of the next cell ahead are ≥95 % correct, and no edge beyond the active range (walking or standing) is reported.
+- [x] In simulation, the side walls of the next cell ahead are ≥95 % correct, and no edge beyond the active range (walking or standing) is reported.
 - [ ] The distance error at 0.5, 1.0, 1.5, 2.0 and 2.5 m is measured, standing and walking (Lab 1 logs, or rendered images if the logs do not exist), and written in the PR; `lookAheadRangeWalking`, `lookAheadRangeStanding` and `snapToleranceMm` are set from it.
-- [ ] With the floor and walls set to the same light colour in the simulation scene, wall present or absent is still ≥90 % correct for the 4 sides of visited cells (gradient check).
+- [x] With the floor and walls set to the same light colour in the simulation scene, wall present or absent is still ≥90 % correct for the 4 sides of visited cells (gradient check).
 
 **Note (16 Oct).** The grid snap uses `RobotPose` from `MazeLocalizer`, decided 2026-10-16 (Upper modules can `REQUIRE(RobotPose)`, e.g. `BallPerceptor`). That is why MZ-020 was done first.
+
+**Delivered (branch `feat/MZ-019-wall-perceptor`, HEAD `b87f8eac`).**
+- `WallPerceptor` (Upper) with its cores in `Src/Tools/Maze/` (`MazeWallScan`, `MazeWallView`); Cognition gets the percept through a hand-written copy provider (`PerceptionWallPerceptProvider`, as for the AprilTags) instead of `ALIAS(WallPercept)`, because Cognition skips Upper frames. `wallPerceptor.cfg` in `Maze` and `MazeSafe` (`PARAMETROS_LABERINTO.md`, section 5).
+- Values set from the data: `lookAheadRangeWalking` **1** (the ticket default was 2), `lookAheadRangeStanding` 3, `snapToleranceMm` 150.
+- Polarity-agnostic boundary (in simulation the walls are darker than the floor), vertical-extent check, goal-patch rejection (saturation veto `maxWallSaturation`, no walls between the goal cells), learned floor with reset.
+- Mapper: an edge with a seen tag ignores the open observations of the wall percept.
+- `WallPerceptEvaluator` and the scenes `MazeEval`, `MazeVision`, `MazeVisionEval`; `maze_to_scene.py --same-colour-floor`. How to run: `SIMULACION_LABERINTO.md`, step 7.
+
+**Evidence (2026-10-20, simulation, one 420 s `MazeEval` run per maze, about 11600 frames).** (a) = visited-cell sides, (b) = side walls of the next cell ahead, (c) = cells beyond the active range. The latest run of each maze is shown; `b87f8eac` (goal patch fix) was run on maze_19 and maze_7 only.
+
+| Maze | Run | (a) correct / known (coverage) | (b) accuracy (coverage) | (c) |
+|---|---|---|---|---|
+| maze_1 | T3.1, `e2ebdbce` | 100 % (109/109, 97 %) | 99.4 % (87 %) | 0 |
+| maze_19 | T3.2, `b87f8eac` | 98.3 % (178/181) | 97.6 % (18 %) | 0 |
+| maze_7 | T3.2, `b87f8eac` | 90.1 % (163/181) | 97.3 % (11 %) | 0 |
+| maze_1, floor in the wall colour | T3.1, `e2ebdbce` | 99.1 % (108/109, 97 %) | 99.4 % (87 %) | 0 |
+
+Before `b87f8eac` (T3.1) maze_19 had (a) 95.6 % (173/181) and (b) 97.1 % (77 % coverage); maze_7 had (a) 99.3 % (136/137) and (b) 99.1 % (84 % coverage). The first matrix (T3, before the fixes) had (a) 79.6-94.4 % and (b) 91.2-98.6 %.
+
+- **Criterion 1, visited sides ≥98 %: not met.** maze_1 100 % and maze_19 98.3 % pass; maze_7 is at 90.1 %. The loss is one edge, 3,2 north (a true wall, votes wall 52 : open 500-600): the robot loiters at (1505, 2355), 145 mm from that wall on a cell border, and the one edge is counted over many repeated visits. An offline replay of 250 dumped frames gives the same boundary points with the old and the new scan, so the error depends on the trajectory and the pose, not on `b87f8eac`; it is one run and it is not proven absent from the T3.1 baseline (which had a different trajectory). Not fixed.
+- **Criterion 2, Lab 1 corridor logs ±3 cm: pending.** The MZ-017 logs do not exist. Nothing was measured on real images.
+- **Criterion 3, next cell ≥95 % and nothing beyond the range: met in simulation.** (b) 97.3-99.4 % on the three mazes; (c) 0 on all runs (maze_19 had 1 cell beyond the range in the first matrix; the cause was inferred, a skew between the Upper and Cognition `MotionInfo`, and not reproduced, so one clean run does not prove it cannot recur). The coverage of (b) on the last runs is low (18 % and 11 %), see below; maze_1 was not run again after `b87f8eac`.
+- **Criterion 4, distance error: measured; the values are set.** Rendered images, standing and walking, 0.5 to 2.5 m (table in `PARAMETROS_LABERINTO.md`, section 5; mean / p95 in mm: standing ≤13 / ≤24 up to 2.5 m except maze_7 at 1.5 m 27 / 52; walking 14-18 / 22-69 at 0.5 m, 17-22 / 42-53 at 1.0 m, 32-36 / 70-94 at 1.5 m, 85-128 / 157-918 at 2.0 m). Hence `lookAheadRangeWalking` 1, `lookAheadRangeStanding` 3, `snapToleranceMm` 150. The table still has to be written in the PR description. Not measured on real images.
+- **Criterion 5, same colour ≥90 %: met in simulation.** 99.1 % (108/109) on maze_1 with the floor in the wall colour; measured with the T3.1 code, not repeated after `b87f8eac`.
+
+**Known limitations (accepted for the PR on 2026-10-20).**
+- Coverage loss on the goal patch: while the robot stands on the goal patch the floor reference would be the patch, so every frame is rejected and gives no evidence. The (b) coverage fell from 77 % to 18 % on maze_19 and from 84 % to 11 % on maze_7, and the known edges of maze_19 from 32672 to 10456. The accuracy holds; what the camera could see from inside the goal is lost. A per-frame plain-floor reference from the uncoloured pixels would keep those walls; it is not done.
+- Low-vote true walls voted open remain in maze_19 (2,7 north 2:7, 3,1 north 1:3, 3,6 east 5:5 tie, 4,1 west 4:7) and one in maze_7 (1,0 north 0:6).
+- The real wall polarity is unknown (Q13): the simulator renders the walls darker than the floor, the rules say lighter. The boundary accepts either sign, but the colour and brightness thresholds (`minGradient`, `minWallContrast`, `maxWallSaturation`) were set on simulated images only.
+- One run per maze, no variance estimate; the cause of the maze_7 loitering and of the occasional bad simulator starts is not investigated.
+- The tag flag of the mapper never clears, so a misdecoded tag would block the open evidence of that edge for good.
+
+The ticket stays open until criterion 2 is measured on the Lab 1 logs and criterion 1 is met or accepted by the team.
 
 ### MZ-020 — Maze localizer, mapper and gyro heading ⚠️ TAG-DEP
 

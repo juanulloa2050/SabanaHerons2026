@@ -293,6 +293,53 @@ MZ-018.1 in `TICKETS_LABERINTO.md`). To change one for this session only, run
 `for Upper get parameters:AprilTagDetector`, edit the printed `set parameters:AprilTagDetector …` line and
 run it. The time per image is in the robot's `timing` → `Upper` view, row `AprilTagDetector` (target ≤ 20 ms).
 
+## 7. Evaluate the wall perceptor (MZ-019)
+
+The real `WallPerceptor` runs on the rendered camera image and `WallPerceptEvaluator` (Cognition, simulation only) scores its percept against the true maze. Parameters of the perceptor: `PARAMETROS_LABERINTO.md`, section 5.
+
+| Scene | What it does |
+|---|---|
+| `Config/Scenes/MazeEval.ros2` | Like `Maze.ros2`: the **map** comes from the oracle (`OracledMazePerceptsProvider`), so the robot explores reliably. The real perceptor runs beside it and is scored. This is the scene of the evaluation runs. |
+| `Config/Scenes/MazeVision.ros2` | The mapper gets the walls of the real perceptor (only the AprilTags are faked). Views: `vid all module:WallPerceptor:boundary` (green boundary, red clear column) and the field view `wallPerceptor`. |
+| `Config/Scenes/MazeVisionEval.ros2` | `MazeVision` plus the evaluator: the perceptor feeds the map and is scored. |
+
+Evaluator settings: `Config/Scenarios/Maze/wallPerceptEvaluator.cfg` (and `MazeSafe`). `mazeFile` and `mazePoseOnField` must equal those of `oracledMazePerceptsProvider.cfg`. `summaryIntervalMs` (15000) sets how often a summary is printed. `startTapAfterMs` (3000) makes the evaluator tap the head front once so that the robot starts exploring (a `dr` line in the scene is consumed before the behaviour is ready); `tapRepeatMs` (20000) taps again, which starts the return at the goal and the speed run at the start.
+
+### Run
+
+1. Generate the scene of the maze to score (step 3), e.g. `maze_1`, `maze_19` or `maze_7` from `Config/Mazes/generated/`. This overwrites `current.maze` and `current.rsi2` (both git-ignored); regenerate your maze afterwards.
+2. Open the scene (step 4) with `Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/MazeEval.ros2`. The robot starts by itself after about 3 s.
+3. Read the summary: in the console as text, and on the standard error stream as lines that start with `WallPerceptEvaluator:`. Each summary is **cumulative** from the start of the run, so the last one is the result. One is also printed when the module is destroyed. If the maze file cannot be read, the evaluator says so on the error stream (`nothing is scored; trying again`) and tries again every summary interval.
+4. Let it run for several minutes: the matrix of MZ-019 used 420 s per run (about 11600 scored frames). The robot may get stuck or lost at the start; check that the frame count grows and the run explores, and repeat the run if not.
+
+Same-colour floor (gradient check): regenerate the scene with the floor painted in the wall colour (the goal patch keeps its own) and run `MazeEval` again.
+
+```bash
+python3 Util/MazeTools/maze_to_scene.py Config/Mazes/generated/maze_1.maze --out Config/Scenes/Includes/Maze/current.rsi2 --same-colour-floor
+```
+
+Headless run (no window), the way the MZ-019 runs were done: SimRobot with the Qt platform `offscreen`, a time limit, and the error stream in a file:
+
+```bash
+QT_QPA_PLATFORM=offscreen timeout 420 Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/MazeEval.ros2 2> eval_maze_1.log
+rg 'WallPerceptEvaluator:' eval_maze_1.log | tail -40
+```
+
+### Reading the output
+
+Each summary has one line per metric. A frame is a new `WallPercept` from the Upper thread with at least one cell; the true pose (ground truth) is taken to the maze frame and compared with the maze file. The definitions are in `Src/Tools/Maze/MazeWallScore.h`.
+
+| Line | Metric |
+|---|---|
+| `frames ... edges known ... accuracy` | Per-frame accuracy: every reported known edge of every cell ahead against the truth (`wall`/`open` split); `unknown` is counted apart. `pose mismatch` frames (the believed cell or heading differs from the true one) are not scored: that is a localization error. |
+| `(a) visits ... accuracy ... coverage` | **Visited-cell sides.** A visit is a run of frames in the same true cell. Every known edge of every frame votes for the true edge it maps to; when the visit ends, each of the 4 sides takes the majority of its votes (a tie takes the latest). Accuracy = correct / known sides, coverage = known / all sides. Ticket target: accuracy ≥ 98 %. |
+| `(b) ahead sides ... accuracy ... coverage` | **Next cell ahead.** In frames where the front edge of the robot's cell is open and the range is at least 1, the left and right edges of the cell at `ahead == 1`. Accuracy = correct / known, coverage = known / eligible. Ticket target: accuracy ≥ 95 %. |
+| `(c) cells beyond range` | **Active range.** Reported cells with `ahead` larger than the range the perceptor reports in `lookAheadRange`. Must be 0. |
+| `(a) wrong cell <row>,<col> <side>: votes wall N open M, truth ...` | The wrong sides of the finished visits, to see whether a true wall was voted open or the other way round. |
+| `(d) <d> m standing n ... mean ... p95 ... \| walking ...` | **Boundary point error.** Distance in mm of each boundary point to the nearest true wall line, binned at 0.5, 1.0, 1.5, 2.0 and 2.5 m (±250 mm), standing and walking separately. A bin without samples shows `n 0`. |
+
+The unit tests of the scorer and the scan are in the `Tests` target (`Make/Linux/compile Develop Tests && Build/Linux/Tests/Develop/Tests`, filter `*Wall*`).
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -306,3 +353,5 @@ run it. The time per image is in the robot's `timing` → `Upper` view, row `Apr
 | RemoteRobot: no green outlines, `get` on `AprilTagDetector` fails | The robot runs another scenario | Deploy again with `-s Maze` (step 6). |
 | RemoteRobot: the `upper` image is empty | The image is not streamed | `for Upper Lower mr JPEGImage CameraProvider`. |
 | RemoteRobot: a tag is visible but not detected | Too far, too dark or filtered by `minDecisionMargin` | Move closer; check `decisionMargin` and the parameters (step 6). |
+| Evaluation: `nothing is scored; trying again` | `current.maze` missing or `mazeFile` wrong | Run step 3; check `wallPerceptEvaluator.cfg`. |
+| Evaluation: no scored frames, many `pose mismatch` | The robot did not start, or its believed cell differs from the true one | Check the frame count grows; repeat the run. |
