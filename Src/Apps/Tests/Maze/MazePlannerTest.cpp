@@ -414,3 +414,65 @@ GTEST_TEST(MazePlanner, NeverLeavesTheGridOnAnUnexploredGraph)
         }
   EXPECT_EQ(checked, stateCount);
 }
+
+GTEST_TEST(MazePlanner, TheDefaultTargetSetIsTheGoalBlock)
+{
+  const MazePlanner planner;
+  for(int row = 0; row < size; ++row)
+    for(int col = 0; col < size; ++col)
+      EXPECT_EQ(planner.isTarget(row, col), isGoal(row, col)) << "cell " << cellId(row, col);
+
+  // Choosing the goal block explicitly gives the same table and heuristic as not choosing anything.
+  const MazeDescription maze = loadMaze(19);
+  MazePlanner implicit, explicitGoal;
+  explicitGoal.setTargets({27, 28, 35, 36});
+  implicit.computeCostToGo(maze.graph, UnknownPolicy::asWall);
+  explicitGoal.computeCostToGo(maze.graph, UnknownPolicy::asWall);
+  for(int i = 0; i < stateCount; ++i)
+  {
+    const MazeState state = {cellRow(i / (2 * headingCount)), cellCol(i / (2 * headingCount)), static_cast<Heading>(i / 2 % headingCount), i % 2 == 1};
+    EXPECT_TRUE(implicit.costToGo(state) == explicitGoal.costToGo(state)) << "state " << i;
+    EXPECT_EQ(implicit.heuristic(state), explicitGoal.heuristic(state)) << "state " << i;
+  }
+}
+
+GTEST_TEST(MazePlanner, ASingleTargetCellIsReachedAndStopsThePlan)
+{
+  const MazeGraph unexplored;
+  MazePlanner planner;
+  planner.setTargets({0});
+  planner.computeCostToGo(unexplored, UnknownPolicy::asOpen);
+  EXPECT_TRUE(planner.isTarget(0, 0));
+  EXPECT_FALSE(planner.isTarget(3, 3)) << "the goal block is no target any more";
+
+  const MazeState start = {2, 0, Heading::north, false};
+  const MazePlan plan = planner.routeFromTable(start);
+  ASSERT_TRUE(plan.found);
+  EXPECT_EQ(plan.cells, 2);
+  EXPECT_EQ(plan.turns90 + plan.turns180, 0);
+  Action action;
+  EXPECT_FALSE(planner.nextAction({0, 0, Heading::south, false}, action)) << "in the target there is nothing to do";
+
+  // The A* over known edges stops at the target as well.
+  MazeGraph known;
+  known.set(2, 0, Heading::north, EdgeState::open);
+  known.set(1, 0, Heading::north, EdgeState::open);
+  const MazePlan speed = planner.speedRun(known, start);
+  ASSERT_TRUE(speed.found);
+  EXPECT_EQ(speed.cells, 2);
+  EXPECT_EQ(planner.heuristic({0, 0, Heading::north, false}), 0);
+  EXPECT_EQ(planner.heuristic({2, 0, Heading::north, false}), 2 * planner.getCosts().forwardMs);
+  EXPECT_EQ(planner.heuristic({2, 1, Heading::north, false}), 3 * planner.getCosts().forwardMs + planner.getCosts().turn90Ms);
+}
+
+GTEST_TEST(MazePlanner, SeveralTargetsGoToTheNearestOne)
+{
+  const MazeGraph unexplored;
+  MazePlanner planner;
+  planner.setTargets({0, 63, 100, -1}); // Indices outside the grid are ignored.
+  planner.computeCostToGo(unexplored, UnknownPolicy::asOpen);
+  const MazePlan plan = planner.routeFromTable({7, 5, Heading::east, false});
+  ASSERT_TRUE(plan.found);
+  EXPECT_EQ(plan.cells, 2) << "(7, 7) is cell 63";
+  EXPECT_EQ(planner.heuristic({7, 5, Heading::east, false}), 2 * planner.getCosts().forwardMs);
+}

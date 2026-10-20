@@ -14,7 +14,7 @@ Only questions that affect a parameter. All are still pending (no official answe
 |---|---|---|
 | Q1 | Which walls carry tags (every face of every cell? only some?) and at what height is the tag centre? | `mode`, `faces`, `walls`, `centreHeight` in `mazeTagLayout.cfg` (and through it the tag-fix rate of the localizer) |
 | Q3 | Does the ≤2 min return to start (after attempt 1) count inside the 5 min of the attempt? Example: attempt 1 takes 4 min to reach the goal. Does the robot still get the full 2 min to return, or only the remaining 1 min? | `returnToStart.maxDurationMs`, `returnToStart.enabled` |
-| Q6 | Is the robot placed facing the open side of the start cell? | `start.cell` (deduction assumes it does); `startCell`, `startHeading` in `mazeLocalizer.cfg` and `startCell` in `mazeMapper.cfg` |
+| Q6 | Is the robot placed facing the open side of the start cell? | `start.cell`, `start.heading` in `handleMaze.cfg` (the deduction assumes it does) |
 | Q9 | Must the robot detect the goal by itself and start the return, or may a team member trigger the return with a robot button once the judge stops the clock? | `returnToStart.trigger`, `returnToStart.enabled`, `returnToStart.delayMs` |
 | Q11 | Does the clock start when the robot leaves the first cell, or when it starts to move? | `startScan.enabled` (and the other `startScan.*` values) |
 | Q13 | What colour and material is the maze floor (outside the goal block)? The rules say light walls and a matte uniform floor, but not the floor colour. If the floor is also light, the wall base is hard to see. | Possible colour threshold of the wall perceptor (not a parameter yet, MZ-019); simulation colours `WALL_COLOR`, `FLOOR_COLOR`, `GOAL_COLOR` |
@@ -59,6 +59,7 @@ File: `Config/Scenarios/Maze/oracledMazePerceptsProvider.cfg` (and `MazeSafe`). 
 | `tagRotationStdDev` | Gaussian noise of the tag rotation per axis. | `1deg` | — |
 | `wallDistanceStdDev` | Gaussian noise of wall and cell distances, in mm. | `10` | — |
 | `maxTagViewAngle` | Largest angle between the tag normal and the direction to the camera. | `70deg` | — |
+| `maxTagDistance` | Farthest tag, in mm from the camera, that is seen. Independent of `maxRange` (walls only). Before it was `maxRange * 500 + 250` = 1250; the real detector allows 3000 (`aprilTagDetector.cfg`). | `2000` | — |
 
 Compile-time constant (not in the `.cfg`): `reloadIntervalMs` = 1000 ms, time between two looks at the maze file (`OracledMazePerceptsProvider.h`).
 
@@ -92,14 +93,12 @@ Q13 does not change these values. The boundary is found by brightness gradient, 
 
 ## 6. Localizer and mapper
 
-Files: `Config/Scenarios/Maze/mazeLocalizer.cfg` and `mazeMapper.cfg` (and `MazeSafe`, identical). Modules `MazeLocalizer`, `MazeMapper` (Cognition). Ticket: MZ-020. Status: **exists** (offline-tested defaults; SimRobot run and the real gyro drift pending). Background: [GYRO_HEADING.md](GYRO_HEADING.md).
+Files: `Config/Scenarios/Maze/mazeLocalizer.cfg` and `mazeMapper.cfg` (and `MazeSafe`, identical). Modules `MazeLocalizer`, `MazeMapper` (Cognition). Ticket: MZ-020. Status: **exists** (offline-tested defaults; SimRobot run and the real gyro drift pending). The start cell and heading are no longer here: both modules read `start` from `handleMaze.cfg` (section 8) through `MazeStart`. Background: [GYRO_HEADING.md](GYRO_HEADING.md).
 
 ### `mazeLocalizer.cfg`
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `startCell` | Cell the robot is placed in at every transition into `playing`. MZ-024 (`start.cell`, section 8) replaces it. | `0` | Q6 |
-| `startHeading` | Heading at the start: `north`, `east`, `south` or `west`. Default is the only open side of the start cell of `current.maze`. MZ-024 replaces it. | `south` | Q6 |
 | `useGyro` | `true`: heading from the gyro yaw, re-aligned by square-on tags; `false`: odometry rotation. | `true` | — |
 | `maxFaceAngleError` | Largest angle between the measured and the expected tag normal; a tag beyond it is rejected (false-positive filter). Keep equal to the mapper's. | `45deg` | Q1 (through the layout) |
 | `translationGain` | Share of the position error that a tag fix corrects at zero distance. | `0.5` | — |
@@ -119,7 +118,6 @@ The localizer reads `mazeTagLayout.cfg` (section 1) to know which faces carry ta
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `startCell` | Cell the attempts start in; same value as the localizer's. MZ-024 replaces it. | `0` | Q6 |
 | `threshold` | Consistent observations of full weight before an edge leaves `unknown`; flipping a decided edge needs the same amount of contrary evidence (hysteresis). | `3` | — |
 | `fullWeightDistance` | Wall observations up to this distance have full weight, in mm. | `500` | — |
 | `zeroWeightDistance` | Wall observations from this distance on have no weight (linear in between), in mm. | `2500` | — |
@@ -131,56 +129,87 @@ The localizer reads `mazeTagLayout.cfg` (section 1) to know which faces carry ta
 
 A decided edge flips only after the same evidence again, now spread over at least 0.5 s. An estimate that stays in the wrong cell (a robot dragged in the scene with no tag in view) is not protected by either key: it is corrected by the first tag fix, and the map there stays wrong until the localizer recovers.
 
-The map learns only while the game state is `playing`, and survives pick-up and Standby (the attempt counter increments on each transition into `playing`).
+The map learns only while the robot is active (game state `playing` and `FallDownState` not `pickedUp`), and survives pick-up and Standby. The attempt counter increments, and the localizer puts the pose at the start (MazeLocalizer logs "pose reset to the start" with the reason), on each transition into active. A fall is not a pick-up and changes neither.
 
 ## 7. Planner costs
 
-File: `Config/Scenarios/Maze/mazePlanner.cfg` (and `MazeSafe`). Ticket: MZ-024 creates the file; MZ-028 replaces the values with the Lab 2 means. Status: **file planned in MZ-024**; the defaults **exist** as the `MazeCosts` struct in `Src/Tools/Maze/MazePlanner.h` (fields `forwardMs`, `startMs`, `turn90Ms`, `turn180Ms`; the tickets call them `t_fwd`, `t_start`, `t_turn90`, `t_turn180`). The Python solver and `expected.csv` use the same defaults and must be regenerated if they change.
+File: `Config/Scenarios/Maze/mazePlanner.cfg` (and `MazeSafe`). Module `MazePlannerProvider` (Cognition). Ticket: MZ-024 creates the file; MZ-028 replaces the values with the Lab 2 means. Status: **exists**. The keys are the fields of `MazeCosts` in `Src/Tools/Maze/MazePlanner.h`; the tickets call them `t_fwd`, `t_start`, `t_turn90`, `t_turn180`. The Python solver and `expected.csv` use the same defaults and must be regenerated if they change.
 
-| Parameter | Meaning | Default | Depends on question |
-|---|---|---|---|
-| `t_fwd` | Time for one cell forward while already walking. | `2.5 s` (2500 ms) | — |
-| `t_start` | Extra time for the first step after standing (after a turn or at the start). | `0.8 s` (800 ms) | — |
-| `t_turn90` | Time for a 90° turn in place. | `2.0 s` (2000 ms) | — |
-| `t_turn180` | Time for a 180° turn in place. | `3.5 s` (3500 ms) | — |
+| Key | Ticket name | Meaning | Default | Depends on question |
+|---|---|---|---|---|
+| `forwardMs` | `t_fwd` | Time for one cell forward while already walking. | `2500` ms | — |
+| `startMs` | `t_start` | Extra time for the first step after standing (after a turn or at the start). | `800` ms | — |
+| `turn90Ms` | `t_turn90` | Time for a 90° turn in place. | `2000` ms | — |
+| `turn180Ms` | `t_turn180` | Time for a 180° turn in place. | `3500` ms | — |
+
+Rules:
+
+- `forwardMs`, `turn90Ms` and `turn180Ms` must be greater than 0 and `startMs` not negative. Otherwise the module prints an error and uses the defaults of **all four** keys.
+- It can be changed live: `get parameters:MazePlannerProvider`, edit, run the printed `set` line. The plan is recomputed on the next frame (the costs are part of the cache key), and an invalid value falls back to the defaults the same way.
+- Both routes are always computed (`MazePlan.exploration`, `MazePlan.speedRun`), so there is no mode key.
 
 Backlog (MZ-043, defaults stated in the ticket): `rollingTurns.enabled` = `false` and `diagonals.enabled` = `false` in `mazePlanner.cfg`; the rolling-turn and diagonal action costs are not set yet (MZ-043).
 
 ## 8. HandleMaze behaviour
 
-File: `Config/Scenarios/Maze/handleMaze.cfg` (and `MazeSafe`). Ticket: MZ-024. Status: **planned in MZ-024** (the file does not exist yet).
+File: `Config/Scenarios/Maze/handleMaze.cfg` (and `MazeSafe`, identical). Ticket: MZ-024. Status: **exists**. `MazeMapper` reads `start`, `SkillBehaviorControl` reads `announce`; each ignores the entries it does not know. The localizer follows the start through `MazeStart`.
 
-| Parameter | Meaning | Default | Depends on question |
+| Key | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `announce.enabled` | Speak every state change and button gesture; `false` silences all speech. | not set yet (MZ-024); the ticket says `false` silences it | — |
-| `start.cell` | Start corner: `0`, `7`, `56`, `63` when known, `-1` to deduce it from tags. Other values are rejected at load. | `-1` | Q6 |
+| `start.cell` | Start corner: `0`, `7`, `56` or `63` when known (deduction skipped), `-1` to deduce it from tags and walls. Any other value is an error at load and is treated as `-1`. | `-1` | Q6 |
+| `start.heading` | Maze heading the robot faces at the start: `north`, `east`, `south` or `west`. A corner has two open sides, so it is used when `start.cell` is given and ignored when it is `-1`. It must point into the maze: cell 0 `east`/`south`, 7 `south`/`west`, 56 `north`/`east`, 63 `north`/`west`. Otherwise: error at load, `start.cell` treated as `-1`. | `south` | Q6 |
+| `announce.enabled` | Speak every state change and button gesture; `false` silences all speech (the behaviour does not change). | `true` | — |
 
-### Compile-time constants of the current stub
+A tag or wall that contradicts a given start is reported with a warning that names the kind of observation (`tag`, `boundary edge`, `position`); the given start does not change. The warning is limited to one per 2 s.
 
-In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h`. Status: **exists**; changing them needs a rebuild, not a config edit.
+### Compile-time constants of the behaviour
+
+In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `Src/Tools/Maze/MazeDrive.h`. Status: **exists**; changing them needs a rebuild, not a config edit.
 
 | Constant | Meaning | Value |
 |---|---|---|
 | `mazeCellSize` | Edge of one maze cell, in mm. | `500` |
 | `motionTestCells` | Cells walked forward in the first step of the motion test. | `4` |
 | `motionTestPauseTime` | Pause (with a beep) between motion-test steps, in ms. | `2000` |
-| `mazeAnnouncementTime` | Time after an announcement before the next tap is accepted, in ms. | `1500` |
+| `Maze::announcementTimeMs` (`mazeAnnouncementTime`) | Time one phrase is said, and the time after an announcement before the next tap is accepted, in ms. | `1500` |
+| `Maze::maxQueuedPhrases` | Phrases that may wait to be said; when full, the oldest waiting one is dropped. | `8` |
 | `tagMemoryTime` | A tag last seen longer ago than this is announced as "no tag", in ms. | `2000` |
+| `Maze::walkTimeoutMs` | A walk to a neighbouring cell that takes longer is dropped and the plan is read again, in ms. | `20000` |
+| `Maze::turnTimeoutMs` | Same for a turn, in ms. | `12000` |
+| `Maze::scanTimeoutMs` | Same for a wall scan, in ms. | `2500` |
 | `motionTestWalkTimeout` | Time limit of the walking step before the test aborts, in ms. | `30000` |
 | `motionTestTurnTimeout` | Time limit of a turning step before the test aborts, in ms. | `15000` |
 | `motionTestNumOfSteps` | Steps of the motion test (walk, left, right, around). | `4` |
 | `motionTestBeep` | Sound played between steps (in `Config/Sounds`). | `"mazeBeep.wav"` |
 
+### Skill parameters
+
+`DEFINES_PARAMETERS` of the skills in `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/`. Status: **exists**; compile-time, not in a `.cfg`.
+
+| Skill | Parameter | Meaning | Value |
+|---|---|---|---|
+| `MazeFollowCorridor` | `positionMargin` | Done when the robot is this close to the cell centre, in mm. | `70` |
+| `MazeFollowCorridor` | `headingMargin` | ... and its heading differs from the target by less than this. | `15deg` |
+| `MazeFollowCorridor` | `walkSpeed`, `turnSpeed` | Walking and rotation speed as ratio of the maximum, in [0, 1]. | `1`, `1` |
+| `MazeTurn` | `margin` | Done when the remaining angle is smaller than this. | `6deg` |
+| `MazeTurn` | `turnSpeed` | Rotation speed as ratio of the maximum, in [0, 1]. | `1` |
+| `MazeScanWalls` | `panAngle` | How far the head turns to each side. | `60deg` |
+| `MazeScanWalls` | `tilt` | Head tilt during the scan (as `LookForward`). | `0.38` rad |
+| `MazeScanWalls` | `headSpeed` | Head speed. | `200deg/s` |
+| `MazeScanWalls` | `leftTime`, `rightTime`, `frontTime` | Time to look left, cross and look right, and come back to the front, in ms (about 1.8 s in total, within the 2 s limit of the ticket). | `550`, `800`, `450` |
+
 ## 9. Return to start
 
-File: `Config/Scenarios/Maze/handleMaze.cfg`. Ticket: MZ-024.1 (proposed). Status: **planned in MZ-024.1**.
+File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/handleMaze.cfg`. Ticket: MZ-024.1. Status: **implemented in MZ-024.1** (`returnToStart = {...}`; a file without the entry keeps the defaults below, so the old flow stays). Both files set `enabled = true` and `trigger = button` (18 Oct 2026).
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| `returnToStart.enabled` | `false`: stand at the goal (`Finished`); `true`: explore back to the start. | `false` | Q3, Q9 |
+| `returnToStart.enabled` | `false`: stand at the goal (`Finished`, says "goal" and "finished"); `true`: says "goal" only, then explores back to the start (says "returning"). | `false` | Q3, Q9 |
 | `returnToStart.trigger` | `timer`: start `delayMs` after the goal is confirmed; `button`: start on a `headFront` tap at the goal. | `timer` | Q9 |
 | `returnToStart.delayMs` | Wait after the goal is confirmed, for `trigger = timer`. | `5000` | Q9 |
-| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min). | `120000` | Q3 |
+| `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min), counted from "returning". The return also ends at the start cell or on a pick-up; it always goes to `Standby` and says "standby". | `120000` | Q3 |
+
+The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. Only a goal reached by the exploration (attempt 1) arms the return, and it starts with one wall scan at the goal cell (the "goal look", forced even without unknown edges) so that the look-ahead shows the edges of the neighbouring goal cells. It does not change the attempt counter.
 
 ## 10. Start scan
 
@@ -203,7 +232,7 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` ("watchdog parameters"). Ticket: MZ
 | Safe-mode speed (unnamed) | Reduced speed for cell-by-cell walking with a tag re-fix at every cell. | not set yet (MZ-025) | — |
 | Pose-quality threshold (unnamed) | Localizer quality below which safe mode starts. | not set yet (MZ-025) | — |
 
-Head scans are limited to ≤2 s (`MazeScanWalls`, MZ-024; roadmap 6), not yet a named parameter.
+Head scans are limited to ≤2 s (`MazeScanWalls`, MZ-024; roadmap 6): the three times in section 8 add up to 1.8 s.
 
 ## 12. Wall pose correction
 

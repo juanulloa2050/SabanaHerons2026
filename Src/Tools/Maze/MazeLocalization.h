@@ -79,6 +79,9 @@ namespace Maze
    */
   [[nodiscard]] FaceChoice chooseFace(int id, float robotRotation, const Pose3f& tagInRobot, const MazeTagLayout& layout);
 
+  /** The same choice from the angle of the measured tag normal in the maze frame (rad), see `chooseFace`. */
+  [[nodiscard]] FaceChoice chooseFaceByNormal(int id, float normalAngle, const MazeTagLayout& layout);
+
   /** Ignores a percept whose timestamp equals the one processed last (Cognition repeats percepts). */
   struct TimestampFilter
   {
@@ -109,6 +112,14 @@ namespace Maze
      * @param gyroYaw The current gyro yaw in rad; becomes the reference of the gyro heading.
      */
     void reset(int startCell, Heading startHeading, float gyroYaw, unsigned now = 0);
+
+    /**
+     * Re-expresses the whole state in another maze frame, e.g. when the working start hypothesis changes. The pose is
+     * moved by `oldToNew`, and the gyro offset follows so that the gyro heading keeps agreeing with the pose rotation. The
+     * quality, the fix time and the heading drift are unchanged.
+     * @param oldToNew Transform of a pose in the old maze frame to the same pose in the new one.
+     */
+    void transform(const Pose2f& oldToNew);
 
     /**
      * Moves the pose.

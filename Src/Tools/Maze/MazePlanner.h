@@ -99,8 +99,21 @@ namespace Maze
     /** Every state is unreachable until computeCostToGo() runs. */
     explicit MazePlanner(const MazeCosts& costs = MazeCosts()) : costs(costs)
     {
+      setGoalTargets();
       table.fill(MazeCost::infinity());
     }
+
+    /** Makes the central goal block (cells 27, 28, 35, 36) the target set; this is the default. Invalidates the table. */
+    void setGoalTargets();
+
+    /**
+     * Replaces the target set by `cells` (cell indices, row * 8 + col); indices outside the grid are ignored. Every
+     * query below plans to the nearest target. Invalidates the table: call `computeCostToGo` again.
+     */
+    void setTargets(const std::vector<int>& cells);
+
+    /** Whether (row, col) is in the target set. */
+    [[nodiscard]] bool isTarget(int row, int col) const;
 
     /** Whether `state` is inside the 8x8 grid with a valid heading. Every query below treats an invalid state as unreachable. */
     [[nodiscard]] static bool isValid(const MazeState& state);
@@ -109,7 +122,7 @@ namespace Maze
     [[nodiscard]] static int stateIndex(const MazeState& state);
 
     /**
-     * Backward Dijkstra from all goal states. Keeps a copy of `graph` and `policy` for
+     * Backward Dijkstra from all target states (the goal block unless `setTargets` was called). Keeps a copy of `graph` and `policy` for
      * `nextAction` and `routeFromTable`.
      */
     void computeCostToGo(const MazeGraph& graph, UnknownPolicy policy);
@@ -130,7 +143,7 @@ namespace Maze
     [[nodiscard]] MazePlan speedRun(const MazeGraph& graph, const MazeState& start) const;
 
     /**
-     * Admissible lower bound of the time to a goal cell: the smallest over the four goal cells of
+     * Admissible lower bound of the time to a target cell: the smallest over the target cells of
      * manhattan * forwardMs, plus one 90 degree turn if both coordinates differ.
      */
     [[nodiscard]] int heuristic(const MazeState& state) const;
@@ -144,6 +157,7 @@ namespace Maze
     MazeCosts costs;
     MazeGraph graph;
     UnknownPolicy policy = UnknownPolicy::asOpen;
+    std::array<bool, cellCount> targets{}; /**< The target cells; the goal block unless `setTargets` was called. */
     std::array<MazeCost, stateCount> table;
 
     /** Adds `action` to `plan` and updates the totals. */

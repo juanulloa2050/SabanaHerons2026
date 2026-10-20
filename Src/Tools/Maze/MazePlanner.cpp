@@ -37,6 +37,29 @@ namespace Maze
     };
   }
 
+  void MazePlanner::setGoalTargets()
+  {
+    targets.fill(false);
+    for(int row = 0; row < size; ++row)
+      for(int col = 0; col < size; ++col)
+        targets[static_cast<std::size_t>(cellId(row, col))] = isGoal(row, col);
+    table.fill(MazeCost::infinity());
+  }
+
+  void MazePlanner::setTargets(const std::vector<int>& cells)
+  {
+    targets.fill(false);
+    for(const int cell : cells)
+      if(cell >= 0 && cell < cellCount)
+        targets[static_cast<std::size_t>(cell)] = true;
+    table.fill(MazeCost::infinity());
+  }
+
+  bool MazePlanner::isTarget(int row, int col) const
+  {
+    return inside(row, col) && targets[static_cast<std::size_t>(cellId(row, col))];
+  }
+
   bool MazePlanner::isValid(const MazeState& state)
   {
     return inside(state.row, state.col) && static_cast<int>(state.heading) >= 0 && static_cast<int>(state.heading) < headingCount;
@@ -90,7 +113,7 @@ namespace Maze
     for(int i = 0; i < stateCount; ++i)
     {
       const MazeState state = stateFromIndex(i);
-      if(isGoal(state.row, state.col))
+      if(isTarget(state.row, state.col))
       {
         table[static_cast<std::size_t>(i)] = {0, 0};
         queue.push({{0, 0}, {0, 0}, i});
@@ -120,7 +143,7 @@ namespace Maze
           if(!inside(previous.row, previous.col))
             continue;
         }
-        if(isGoal(previous.row, previous.col))
+        if(isTarget(previous.row, previous.col))
           continue;
         for(const Action action : actionOrder)
         {
@@ -149,7 +172,7 @@ namespace Maze
 
   bool MazePlanner::nextAction(const MazeState& state, Action& action) const
   {
-    if(!isValid(state) || isGoal(state.row, state.col))
+    if(!isValid(state) || isTarget(state.row, state.col))
       return false;
     MazeCost best = MazeCost::infinity();
     bool found = false;
@@ -189,7 +212,7 @@ namespace Maze
   {
     MazePlan plan;
     MazeState state = start;
-    while(!isGoal(state.row, state.col))
+    while(!isTarget(state.row, state.col))
     {
       Action action = Action::forward;
       MazeState next;
@@ -206,11 +229,11 @@ namespace Maze
   int MazePlanner::heuristic(const MazeState& state) const
   {
     int best = MazeCost::infinity().timeMs;
-    for(int row = 3; row <= 4; ++row)
-      for(int col = 3; col <= 4; ++col)
+    for(int cell = 0; cell < cellCount; ++cell)
+      if(targets[static_cast<std::size_t>(cell)])
       {
-        const int dRow = std::abs(row - state.row);
-        const int dCol = std::abs(col - state.col);
+        const int dRow = std::abs(cellRow(cell) - state.row);
+        const int dCol = std::abs(cellCol(cell) - state.col);
         best = std::min(best, (dRow + dCol) * costs.forwardMs + (dRow != 0 && dCol != 0 ? costs.turn90Ms : 0));
       }
     return best;
@@ -240,7 +263,7 @@ namespace Maze
       if(best[static_cast<std::size_t>(entry.index)] < entry.cost)
         continue; // outdated entry
       const MazeState state = stateFromIndex(entry.index);
-      if(isGoal(state.row, state.col))
+      if(isTarget(state.row, state.col))
       {
         goalIndex = entry.index;
         break;

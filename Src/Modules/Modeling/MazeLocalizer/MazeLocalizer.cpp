@@ -42,10 +42,19 @@ float MazeLocalizer::gyroYaw() const
   return Angle::normalize(Rotation::Euler::getZAngle(theInertialData.orientation3D) + injectedGyroDrift);
 }
 
+void MazeLocalizer::followStart()
+{
+  const Maze::Hypothesis working = {std::clamp(theMazeStart.cell, 0, Maze::cellCount - 1), static_cast<Maze::Heading>(static_cast<int>(theMazeStart.heading))};
+  if(working == frame)
+    return;
+  localization.transform(Maze::StartDeduction::startToMaze(working) * Maze::StartDeduction::startToMaze(frame).inverse());
+  frame = working;
+  timestampLastJump = theFrameInfo.time; // The pose jumped into another frame.
+}
+
 void MazeLocalizer::resetToStart(float yaw)
 {
-  const int cell = std::clamp(startCell, 0, Maze::cellCount - 1);
-  localization.reset(cell, static_cast<Maze::Heading>(static_cast<int>(startHeading)), yaw, theFrameInfo.time);
+  localization.reset(frame.cell, frame.heading, yaw, theFrameInfo.time);
   tagFixes = 0;
   tagRejections = 0;
   tagFilter.reset();
@@ -68,9 +77,17 @@ void MazeLocalizer::step()
     injectedGyroDrift += Angle::fromDegrees(injectedGyroDriftPerMinute) * static_cast<float>(theFrameInfo.time - previousStepTime) / 60000.f;
   const float yaw = gyroYaw();
 
-  // Positioned at start: on the first frame and whenever the game switches into playing.
-  if(session.update(theGameState.isPlaying()).resetPose())
+  // The mapper may have changed the working start hypothesis in the last frame.
+  followStart();
+
+  // Positioned at start: on the first frame and whenever the robot becomes active (playing, not penalized, on the ground).
+  const Maze::PlayingTransition transition = session.update(Maze::isActive(theGameState.isPlaying(), theGameState.isPenalized(), theFallDownState.state));
+  if(transition.resetPose())
+  {
+    OUTPUT_TEXT("MazeLocalizer: pose reset to the start (cell " << frame.cell << "): "
+                << (transition.firstFrame ? "first frame" : "the robot is active again (back from pick-up or pause)") << ".");
     resetToStart(yaw);
+  }
 
   // The odometry delta in the robot frame of the last frame, with the optional simulated noise.
   Pose2f delta;
@@ -84,8 +101,9 @@ void MazeLocalizer::step()
     delta.rotation += Random::normal(0.f, static_cast<float>(injectedOdometryRotationNoise)) * delta.translation.norm() / 1000.f;
   localization.predict(delta, yaw, useGyro);
 
-  // Tags: Cognition repeats percepts, so only a new timestamp is a new observation.
-  if(tagFilter.accept(theAprilTagPercept.timestamp))
+  // Tags: Cognition repeats percepts, so only a new timestamp is a new observation. Under a start that is not known yet
+  // a tag could pull the pose to the wrong place, so the percept waits (and is used if it is still the newest) until it is.
+  if(theMazeStart.known && tagFilter.accept(theAprilTagPercept.timestamp))
     for(const AprilTagPercept::Detection& detection : theAprilTagPercept.detections)
     {
       if(localization.fixWithTag(detection.id, detection.tagInRobot, theFrameInfo.time, layout).accepted)

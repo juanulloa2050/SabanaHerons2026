@@ -3,7 +3,8 @@
  *
  * The wall map that the robot believes in, provided by MazeMapper and kept for the whole process:
  * every wall slot (edge) is unknown, open or a wall, which cells were visited, the start cell and the
- * number of the current attempt. The outer border is always a wall.
+ * number of the current attempt. The outer border is always a wall. The start cell and heading follow the
+ * working start hypothesis of `MazeStart`, so they change once when a deduced start is re-anchored.
  *
  * Edges are stored flat so that the representation streams and logs plainly:
  * `horizontal[r * 8 + c]` is the edge above cell (r, c) for r = 0..8 (row 8 is the bottom border) and
@@ -15,6 +16,7 @@
 
 #pragma once
 
+#include "Representations/Modeling/MazeCellPose.h"
 #include "Streaming/AutoStreamable.h"
 #include "Streaming/Enum.h"
 #include "Tools/Maze/MazeEdgeIndex.h"
@@ -58,7 +60,9 @@ STREAMABLE(MazeMap,
   (std::array<Edge, horizontalCount>)({}) horizontal, /**< Edge above each cell, row by row; initially unknown. */
   (std::array<Edge, verticalCount>)({}) vertical,     /**< Edge left of each cell, row by row; initially unknown. */
   (std::array<bool, Maze::cellCount>)({}) visited,    /**< Cells the robot has stood in, indexed by cell number. */
-  (int)(0) startCell,                             /**< Cell the attempts start in. */
+  (int)(0) startCell,                             /**< Cell the attempts start in (the working hypothesis while the start is not known). */
+  (MazeCellPose::Heading)(MazeCellPose::east) startHeading,     /**< Maze heading the robot faces at the start. */
+  (bool)(false) startKnown,                       /**< The start is given or deduced; otherwise `startCell` and `startHeading` are a working guess. */
   (int)(1) attempt,                               /**< Number of the current attempt, 1 for the first. */
   (unsigned)(0) changeCounter,                    /**< Grows whenever an edge changed its state; a planner replans when it differs. */
   (unsigned)(0) lastChangeTime,                   /**< Time of the last edge change in ms. */

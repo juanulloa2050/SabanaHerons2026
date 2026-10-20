@@ -7,6 +7,7 @@
 #include "Tools/Maze/MazeHeading.h"
 #include "Tools/Maze/MazeLocalization.h"
 #include "Tools/Maze/MazeOracle.h"
+#include "Tools/Maze/MazeStartDeduction.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
@@ -44,7 +45,7 @@ namespace
     Oracle::View view;
     if(!Oracle::computeView(openMaze(), truth, camera, 2, view))
       return false;
-    return Oracle::observeTag(view, camera, 2, deg(80.f), cell, face, 300.f, tagInRobot);
+    return Oracle::observeTag(view, camera, 1250.f, deg(80.f), cell, face, 300.f, tagInRobot);
   }
 
   Pose2f truthIn(int row, int col, float dx, float dy, float rotation)
@@ -170,6 +171,35 @@ GTEST_TEST(MazeLocalization, HeadingDriftIsTheNetChangeOfTheGyroOffsetSinceReset
   EXPECT_NEAR(localization.headingDrift(), deg(15.f), 1e-4f);
   localization.gyroOffset = Angle::normalize(localization.gyroOffset - deg(40.f));
   EXPECT_NEAR(localization.headingDrift(), deg(-25.f), 1e-4f);
+}
+
+GTEST_TEST(MazeLocalization, TransformMovesThePoseAndTheGyroHeadingToAnotherFrame)
+{
+  const Hypothesis from = {0, Heading::east}, to = {63, Heading::west};
+  MazeLocalization localization;
+  localization.reset(from.cell, from.heading, 0.7f, 500);
+  // One cell forward while the gyro reads 6 degrees more than at the reset.
+  localization.predict(Pose2f(0.f, Vector2f(500.f, 0.f)), 0.7f + deg(6.f), true);
+  const Pose2f startRelative = StartDeduction::startToMaze(from).inverse() * localization.pose;
+  const float drift = localization.headingDrift();
+  const unsigned fixTime = localization.lastFixTime;
+
+  localization.transform(StartDeduction::startToMaze(to) * StartDeduction::startToMaze(from).inverse());
+  const Pose2f expected = StartDeduction::startToMaze(to) * startRelative;
+  EXPECT_NEAR((localization.pose.translation - expected.translation).norm(), 0.f, tolerance * 100.f);
+  EXPECT_NEAR(Angle::normalize(localization.pose.rotation - expected.rotation), 0.f, tolerance);
+  EXPECT_NEAR(localization.headingDrift(), drift, tolerance);
+  EXPECT_EQ(localization.lastFixTime, fixTime);
+
+  // The gyro keeps agreeing with the pose in the new frame: standing still keeps the rotation, turning 90 degrees adds to it.
+  localization.predict(Pose2f(), 0.7f + deg(6.f), true);
+  EXPECT_NEAR(Angle::normalize(localization.pose.rotation - expected.rotation), 0.f, tolerance);
+  localization.predict(Pose2f(), 0.7f + deg(6.f) + pi / 2.f, true);
+  EXPECT_NEAR(Angle::normalize(localization.pose.rotation - expected.rotation - pi / 2.f), 0.f, tolerance);
+  // The next step moves along the new heading.
+  const Vector2f before = localization.pose.translation;
+  localization.predict(Pose2f(0.f, Vector2f(100.f, 0.f)), 0.7f + deg(6.f) + pi / 2.f, true);
+  EXPECT_NEAR((localization.pose.translation - before).norm(), 100.f, tolerance * 100.f);
 }
 
 GTEST_TEST(MazeLocalization, TagFixesConvergeToTheTruth)
