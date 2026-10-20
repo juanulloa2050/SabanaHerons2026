@@ -108,6 +108,63 @@ GTEST_TEST(MazeMapFusion, TagIsFullEvidenceForAWall)
   EXPECT_FALSE(fusion.observeTag(cellCount, Heading::north));
 }
 
+GTEST_TEST(MazeMapFusion, TaggedFaceIgnoresOpenFromTheWallPercept)
+{
+  // Heading::east looking gaze: cell 0 left is north. Open for the north edge of (2, 5) seen from (2, 5), 5 times at 300 ms.
+  const auto openNorth = [](MazeMapFusion& fusion, int count, unsigned start)
+  {
+    CellObservation cell;
+    cell.left = EdgeState::open;
+    cell.distance = 100.f;
+    int changes = 0;
+    for(int i = 0; i < count; ++i)
+      changes += fusion.observeCellsAhead(2, 5, Heading::east, {cell}, start + 300u * static_cast<unsigned>(i));
+    return changes;
+  };
+
+  // Without a tag the percept opens the edge.
+  MazeMapFusion plain;
+  EXPECT_EQ(openNorth(plain, 5, 1000), 1);
+  EXPECT_EQ(plain.graph.get(2, 5, Heading::north), EdgeState::open);
+
+  // One tag is not enough to decide the edge, but the face is tagged: the percept cannot open it.
+  MazeMapFusion fusion;
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 5), Heading::north, 500));
+  EXPECT_EQ(openNorth(fusion, 5, 1000), 0);
+  EXPECT_EQ(fusion.graph.get(2, 5, Heading::north), EdgeState::unknown);
+  // More tags decide the wall, and the percept still cannot flip it, however often it sees through it.
+  EXPECT_FALSE(fusion.observeTag(cellId(2, 5), Heading::north, 5000));
+  EXPECT_TRUE(fusion.observeTag(cellId(2, 5), Heading::north, 5300));
+  EXPECT_EQ(openNorth(fusion, 20, 10000), 0);
+  EXPECT_EQ(fusion.graph.get(2, 5, Heading::north), EdgeState::wall);
+
+  // The edge is shared: a tag on the south face of the neighbour tags it as well.
+  MazeMapFusion shared;
+  shared.observeTag(cellId(1, 5), Heading::south, 500);
+  EXPECT_EQ(openNorth(shared, 5, 1000), 0);
+  EXPECT_EQ(shared.graph.get(2, 5, Heading::north), EdgeState::unknown);
+
+  // The veto is for that edge and for open percepts only: walls still count, other edges are unaffected.
+  MazeMapFusion others;
+  others.observeTag(cellId(2, 5), Heading::north, 500);
+  CellObservation cell;
+  cell.left = EdgeState::wall;
+  cell.right = EdgeState::open;
+  cell.distance = 100.f;
+  int changes = 0;
+  for(unsigned i = 0; i < 4; ++i)
+    changes += others.observeCellsAhead(2, 5, Heading::east, {cell}, 1000 + 300 * i);
+  EXPECT_EQ(changes, 2); // the wall on the left (the tag counts too) and the open right edge
+  EXPECT_EQ(others.graph.get(2, 5, Heading::north), EdgeState::wall);
+  EXPECT_EQ(others.graph.get(2, 5, Heading::south), EdgeState::open);
+  // Other open evidence than the percept, the robot's own position, still counts for the edge.
+  MazeMapFusion walked;
+  walked.observeTag(cellId(2, 5), Heading::north, 500);
+  EXPECT_FALSE(observeTimes(walked, 2, 5, Heading::north, false, 3)); // the tag counted +1 for the wall
+  EXPECT_TRUE(observeTimes(walked, 2, 5, Heading::north, false, 1));
+  EXPECT_EQ(walked.graph.get(2, 5, Heading::north), EdgeState::open);
+}
+
 GTEST_TEST(MazeMapFusion, CellsAheadAreMappedForEveryGaze)
 {
   for(int g = 0; g < headingCount; ++g)

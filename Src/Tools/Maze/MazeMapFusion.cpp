@@ -91,8 +91,14 @@ namespace Maze
       const float weight = wallWeight(cell.distance);
       const std::array<std::pair<Heading, EdgeState>, 3> edges = {{{turned(gaze, -1), cell.left}, {turned(gaze, 1), cell.right}, {gaze, cell.front}}};
       for(const auto& [heading, state] : edges)
-        if(state != EdgeState::unknown && observe(row, col, heading, state == EdgeState::wall, weight, time))
+      {
+        if(state == EdgeState::unknown)
+          continue;
+        if(state == EdgeState::open && tagged[index(row, col, heading)])
+          continue; // A tag was seen on this face: a wall percept that sees through it is wrong.
+        if(observe(row, col, heading, state == EdgeState::wall, weight, time))
           ++changes;
+      }
     }
     return changes;
   }
@@ -101,6 +107,7 @@ namespace Maze
   {
     if(cell < 0 || cell >= cellCount)
       return false;
+    tagged[index(cellRow(cell), cellCol(cell), face)] = true; // Even if the observation is rate limited: the tag was seen.
     return observe(cellRow(cell), cellCol(cell), face, true, parameters.tagWeight, time);
   }
 
