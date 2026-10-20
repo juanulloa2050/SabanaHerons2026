@@ -130,6 +130,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
                                         std::atan2(gazeInRobot.y(), gazeInRobot.x()), range, viewParams, result))
       return;
 
+    wallPercept.lookAheadRange = range;
     wallPercept.boundaryPoints = boundaryPoints;
     wallPercept.frontDistance = result.frontDistance;
     wallPercept.leftDistance = result.leftDistance;

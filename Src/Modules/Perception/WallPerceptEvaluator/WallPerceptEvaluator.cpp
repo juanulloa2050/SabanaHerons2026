@@ -23,15 +23,21 @@ bool WallPerceptEvaluator::loadMaze()
 {
   if(mazeLoaded)
     return true;
-  if(mazeFailed)
+  // A failed load is tried again every summary interval (the file may be written late), and said on the error stream too, which
+  // is all a headless run shows.
+  if(loadAttempted && theFrameInfo.getTimeSince(lastLoadAttempt) < summaryIntervalMs)
     return false;
+  loadAttempted = true;
+  lastLoadAttempt = theFrameInfo.time;
   std::string error;
   if(!Maze::MazeFile::load(std::string(File::getBHDir()) + "/" + mazeFile, maze, error))
   {
-    OUTPUT_WARNING("WallPerceptEvaluator: " << mazeFile << " not found or invalid (" << error << ").");
-    mazeFailed = true;
+    loadError = mazeFile + " not found or invalid (" + error + ")";
+    OUTPUT_WARNING("WallPerceptEvaluator: " << loadError << ", nothing is scored; trying again.");
+    std::fprintf(stderr, "WallPerceptEvaluator: %s, nothing is scored; trying again\n", loadError.c_str());
     return false;
   }
+  loadError.clear();
   scorer = std::make_unique<Maze::WallScore::Scorer>(maze.graph);
   mazeLoaded = true;
   return true;
@@ -66,7 +72,11 @@ void WallPerceptEvaluator::update(WallPerceptScore& wallPerceptScore)
     Global::getDebugRequestTable().addRequest(DebugRequest("option:HandleMaze:headFront", true));
   }
   if(!loadMaze())
+  {
+    wallPerceptScore.frames = 0;
+    wallPerceptScore.summary = "not evaluating: " + loadError;
     return;
+  }
   const WallPercept& percept = theUpperWallPercept;
   if(percept.timestamp != lastTimestamp)
   {
@@ -82,7 +92,7 @@ void WallPerceptEvaluator::update(WallPerceptScore& wallPerceptScore)
       frame.believedPosition = theRobotPose.translation;
       frame.believedRotation = theRobotPose.rotation;
       frame.standing = theMotionInfo.executedPhase == MotionPhase::stand;
-      frame.range = Maze::WallView::lookAheadRange(frame.standing, lookAheadRangeWalking, lookAheadRangeStanding);
+      frame.range = percept.lookAheadRange; // The perceptor's own range: its MotionInfo is not the one of this thread at the same time.
       frame.lookAheadTurns = percept.lookAheadTurns;
       for(const WallPercept::CellAhead& cell : percept.cellsAhead)
       {
