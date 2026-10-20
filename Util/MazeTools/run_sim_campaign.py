@@ -3,11 +3,13 @@
 
 The SimRobot fallback executes the scene's .con file, so maze runs need no
 manual console commands. Metrics are accepted as JSON records printed by the
-simulation in the provisional form ``MZ021_METRICS { ... }``. Bryam is expected
-to provide the actual BehaviorStatus/MazeMap field names and debug format in
-the PR review; replace this adapter with that mapping before treating the CSV
-as measured results. Until then, missing values stay blank rather than being
-guessed.
+simulation in the provisional form ``MZ021_METRICS { ... }``. The exact
+BehaviorStatus/MazeMap field names and debug format are still pending review,
+so this adapter must be replaced with that mapping before treating a CSV as
+measured results. Missing values stay blank; by default, any run with missing
+metrics makes the command exit nonzero. ``--allow-missing-metrics`` is only
+for checking scene launch and CSV plumbing while the telemetry mapping is
+pending.
 
 Noise presets use the MZ-020 nominal and harsh values as a reference: low uses
 zero injected motion noise, mid uses 3 deg/min gyro drift and 5% odometry
@@ -31,6 +33,8 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 from typing import Any
 
 
@@ -147,6 +151,10 @@ def collect_metrics(output: str) -> dict[str, Any]:
     return latest
 
 
+def has_complete_metrics(metrics: dict[str, Any]) -> bool:
+    return all(field in metrics and metrics[field] not in (None, "") for field in CSV_FIELDS[3:])
+
+
 def make_run_files(maze: Path, noise: str) -> tuple[Path, Path, Path, list[Path]]:
     """Create an isolated scene, console, include and scenario for one run."""
     run_id = f"MazeCampaign_{uuid.uuid4().hex[:12]}"
@@ -208,26 +216,71 @@ def cleanup(paths: list[Path]) -> None:
             path.unlink(missing_ok=True)
 
 
-def run_simrobot(executable: Path, scene: Path, timeout_s: float) -> tuple[str, bool, float]:
+def run_simrobot(
+    executable: Path,
+    scene: Path,
+    timeout_s: float,
+) -> tuple[str, bool, float, int | None, bool]:
     start = time.monotonic()
-    try:
-        completed = subprocess.run(
-            [str(executable), str(scene)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-        return completed.stdout + "\n" + completed.stderr, False, time.monotonic() - start
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
-        if isinstance(stdout, bytes):
-            stdout = stdout.decode(errors="replace")
-        if isinstance(stderr, bytes):
-            stderr = stderr.decode(errors="replace")
-        return stdout + "\n" + stderr, True, time.monotonic() - start
+    process = subprocess.Popen(
+        [str(executable), str(scene)],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    output_queue: Queue[str | None] = Queue()
+    output_lines: list[str] = []
+
+    def forward_output() -> None:
+        assert process.stdout is not None
+        for line in process.stdout:
+            output_queue.put(line)
+        output_queue.put(None)
+
+    reader = Thread(target=forward_output, daemon=True)
+    reader.start()
+
+    deadline = start + timeout_s
+    timed_out = False
+    stopped_on_metrics = False
+    observed_metrics: dict[str, Any] = {}
+    output_closed = False
+    while not output_closed:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            timed_out = True
+            break
+        try:
+            line = output_queue.get(timeout=min(remaining, 0.1))
+        except Empty:
+            continue
+        if line is None:
+            output_closed = True
+            break
+        output_lines.append(line)
+        observed_metrics.update(collect_metrics(line))
+        if has_complete_metrics(observed_metrics):
+            stopped_on_metrics = True
+            break
+
+    if process.poll() is None and (timed_out or stopped_on_metrics):
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+    returncode = process.wait()
+    reader.join(timeout=2)
+    while True:
+        try:
+            line = output_queue.get_nowait()
+        except Empty:
+            break
+        if line is not None:
+            output_lines.append(line)
+    return "".join(output_lines), timed_out, time.monotonic() - start, returncode, stopped_on_metrics
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -246,6 +299,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="maximum mazes from the input (default: 2; use 20 for all generated mazes)")
     parser.add_argument("--simrobot", type=Path, default=DEFAULT_SIMROBOT,
                         help="SimRobot executable path")
+    parser.add_argument("--allow-missing-metrics", action="store_true",
+                        help="return success when telemetry is unavailable; for scene/CSV plumbing only")
     args = parser.parse_args(argv)
 
     try:
@@ -264,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
         out.parent.mkdir(parents=True, exist_ok=True)
 
         completed_runs = 0
+        campaign_incomplete = False
+        simulation_failed = False
         with out.open("w", newline="", encoding="utf-8") as csv_file:
             writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
             writer.writeheader()
@@ -274,8 +331,14 @@ def main(argv: list[str] | None = None) -> int:
                     paths: list[Path] = []
                     try:
                         scene, console, include, paths = make_run_files(maze, args.noise)
-                        output, timed_out, elapsed = run_simrobot(executable, scene, args.timeout_s)
+                        output, timed_out, elapsed, returncode, stopped_on_metrics = run_simrobot(
+                            executable, scene, args.timeout_s
+                        )
                         metrics = collect_metrics(output)
+                        missing_metrics = [
+                            field for field in CSV_FIELDS[3:]
+                            if field not in metrics or metrics[field] is None
+                        ]
                         row = {
                             "maze": maze.name,
                             "attempt": attempt,
@@ -288,17 +351,36 @@ def main(argv: list[str] | None = None) -> int:
                         writer.writerow(row)
                         csv_file.flush()
                         completed_runs += 1
-                        result = "timeout" if timed_out else "SimRobot closed"
+                        result = (
+                            "timeout" if timed_out else
+                            "metrics captured" if stopped_on_metrics else
+                            f"SimRobot exited {returncode}"
+                        )
                         print(f"[{completed_runs}] {maze.name}, attempt {attempt}: {result} ({elapsed:.1f}s)")
-                        if not metrics:
+                        if missing_metrics:
+                            campaign_incomplete = True
                             print(
-                                "  warning: SimRobot did not emit MZ021_METRICS; "
-                                "result columns are blank until behavior telemetry is available.",
+                                "  warning: missing metrics: " + ", ".join(missing_metrics),
                                 file=sys.stderr,
                             )
+                        if timed_out or (returncode not in (0, None) and not stopped_on_metrics):
+                            campaign_incomplete = True
+                            simulation_failed = True
+                            detail = "reached --timeout-s" if timed_out else f"exited with status {returncode}"
+                            print(f"  warning: simulation {detail}.", file=sys.stderr)
                     finally:
                         cleanup(paths)
         print(f"CSV written: {out}")
+        if simulation_failed:
+            print("error: one or more SimRobot runs timed out or exited unsuccessfully.", file=sys.stderr)
+            return 1
+        if campaign_incomplete and not args.allow_missing_metrics:
+            print(
+                "error: campaign is missing metrics; resolve the telemetry mapping or use "
+                "--allow-missing-metrics only for a plumbing check.",
+                file=sys.stderr,
+            )
+            return 1
         return 0
     except CampaignError as exc:
         print(f"error: {exc}", file=sys.stderr)
