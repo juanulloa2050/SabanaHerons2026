@@ -1,0 +1,3 @@
+# Like MazeEval.con, but the mapper gets the walls of the real WallPerceptor (MazeVision.con) and the perceptor is scored.
+call MazeVision
+for Cognition mr WallPerceptScore WallPerceptEvaluator

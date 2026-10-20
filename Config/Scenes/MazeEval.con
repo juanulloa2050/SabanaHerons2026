@@ -1,0 +1,6 @@
+# Simulation evaluation of the wall perceptor (MZ-019): the map comes from the oracle as in Maze.con, the real WallPerceptor
+# only runs on the camera image and is scored against the true maze by WallPerceptEvaluator. The summaries are on the
+# standard error stream ("WallPerceptEvaluator: ..."), see docs/maze/SIMULACION_LABERINTO.md.
+call Maze
+for Cognition mr WallPerceptScore WallPerceptEvaluator
+# The evaluator taps the head front after startTapAfterMs (wallPerceptEvaluator.cfg) so that the robot explores the maze.

@@ -57,6 +57,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
     scanParams.smoothRows = smoothRows;
     scanParams.columnHalfWidth = columnHalfWidth;
     scanParams.minGradient = minGradient;
+    scanParams.maxFloorDeviation = maxFloorDeviation;
     scanParams.minWallContrast = minWallContrast;
     scanParams.minWallCheckHeightMm = minWallCheckHeightMm;
     scanParams.minWallRowFraction = minWallRowFraction;
@@ -125,6 +126,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
                                         std::atan2(gazeInRobot.y(), gazeInRobot.x()), range, viewParams, result))
       return;
 
+    wallPercept.boundaryPoints = boundaryPoints;
     wallPercept.frontDistance = result.frontDistance;
     wallPercept.leftDistance = result.leftDistance;
     wallPercept.rightDistance = result.rightDistance;

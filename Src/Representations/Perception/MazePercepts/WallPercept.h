@@ -56,5 +56,6 @@ STREAMABLE(WallPercept,
   (float)(-1.f) rightDistance,       /**< Distance to the wall on the right of the gaze in mm; -1 if no wall is seen. */
   (int)(0) lookAheadTurns,           /**< Gaze direction of `cellsAhead` in quarter turns counterclockwise from the robot's x-axis. */
   (std::vector<CellAhead>) cellsAhead, /**< The look-ahead, nearest cell first; ends at the first front wall or the maximum range. */
+  (std::vector<Vector2f>) boundaryPoints, /**< Floor points of the wall boundary in the robot frame in mm; filled by the wall perceptor for the evaluation, empty for the oracle. */
   (unsigned)(0) timestamp,           /**< Time of the frame in ms. */
 });

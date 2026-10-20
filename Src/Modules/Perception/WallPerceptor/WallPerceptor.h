@@ -63,6 +63,7 @@ MODULE(WallPerceptor,
     (int) smoothRows,                 /**< Rows averaged on each side of a candidate boundary. */
     (int) columnHalfWidth,            /**< Columns on each side of the scanned one that are averaged. */
     (float) minGradient,              /**< Least brightness step of a boundary in grey levels. */
+    (float) maxFloorDeviation,        /**< Largest difference in grey levels between the bottom rows of a column, or the rows below a boundary, and the floor reference. */
     (float) minWallContrast,          /**< Least brightness of the wall above the floor in grey levels. */
     (float) minWallCheckHeightMm,     /**< Height up to which the column has to stay wall. */
     (float) minWallRowFraction,       /**< Part of the rows up to that height that keep the wall contrast. */
