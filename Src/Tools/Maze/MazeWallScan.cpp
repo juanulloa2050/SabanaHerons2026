@@ -75,19 +75,40 @@ namespace Maze
           sum += profile[static_cast<std::size_t>(y)];
         bottoms.push_back(sum / static_cast<float>(referenceRows));
       }
-      const float floorBrightness = median(bottoms);
-      float floorSaturation = 0.f;
+      std::vector<float> saturationBottoms;
       if(vetoSaturation)
-      {
-        std::vector<float> saturationBottoms;
         for(const std::vector<float>& profile : saturationProfiles)
           saturationBottoms.push_back(std::accumulate(profile.end() - referenceRows, profile.end(), 0.f) / static_cast<float>(referenceRows));
-        floorSaturation = median(saturationBottoms);
+      for(std::size_t i = 0; i < result.size(); ++i)
+        result[i].bottom = bottoms[i];
+
+      float floorBrightness = median(bottoms);
+      float floorSaturation = median(saturationBottoms);
+      // A coloured bottom (more saturated than `maxWallSaturation`) is a floor marking such as the goal patch under the robot,
+      // not the floor. The far edge of the marking is a step to a region that a marking-valued reference takes for a wall, and
+      // the colour veto cannot see it (the region above is less coloured than the bottom). So the floor reference is the median
+      // over the columns that are not coloured, if they are at least half of them; otherwise nothing can be told apart: no
+      // boundary, and every column is rejected so that it gives no clear evidence either.
+      std::vector<float> plainBottoms, plainSaturations;
+      for(std::size_t i = 0; i < saturationBottoms.size(); ++i)
+        if(saturationBottoms[i] <= params.maxWallSaturation)
+        {
+          plainBottoms.push_back(bottoms[i]);
+          plainSaturations.push_back(saturationBottoms[i]);
+        }
+      if(vetoSaturation && plainBottoms.size() < bottoms.size())
+      {
+        if(plainBottoms.size() * 2 < bottoms.size())
+        {
+          for(ColumnBoundary& column : result)
+            column.rejected = true;
+          return result;
+        }
+        floorBrightness = median(plainBottoms);
+        floorSaturation = median(plainSaturations);
       }
       if(floorReference)
         *floorReference = floorBrightness;
-      for(std::size_t i = 0; i < result.size(); ++i)
-        result[i].bottom = bottoms[i];
 
       const int top = std::max(horizonRow, k);
       for(std::size_t i = 0; i < result.size(); ++i)

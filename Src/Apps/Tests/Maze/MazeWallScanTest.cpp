@@ -606,3 +606,66 @@ GTEST_TEST(MazeWallScan, SaturationVetoLeavesWallsAndSlightlyColouredFloorAlone)
   for(const ColumnBoundary& boundary : scanWithSaturation(scene, params))
     EXPECT_TRUE(boundary.found()) << "column " << boundary.column;
 }
+
+GTEST_TEST(MazeWallScan, StandingOnTheGoalPatchItsFarEdgeIsNoWall)
+{
+  // The robot stands on the patch (it fills the bottom of the image, 500 to 900 mm), plain floor follows, the wall is at 1500 mm.
+  // The patch is a little darker than the floor, as in the simulator (grey 233 against 254).
+  Scene scene = polarity(false);
+  scene.wallX = 1500.f;
+  scene.patches.push_back({0.f, 900.f, 180, 50});
+  Params params;
+  params.maxWallSaturation = 25.f;
+
+  // The failure: the bottom of the image is the floor reference, so the far edge of the patch looks like a wall and the grey
+  // checks accept it (veto off: the colour of the bottom rows is not looked at).
+  Params off = params;
+  off.maxWallSaturation = 0.f;
+  for(const ColumnBoundary& boundary : scanWithSaturation(scene, off))
+  {
+    ASSERT_TRUE(boundary.found()) << "column " << boundary.column;
+    EXPECT_NEAR(boundary.row, expectedRow(900.f, boundary.column), 1) << "the patch edge is read as a wall";
+  }
+
+  // The floor is unknown: no boundary, and no column may give clear evidence.
+  const std::vector<ColumnBoundary> columns = scanWithSaturation(scene, params);
+  ASSERT_FALSE(columns.empty());
+  for(const ColumnBoundary& boundary : columns)
+  {
+    EXPECT_FALSE(boundary.found()) << "column " << boundary.column;
+    EXPECT_TRUE(boundary.rejected) << "column " << boundary.column;
+  }
+}
+
+GTEST_TEST(MazeWallScan, ABottomPartlyOnTheGoalPatchTakesTheFloorFromTheColumnsThatAreNotColoured)
+{
+  // The left part of the bottom is plain floor, the rest is the patch (the robot stands at the edge of the patch).
+  Scene scene = polarity(false);
+  scene.wallX = 1500.f;
+  Scene plain = scene;
+  scene.patches.push_back({0.f, 900.f, 180, 50});
+  const std::vector<unsigned char> patchImage = render(scene), patchSaturation = renderSaturation(scene), plainImage = render(plain), plainSaturation = renderSaturation(plain);
+  const auto mixed = [&](int plainColumns)
+  {
+    std::vector<unsigned char> image = patchImage, saturation = patchSaturation;
+    for(int v = 0; v < height; ++v)
+      for(int u = 0; u < plainColumns; ++u)
+      {
+        image[static_cast<std::size_t>(v * width + u)] = plainImage[static_cast<std::size_t>(v * width + u)];
+        saturation[static_cast<std::size_t>(v * width + u)] = plainSaturation[static_cast<std::size_t>(v * width + u)];
+      }
+    Params params;
+    params.maxWallSaturation = 25.f;
+    const GreyImage saturationImage = {saturation.data(), width, height, width};
+    return scanColumns({image.data(), width, height, width}, horizon(scene.pitchDeg), projectionOf(scene.pitchDeg), params, nullptr, &saturationImage);
+  };
+  // Too few plain columns tell nothing ...
+  for(const ColumnBoundary& boundary : mixed(width / 3))
+    EXPECT_TRUE(boundary.rejected && !boundary.found()) << "column " << boundary.column;
+  // ... enough of them give the floor: the wall is found in every column, the patch edge in none.
+  for(const ColumnBoundary& boundary : mixed(width * 3 / 5))
+  {
+    ASSERT_TRUE(boundary.found()) << "column " << boundary.column;
+    EXPECT_NEAR(boundary.row, expectedRow(1500.f, boundary.column), 1);
+  }
+}

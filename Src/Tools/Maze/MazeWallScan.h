@@ -36,12 +36,18 @@
  *     wall, looks like a wall in the grey image. The grey gradient stays the detector; colour only vetoes.
  * A column in which a step was met but no boundary accepted is `rejected`: its floor is not known to be free, so it
  * must not give clear (open) evidence.
+ * 5. Standing on a marking. Bottom rows that are coloured (more saturated than `maxWallSaturation`) are a floor marking such as
+ *     the goal patch under the robot, not the floor. The far edge of the patch (patch to floor) is then a step to a region
+ *     that a patch-valued floor reference takes for a wall, and the colour veto does not fire (the region above is less
+ *     coloured than the bottom). The floor reference is then the median over the columns that are not coloured if they are
+ *     at least half of them; otherwise the image gives no boundary and rejects every column (no clear evidence either).
  * Limitations: a patch edge that is below the lowest visible floor row cannot be rejected, because the patch is then
  * the floor reference; a patch that continues to the top of the image (its far edge is not in the picture) looks like a
  * wall from its near edge; and a patch with a grey between floor and wall that touches a wall is indistinguishable
  * from a wall that starts at the patch edge. The minimum supported contrast between wall and floor is
  * `minGradient` (default 12 grey levels). The floor reference assumes that the floor is the majority of the bottom
- * rows, so a robot that stands on the goal patch and looks across it would take the patch for the floor.
+ * rows, unless they are coloured (5.); a patch that differs from the floor by more than `maxFloorDeviation` in grey makes
+ * the columns that end on it give no boundary.
  */
 
 #pragma once
