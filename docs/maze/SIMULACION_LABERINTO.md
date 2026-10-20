@@ -253,6 +253,16 @@ Reopen the scene afterwards. The robot appears in the start cell of the maze fil
 
 Dragging the robot in the 3D view lifts it. The code treats `FallDownState` `pickedUp` as a pick-up (a fall is not one), so a drag that SimRobot reports as picked up ends the attempt (`standby`) and the pose is reset to the start when the robot is active again, wherever it was put down. The tags it then sees contradict that pose, which the mapper counts as conflicts and warns about (`MazeMapper: an observation contradicts ... Latest: tag`); the start does not change once it is known. Check `get representation:FallDownState` while dragging: whether SimRobot reports a drag as `pickedUp` has not been verified yet. `gc initial` then `gc playing` always works as a pick-up.
 
+### Running a campaign (MZ-021)
+
+`Util/MazeTools/run_sim_campaign.py` runs generated mazes one after another, one offscreen SimRobot per maze, and writes one CSV row per attempt (`maze,attempt,noise,reached_goal,time_s,wall_contacts,max_stall_s`):
+
+```bash
+python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --max-mazes 2 --attempts 2 --noise low --out results.csv
+```
+
+The metrics come from the module `MazeRunMetricsProvider`, which taps the head front itself and prints `MZ021_METRICS {...}` and `MZ021_DONE` on the standard error stream (definitions and the difference between attempt 2 here and in the competition: ticket MZ-021). The runner copies the scene and the Maze scenario under a `MazeCampaign_<id>` name next to the templates and removes them after each run, so do not edit `Config/Scenarios/Maze` for a run. `--show` keeps the SimRobot window. To use the module in a scene you open by hand, add `for Cognition mr MazeRunMetrics MazeRunMetricsProvider` to its console script and set `startTapAfterMs` (and `attempts`, `mazeFile`) in `Config/Scenarios/Maze/mazeRunMetricsProvider.cfg`; for attempt 2 also `returnToStart = {enabled = true; trigger = timer; ...}` in `handleMaze.cfg`. The lines then appear in the terminal that started SimRobot.
+
 ## 6. Real robot: see the AprilTags (RemoteRobot)
 
 The detector (`AprilTagDetector`) runs on the upper camera of the NAO, only in the `Maze` scenario.

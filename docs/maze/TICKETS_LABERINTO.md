@@ -707,17 +707,29 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 | Depends on | MZ-010 |
 | Lab / robot | no |
 | Branch | `feat/MZ-021-sim-runner` |
-| Files | `Util/MazeTools/run_sim_campaign.py` (create) |
+| Files | `Util/MazeTools/run_sim_campaign.py` (create), `Src/Modules/Modeling/MazeRunMetricsProvider/` and `Src/Tools/Maze/MazeRunTracker.*` (create, metrics), `Config/Scenarios/Maze/mazeRunMetricsProvider.cfg` (create) |
 
 **Goal.** Run many mazes in SimRobot one after another without clicking, and write one CSV row per run. It is the measuring tool for MZ-025, MZ-026 and every strategy comparison.
 
-**Scope.** Use the headless `pybh` mode of `docs/RL/Environment.md` ("Backend"). If that is not usable, start `Build/Linux/SimRobot/Develop/SimRobot` once per maze with a timeout.
-- Options: `--mazes Config/Mazes/generated`, `--attempts 2`, `--noise {low,mid,high}`, `--timeout-s 300`, `--out results.csv`, `--max-mazes 2` (use `20` for the full generated set).
+**Scope.** Start `Build/Linux/SimRobot/Develop/SimRobot` once per maze (not once per attempt), offscreen (`QT_QPA_PLATFORM=offscreen`; `--show` keeps the window). The `pybh` mode of `docs/RL/Environment.md` was not used: it has no console, debug request or representation access. SimRobot console output (`OUTPUT_TEXT`) never reaches the process, only the standard error stream does.
+- Options: `--mazes Config/Mazes/generated`, `--attempts {1,2}`, `--noise {low,mid,high}`, `--timeout-s 300` (limit of one attempt in simulated time), `--out results.csv`, `--max-mazes 2` (use `20` for the full generated set), `--show`. The wall-clock limit of one maze is `attempts * timeout + 150 s (return) + 30 s`.
 - Noise presets use the MZ-020 cases as a reference: `low` = zero injected gyro/odometry noise and no dropout; `mid` = 3°/min gyro drift and 5% odometry translation noise; `high` = 15°/min, 10% translation-noise standard deviation and 0.17 oracle dropout. MZ-020's harsh offline case used a systematic +10% odometry bias; the current config cannot inject that bias, so `high` is not an exact reproduction.
-- For each maze: run `maze_to_scene.py`, start the simulation, read `BehaviorStatus` / `MazeMap` through the debug output (Bryam provides the field names in the PR review), and write `maze,attempt,noise,reached_goal,time_s,wall_contacts,max_stall_s`.
+- For each maze: run `maze_to_scene.py`, copy the Maze scenario and the console script under a `MazeCampaign_<id>` name (next to the templates, removed after the run, in `.gitignore`), start the simulation and write `maze,attempt,noise,reached_goal,time_s,wall_contacts,max_stall_s`, one row per attempt.
+- **Mechanism.** The simulation-only module `MazeRunMetricsProvider` (`for Cognition mr MazeRunMetrics MazeRunMetricsProvider`, appended to the console script of the run; its settings are in `mazeRunMetricsProvider.cfg`, with `startTapAfterMs = 0` it does nothing) measures every attempt from the ground truth robot pose and the maze file. The sequence and the metrics are in the pure class `Maze::RunTracker` (`Tools/Maze/MazeRunTracker.h`, unit tests in `MazeRunTrackerTest.cpp`); the module only feeds it. It taps the head front through the debug request (a `dr` line in the console script would come before the behaviour is ready and be lost) and prints one line per finished attempt on the standard error stream, then a last one:
+  ```
+  MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"status":"goal"}
+  MZ021_DONE
+  ```
+  `status` is `goal`, `timeout` or `not_started`. The runner reads these lines (key `attempt`) and kills the process at `MZ021_DONE`. The representation `MazeRunMetrics` holds the live values (`get representation:MazeRunMetrics` in a manual run).
+- **Metric definitions** (all from the ground truth, independent of what the robot believes):
+  - `reached_goal`: the centre of the robot is inside a goal cell (27, 28, 35, 36) before the attempt timeout.
+  - `time_s`: simulated time from the tap to the goal entry, or to the timeout when the goal was not reached.
+  - `wall_contacts`: entries into contact. The robot is in contact while the distance from its centre to the centre line of an existing wall (borders included) is below `contactRadius` (150 mm), and out of it above `contactRadius + hysteresis` (20 mm), so a flicker counts once. It is a proxy, not an ODE contact.
+  - `max_stall_s`: the longest interval of the attempt with less than `stallDistance` (50 mm) of translation and `stallAngle` (15°) of rotation from an anchor pose, which moves along whenever either is exceeded. Standing wall scans count as stall, so the 3 s criterion of MZ-024's checks includes them.
+- **Attempt 2.** The run's `handleMaze.cfg` gets `returnToStart = {enabled = true; trigger = timer; delayMs = 2000; ...}` (attempt 1 only: `enabled = false`). After the goal of attempt 1 the robot walks back to the start cell on its own (MZ-024.1, exploring on the way); when the ground truth is in the start cell and still for `settleMs` the module taps again and the speed run is attempt 2, in the same simulation, with the map of attempt 1. **Difference from the competition:** there the robot is lifted and placed at the start by hand, which resets the pose of the localizer and counts the attempt (`MazeMap.attempt` becomes 2); in the campaign it is not lifted, the localizer keeps its pose and `MazeMap.attempt` stays 1. The time of attempt 2 therefore does not include the effects of that reset. If attempt 1 does not reach the goal, or the robot is not back in time (`returnTimeoutMs`), attempt 2 is `not_started`: its row has `reached_goal` false and the other columns blank, and the command does not fail because of it. A missing `MZ021_METRICS` line is a blank row and a nonzero exit (`--allow-missing-metrics` only for plumbing checks).
 
 **Steps**
-1. Write the script and test it on 2 mazes.
+1. Write the script and test it on 2 mazes (`--attempts 1` and `--attempts 2`).
 2. Put the CSV in the PR description.
 
 **Acceptance criteria**
@@ -860,7 +872,7 @@ The thresholds live in `handleMaze.cfg`.
 
 **Goal.** Evidence that the whole software solves mazes it has never seen, in both attempts and under three noise levels, plus the list of mazes where it fails.
 
-**Scope.** Run `run_sim_campaign.py` on the 20 generated mazes, 2 attempts, noise `low`, `mid` and `high`. `SIM_RESULTS.md` has one table per noise level (success rate, mean T1, mean T2, mean Tfinal = 0.3·T1 + 0.7·T2, wall contacts, max stall) and the 3 worst mazes with a short note on what went wrong.
+**Scope.** Run `run_sim_campaign.py` on the 20 generated mazes, 2 attempts, noise `low`, `mid` and `high`. T2 is the second attempt of MZ-021 (return to start, same simulation, see the difference from hand placement there); an attempt 2 that is `not_started` has a blank time and counts as not solved. `SIM_RESULTS.md` has one table per noise level (success rate, mean T1, mean T2, mean Tfinal = 0.3·T1 + 0.7·T2, wall contacts, max stall) and the 3 worst mazes with a short note on what went wrong.
 
 **Steps**
 1. Run the campaign:

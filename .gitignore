@@ -65,3 +65,8 @@ Thumbs.db
 # Generated maze scene (Util/MazeTools/maze_to_scene.py); each person creates it locally.
 /Config/Scenes/Includes/Maze/current.rsi2
 /Config/Scenes/Includes/Maze/current.maze
+
+# Scene, console, include and scenario copies of Util/MazeTools/run_sim_campaign.py (removed after each run).
+/Config/Scenes/MazeCampaign_*
+/Config/Scenes/Includes/MazeCampaign_*/
+/Config/Scenarios/MazeCampaign_*/
