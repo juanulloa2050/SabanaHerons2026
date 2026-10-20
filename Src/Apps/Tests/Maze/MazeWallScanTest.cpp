@@ -25,6 +25,7 @@ namespace
   struct Scene
   {
     float wallX = 1500.f;
+    float leftWallX = -1.f; // the wall in the left third of the image, if different
     unsigned char floorBrightness = 100, wallBrightness = 200, aboveWallBrightness = 200;
     std::vector<Patch> patches;
     float tagLow = 0.f, tagHigh = 0.f; // a band of tag brightness on the wall between these heights, none if equal
@@ -79,9 +80,10 @@ namespace
       {
         const float dir[3] = {camera.forward[0] * focal - camera.up[0] * (v - cy), -(u - cx), camera.forward[2] * focal - camera.up[2] * (v - cy)};
         unsigned char value = scene.aboveWallBrightness;
+        const float wallX = u < width / 3 && scene.leftWallX > 0.f ? scene.leftWallX : scene.wallX;
         const float t = dir[2] < 0.f ? cameraHeight / -dir[2] : 1e9f;
         const float floorX = dir[0] * t;
-        if(floorX <= scene.wallX && dir[2] < 0.f)
+        if(floorX <= wallX && dir[2] < 0.f)
         {
           value = scene.floorBrightness;
           for(const Patch& patch : scene.patches)
@@ -90,7 +92,7 @@ namespace
         }
         else if(dir[0] > 0.f)
         {
-          const float z = cameraHeight + dir[2] * scene.wallX / dir[0];
+          const float z = cameraHeight + dir[2] * wallX / dir[0];
           value = z <= wallHeight ? scene.wallBrightness : scene.aboveWallBrightness;
           if(z >= scene.tagLow && z <= scene.tagHigh)
             value = scene.tagBrightness;
@@ -438,4 +440,23 @@ GTEST_TEST(MazeWallScan, FloorModelIsForgottenWithoutLessons)
   // A lesson after the forgetting starts from the new reference.
   model.observe(columns(10, 10), 140.f, 5000 + model.params.maxAgeMs);
   EXPECT_FLOAT_EQ(model.brightness(), 140.f);
+}
+
+GTEST_TEST(MazeWallScan, TagEdgesOnAWallWithoutVisibleFloorAreNoBoundary)
+{
+  // In the left third the wall is closer than the lowest visible floor row, so those columns show no floor. The black band
+  // of a tag has two edges there, which are no boundaries; the other columns see the far wall.
+  for(const bool wallBrighter : {true, false})
+  {
+    Scene scene = polarity(wallBrighter);
+    scene.leftWallX = 300.f;
+    scene.tagLow = 100.f;
+    scene.tagHigh = 220.f;
+    scene.tagBrightness = wallBrighter ? 20 : 240;
+    for(const ColumnBoundary& boundary : scan(scene))
+      if(boundary.column < width / 3 - 3)
+        EXPECT_FALSE(boundary.found()) << "column " << boundary.column << ", brighter " << wallBrighter;
+      else if(boundary.column > width / 3 + 3)
+        EXPECT_TRUE(boundary.found()) << "column " << boundary.column << ", brighter " << wallBrighter;
+  }
 }

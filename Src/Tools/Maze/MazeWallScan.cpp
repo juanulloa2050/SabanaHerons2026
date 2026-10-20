@@ -78,6 +78,10 @@ namespace Maze
       const int top = std::max(horizonRow, k);
       for(std::size_t i = 0; i < result.size(); ++i)
       {
+        // The floor is visible at the bottom of the column; otherwise there is no boundary (the floor is below the image, and
+        // the steps in the column are those of a wall, such as the edges of an AprilTag).
+        if(std::abs(result[i].bottom - floorBrightness) > params.maxFloorDeviation)
+          continue;
         const std::vector<float>& profile = profiles[i];
         std::vector<float> sums(profile.size() + 1, 0.f); // sums[y] is the sum of the rows 0 .. y - 1
         for(std::size_t y = 0; y < profile.size(); ++y)
@@ -109,6 +113,10 @@ namespace Maze
 
           // The floor above has to be a wall: contrast to the floor reference in the direction of the step ...
           if(sign * (above(best) - floorBrightness) < params.minWallContrast)
+            continue;
+          // The floor lies below the boundary: a step between two parts of a wall (the edge of an AprilTag) is none, and in
+          // a column whose floor is below the bottom of the image there is no boundary at all.
+          if(std::abs(below(best) - floorBrightness) > params.maxFloorDeviation)
             continue;
           // ... and the column stays wall up to the check height: enough of the rows keep that contrast. Rows beyond the
           // image are not checked, but a minimum number has to remain.

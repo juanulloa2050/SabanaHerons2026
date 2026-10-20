@@ -17,7 +17,11 @@
  *     `floorReferenceRows` rows. The region right above the candidate has to differ from it by at least
  *     `minWallContrast`, in the direction of the step. Beyond the far edge of the patch there is floor again, which
  *     has no contrast to the reference.
- *  2. Vertical extent. Above a true wall boundary the column stays wall up to `minWallCheckHeightMm`, a height
+ *  2. Floor visible. The bottom rows of the column and the rows right below the boundary have to look like the
+ *     floor: they differ from the floor reference by at most `maxFloorDeviation`. A column that shows wall at its
+ *     bottom (its floor is below the image) has no boundary, which also rules out the steps of a wall, such as the
+ *     edges of an AprilTag whose white border is as bright as the floor.
+ *  3. Vertical extent. Above a true wall boundary the column stays wall up to `minWallCheckHeightMm`, a height
  *     near the camera but below the wall top (walls are 600 mm or higher). The rows up to that height must not look
  *     like floor again: at least `minWallRowFraction` of them differ from the floor reference by half the contrast
  *     or more, in either direction (so an AprilTag, black and white and 150 mm tall from 220 mm up, does not break
@@ -55,6 +59,7 @@ namespace Maze
       int smoothRows = 3;                  /**< Rows averaged on each side of a candidate. */
       int columnHalfWidth = 1;             /**< Columns on each side of the scanned one that are averaged. */
       float minGradient = 12.f;            /**< Least brightness step of a boundary in grey levels. */
+      float maxFloorDeviation = 30.f;      /**< Largest difference in grey levels between the bottom rows of a column, or the rows below a boundary, and the floor reference. */
       float minWallContrast = 8.f;         /**< Least brightness of the wall above the floor reference in grey levels. */
       float minWallCheckHeightMm = 550.f;  /**< Height up to which the column has to stay wall. */
       float minWallRowFraction = 0.75f;    /**< Part of the rows up to that height that have to keep the wall contrast. */
