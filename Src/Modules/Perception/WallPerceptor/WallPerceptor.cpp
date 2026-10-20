@@ -91,7 +91,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
         if(Transformation::imageToRobot(static_cast<float>(boundary.column), static_cast<float>(boundary.row), theCameraMatrix, theCameraInfo, point))
           boundaryPoints.push_back(point);
       }
-      else if(floorModel.isFloor(boundary.bottom, theFrameInfo.time) &&
+      else if(!boundary.rejected && floorModel.isFloor(boundary.bottom, theFrameInfo.time) &&
               Transformation::imageToRobot(static_cast<float>(boundary.column), static_cast<float>(horizon), theCameraMatrix, theCameraInfo, point))
         clearPoints.push_back(point);
     }
@@ -103,7 +103,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
           CROSS("module:WallPerceptor:boundary", boundary.column, boundary.row, 4, 2, Drawings::solidPen, ColorRGBA::green);
         else
           CROSS("module:WallPerceptor:boundary", boundary.column, horizon, 4, 2, Drawings::solidPen,
-                floorModel.isFloor(boundary.bottom, theFrameInfo.time) ? ColorRGBA::red : ColorRGBA::yellow);
+                !boundary.rejected && floorModel.isFloor(boundary.bottom, theFrameInfo.time) ? ColorRGBA::red : ColorRGBA::yellow);
     }
     COMPLEX_DRAWING("module:WallPerceptor:points")
     {

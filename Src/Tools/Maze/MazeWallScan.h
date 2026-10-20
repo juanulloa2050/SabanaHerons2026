@@ -17,10 +17,11 @@
  *     `floorReferenceRows` rows. The region right above the candidate has to differ from it by at least
  *     `minWallContrast`, in the direction of the step. Beyond the far edge of the patch there is floor again, which
  *     has no contrast to the reference.
- *  2. Floor visible. The bottom rows of the column and the rows right below the boundary have to look like the
- *     floor: they differ from the floor reference by at most `maxFloorDeviation`. A column that shows wall at its
- *     bottom (its floor is below the image) has no boundary, which also rules out the steps of a wall, such as the
- *     edges of an AprilTag whose white border is as bright as the floor.
+ *  2. Floor visible. The bottom rows of the column and the rows below the boundary have to look like the
+ *     floor: they differ from the floor reference by at most `maxFloorDeviation`. The rows looked at start `smoothRows`
+ *     rows under the step window, because the edge of a wall is a ramp of several rows in the image. A column that shows
+ *     wall at its bottom (its floor is below the image) has no boundary, which also rules out the steps of a wall, such
+ *     as the edges of an AprilTag whose white border is as bright as the floor.
  *  3. Vertical extent. Above a true wall boundary the column stays wall up to `minWallCheckHeightMm`, a height
  *     near the camera but below the wall top (walls are 600 mm or higher). The rows up to that height must not look
  *     like floor again: at least `minWallRowFraction` of them differ from the floor reference by half the contrast
@@ -28,6 +29,8 @@
  *     a wall), and no run of more than `maxFloorRunRows` floor-like rows occurs. A patch ends 1000 mm behind its
  *     near edge, and the floor behind it shows as such a run, as does a narrow marking. Rows beyond the top of the
  *     image are not checked, but `minCheckRows` have to remain.
+ * A column in which a step was met but no boundary accepted is `rejected`: its floor is not known to be free, so it
+ * must not give clear (open) evidence.
  * Limitations: a patch edge that is below the lowest visible floor row cannot be rejected, because the patch is then
  * the floor reference; a patch that continues to the top of the image (its far edge is not in the picture) looks like a
  * wall from its near edge; and a patch with a grey between floor and wall that touches a wall is indistinguishable
@@ -75,6 +78,7 @@ namespace Maze
       int row = -1;        /**< Last floor row, -1 if the column has no accepted boundary. */
       float strength = 0.f; /**< Size of the brightness step of the boundary in grey levels. */
       float bottom = 0.f;   /**< Mean brightness of the bottom `floorReferenceRows` rows of the column, the floor next to the robot. */
+      bool rejected = false; /**< A brightness step of at least `minGradient` was met but not accepted as a boundary (a goal patch edge, a wall that fails a check): something is in the column, so it is not known to be free floor. */
 
       [[nodiscard]] bool found() const
       {

@@ -31,6 +31,7 @@ namespace
     float tagLow = 0.f, tagHigh = 0.f; // a band of tag brightness on the wall between these heights, none if equal
     unsigned char tagBrightness = 20;
     int noise = 0;       // peak noise in grey levels
+    int blurRows = 0;    // half-width of a vertical box blur: the edges of the simulator's image are antialiased over about 5 rows
     float pitchDeg = 20; // camera pitch down
   };
 
@@ -101,6 +102,18 @@ namespace
         const int jitter = scene.noise ? static_cast<int>((state >> 16) % static_cast<unsigned>(2 * scene.noise + 1)) - scene.noise : 0;
         image[static_cast<std::size_t>(v * width + u)] = static_cast<unsigned char>(std::clamp(static_cast<int>(value) + jitter, 0, 255));
       }
+    if(scene.blurRows > 0)
+    {
+      const std::vector<unsigned char> sharp = image;
+      for(int v = 0; v < height; ++v)
+        for(int u = 0; u < width; ++u)
+        {
+          int sum = 0, count = 0;
+          for(int r = std::max(0, v - scene.blurRows); r <= std::min(height - 1, v + scene.blurRows); ++r, ++count)
+            sum += sharp[static_cast<std::size_t>(r * width + u)];
+          image[static_cast<std::size_t>(v * width + u)] = static_cast<unsigned char>(sum / count);
+        }
+    }
     return image;
   }
 
@@ -459,4 +472,47 @@ GTEST_TEST(MazeWallScan, TagEdgesOnAWallWithoutVisibleFloorAreNoBoundary)
       else if(boundary.column > width / 3 + 3)
         EXPECT_TRUE(boundary.found()) << "column " << boundary.column << ", brighter " << wallBrighter;
   }
+}
+
+GTEST_TEST(MazeWallScan, FindsBlurredWallBoundary)
+{
+  // The simulator renders an edge as a ramp of about 5 rows. The rows right below the strongest step are still part of the
+  // ramp, so they must not be required to be floor: this wall was taken for free floor and gave open evidence.
+  for(const bool wallBrighter : {true, false})
+    for(const float wallX : {800.f, 1500.f})
+    {
+      Scene scene = polarity(wallBrighter);
+      scene.floorBrightness = wallBrighter ? 100 : 254;
+      scene.wallBrightness = scene.aboveWallBrightness = wallBrighter ? 254 : 106;
+      scene.blurRows = 2;
+      scene.wallX = wallX;
+      for(const ColumnBoundary& boundary : scan(scene))
+      {
+        ASSERT_TRUE(boundary.found()) << "wall at " << wallX << ", column " << boundary.column << ", brighter " << wallBrighter;
+        EXPECT_NEAR(boundary.row, expectedRow(wallX, boundary.column), 3);
+      }
+    }
+}
+
+GTEST_TEST(MazeWallScan, RejectedStepIsNoFreeFloor)
+{
+  // A step that is not accepted as a boundary (here the near edge of a patch of wall brightness without a wall behind it, the
+  // far edge is floor again) means that something is in the column: it has no boundary, but it must not count as clear either.
+  Scene scene;
+  scene.wallX = 1e7f;
+  scene.aboveWallBrightness = scene.floorBrightness;
+  scene.patches = {{800.f, 1800.f, scene.wallBrightness}};
+  int rejected = 0;
+  for(const ColumnBoundary& boundary : scan(scene))
+  {
+    EXPECT_FALSE(boundary.found());
+    rejected += boundary.rejected;
+  }
+  EXPECT_GT(rejected, 0);
+
+  Scene free;
+  free.wallX = 1e7f;
+  free.aboveWallBrightness = free.floorBrightness;
+  for(const ColumnBoundary& boundary : scan(free))
+    EXPECT_FALSE(boundary.rejected);
 }

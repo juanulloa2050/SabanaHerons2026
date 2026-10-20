@@ -89,6 +89,13 @@ namespace Maze
         const auto above = [&](int y) { return (sums[static_cast<std::size_t>(y)] - sums[static_cast<std::size_t>(y - k)]) / static_cast<float>(k); };
         const auto below = [&](int y) { return (sums[static_cast<std::size_t>(y + k + 1)] - sums[static_cast<std::size_t>(y + 1)]) / static_cast<float>(k); };
         const auto step = [&](int y) { return above(y) - below(y); };
+        // The floor under a boundary, `k` rows farther down than `below`: an edge is a ramp of several rows in the image, and its
+        // lower rows are not floor yet.
+        const auto floorBelow = [&](int y)
+        {
+          const int first = std::min(y + 1 + k, image.height - k);
+          return (sums[static_cast<std::size_t>(first + k)] - sums[static_cast<std::size_t>(first)]) / static_cast<float>(k);
+        };
 
         int y = image.height - 1 - k;
         while(y >= top)
@@ -111,12 +118,14 @@ namespace Maze
             }
           y = next;
 
+          // From here on the column holds something that is no free floor, whether or not it turns out to be a wall boundary.
+          result[i].rejected = true;
           // The floor above has to be a wall: contrast to the floor reference in the direction of the step ...
           if(sign * (above(best) - floorBrightness) < params.minWallContrast)
             continue;
           // The floor lies below the boundary: a step between two parts of a wall (the edge of an AprilTag) is none, and in
           // a column whose floor is below the bottom of the image there is no boundary at all.
-          if(std::abs(below(best) - floorBrightness) > params.maxFloorDeviation)
+          if(std::abs(floorBelow(best) - floorBrightness) > params.maxFloorDeviation)
             continue;
           // ... and the column stays wall up to the check height: enough of the rows keep that contrast. Rows beyond the
           // image are not checked, but a minimum number has to remain.
@@ -140,6 +149,7 @@ namespace Maze
             continue;
           result[i].row = best;
           result[i].strength = bestStep;
+          result[i].rejected = false;
           break;
         }
       }
