@@ -9,13 +9,13 @@
  * It taps the head front through the debug request (as WallPerceptEvaluator does): a `dr` line in the scene comes before the
  * behaviour is ready and is lost. The first tap comes `startTapAfterMs` after the game state became playing; with
  * `startTapAfterMs = 0` the module does nothing. The second attempt (`attempts = 2`) starts when the robot has walked back to the
- * start cell on its own (`returnToStart` of handleMaze.cfg, trigger = timer) and stands still, see Tools/Maze/MazeRunTracker.h.
+ * start cell on its own (`returnToStart` of handleMaze.cfg, trigger = timer), stands still and believes to be at the start (`MazePlan.atStart`), see Tools/Maze/MazeRunTracker.h.
  *
  * For every attempt that ended one line goes to the standard error stream, which is all a headless SimRobot shows:
  *
- *   MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"status":"goal"}
+ *   MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"speed_run":false,"status":"goal"}
  *
- * (`status` is goal, timeout or not_started), and `MZ021_DONE` after the last requested attempt. Util/MazeTools/run_sim_campaign.py
+ * (`status` is goal, timeout or not_started; `speed_run` says whether the robot's map held a route to the goal at the tap), and `MZ021_DONE` after the last requested attempt. Util/MazeTools/run_sim_campaign.py
  * reads these lines.
  */
 
@@ -23,6 +23,7 @@
 
 #include "Framework/Module.h"
 #include "Representations/Infrastructure/FrameInfo.h"
+#include "Representations/BehaviorControl/MazePlan.h"
 #include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/MazeRunMetrics.h"
 #include "Representations/Modeling/RobotPose.h"
@@ -35,6 +36,7 @@ MODULE(MazeRunMetricsProvider,
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
   REQUIRES(GroundTruthRobotPose),
+  REQUIRES(MazePlan),
   PROVIDES(MazeRunMetrics),
   LOADS_PARAMETERS(
   {,

@@ -65,9 +65,9 @@ bool MazeRunMetricsProvider::loadMaze()
 
 void MazeRunMetricsProvider::print(const Maze::AttemptResult& result) const
 {
-  std::fprintf(stderr, "MZ021_METRICS {\"attempt\":%d,\"reached_goal\":%s,\"time_s\":%.2f,\"wall_contacts\":%d,\"max_stall_s\":%.2f,\"status\":\"%s\"}\n",
+  std::fprintf(stderr, "MZ021_METRICS {\"attempt\":%d,\"reached_goal\":%s,\"time_s\":%.2f,\"wall_contacts\":%d,\"max_stall_s\":%.2f,\"speed_run\":%s,\"status\":\"%s\"}\n",
                result.attempt, result.reachedGoal ? "true" : "false", static_cast<float>(result.timeMs) / 1000.f, result.wallContacts,
-               static_cast<float>(result.maxStallMs) / 1000.f, statusName(result.status));
+               static_cast<float>(result.maxStallMs) / 1000.f, result.speedRun ? "true" : "false", statusName(result.status));
   std::fflush(stderr);
 }
 
@@ -81,6 +81,8 @@ void MazeRunMetricsProvider::update(MazeRunMetrics& mazeRunMetrics)
   frame.timeMs = theFrameInfo.time;
   frame.playing = theGameState.isPlaying();
   frame.pose = Maze::Oracle::robotInMaze(theGroundTruthRobotPose, mazePoseOnField);
+  frame.believedAtStart = theMazePlan.valid && theMazePlan.atStart;
+  frame.speedRunFound = theMazePlan.speedRun.found;
   const Maze::RunUpdate result = tracker->update(frame);
 
   if(result.tap)

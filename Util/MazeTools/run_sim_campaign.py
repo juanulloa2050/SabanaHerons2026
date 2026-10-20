@@ -6,7 +6,7 @@ command. The metrics come from the simulation itself: the module MazeRunMetricsP
 attempt from the ground truth robot pose and the maze file, taps the head front to start it, and prints one line per attempt on
 the standard error stream, which is all a headless SimRobot shows::
 
-    MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"status":"goal"}
+    MZ021_METRICS {"attempt":1,"reached_goal":true,"time_s":93.4,"wall_contacts":0,"max_stall_s":4.2,"speed_run":false,"status":"goal"}
     MZ021_DONE
 
 The runner turns each ``MZ021_METRICS`` line into a CSV row and stops the process at ``MZ021_DONE``. The metric definitions are in
@@ -461,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
                             if field not in metrics or metrics[field] is None
                         ]
                         print(f"[{completed_runs}] {maze.name}, attempt {attempt}: "
-                              f"{metrics.get('status', 'no metrics')} ({result}, {elapsed:.1f}s for the maze)")
+                              f"{metrics.get('status', 'no metrics')}, speed_run={metrics.get('speed_run', '?')} ({result}, {elapsed:.1f}s for the maze)")
                         if missing_metrics:
                             campaign_incomplete = True
                             print(

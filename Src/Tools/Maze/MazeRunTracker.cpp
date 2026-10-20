@@ -69,6 +69,7 @@ namespace Maze
   {
     current = AttemptResult();
     current.attempt = attempt;
+    current.speedRun = frame.speedRunFound;
     phaseValue = RunPhase::running;
     attemptStart = frame.timeMs;
     // Touching a wall at the moment of the tap is not an entry made during the attempt.
@@ -156,7 +157,8 @@ namespace Maze
       settleAnchor = frame.pose;
       settleStart = frame.timeMs;
     }
-    if(frame.timeMs - settleStart >= config.settleMs)
+    // The robot has to believe it is at the start too, or HandleMaze is still walking back and loses the tap.
+    if(frame.believedAtStart && frame.timeMs - settleStart >= config.settleMs)
     {
       update.tap = true;
       beginAttempt(current.attempt + 1, frame);

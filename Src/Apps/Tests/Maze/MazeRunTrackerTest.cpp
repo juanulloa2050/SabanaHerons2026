@@ -50,6 +50,8 @@ namespace
       RunFrame frame;
       frame.timeMs = timeMs;
       frame.playing = playing;
+      frame.believedAtStart = believedAtStart;
+      frame.speedRunFound = speedRunFound;
       frame.pose = Pose2f(rotation, position);
       const RunUpdate update = tracker.update(frame);
       taps += update.tap ? 1 : 0;
@@ -65,6 +67,8 @@ namespace
     }
 
     RunTracker tracker;
+    bool believedAtStart = true; /**< Fed with every frame; the tests that need it false set it. */
+    bool speedRunFound = false;
     int taps = 0;
     std::vector<AttemptResult> results;
   };
@@ -291,4 +295,52 @@ GTEST_TEST(MazeRunTracker, FailedFirstAttemptLeavesTheSecondNotStarted)
   run.hold(21100, 30000, startCentre);
   EXPECT_EQ(run.taps, 1);
   EXPECT_EQ(run.results.size(), 2u);
+}
+
+GTEST_TEST(MazeRunTracker, SecondTapWaitsForTheRobotToBelieveItIsAtTheStart)
+{
+  Harness run(config(2));
+  run.feed(0, startCentre);
+  run.feed(1000, startCentre);
+  run.feed(2000, goalCentre);
+  run.believedAtStart = false; // HandleMaze is still in returnToStart
+  run.hold(2100, 9000, startCentre); // in the start cell and still for far longer than settleMs
+  EXPECT_EQ(run.taps, 1);
+  EXPECT_EQ(run.tracker.phase(), RunPhase::returning);
+  run.believedAtStart = true;
+  run.feed(9100, startCentre); // settled, now believed
+  EXPECT_EQ(run.taps, 2);
+  EXPECT_EQ(run.tracker.phase(), RunPhase::running);
+}
+
+GTEST_TEST(MazeRunTracker, SpeedRunIsRecordedAtTheTap)
+{
+  Harness run(config(2));
+  run.feed(0, startCentre);
+  run.feed(1000, startCentre); // tap 1: nothing known yet
+  run.speedRunFound = true; // found while exploring; not what attempt 1 recorded
+  run.feed(2000, goalCentre);
+  ASSERT_EQ(run.results.size(), 1u);
+  EXPECT_FALSE(run.results[0].speedRun);
+  run.hold(2100, 4100, startCentre);
+  ASSERT_EQ(run.taps, 2);
+  run.speedRunFound = false; // after the tap: does not change the attempt
+  run.feed(4500, goalCentre);
+  ASSERT_EQ(run.results.size(), 2u);
+  EXPECT_TRUE(run.results[1].speedRun);
+}
+
+GTEST_TEST(MazeRunTracker, ReturnTimeoutWithoutBeliefStillGivesNotStarted)
+{
+  Harness run(config(2));
+  run.feed(0, startCentre);
+  run.feed(1000, startCentre);
+  run.feed(2000, goalCentre); // return starts at 2000
+  run.believedAtStart = false;
+  run.hold(2100, 31900, startCentre);
+  EXPECT_EQ(run.taps, 1);
+  run.feed(32000, startCentre);
+  ASSERT_EQ(run.results.size(), 2u);
+  EXPECT_EQ(run.results[1].status, RunStatus::notStarted);
+  EXPECT_EQ(run.tracker.phase(), RunPhase::done);
 }

@@ -8,12 +8,15 @@
  *
  * Sequence: waiting for the game to play, `startTapAfterMs` later the first tap (attempt 1), and, once the attempt ended at
  * a goal and two attempts were asked for, the wait for the robot to be back in the start cell and still for `settleMs`
- * (the robot walks back on its own, see `returnToStart` in handleMaze.cfg), then the second tap (attempt 2). An attempt ends
+ * (the robot walks back on its own, see `returnToStart` in handleMaze.cfg) and to believe it is there too (`believedAtStart`: HandleMaze
+ * leaves `returnToStart` by its own pose and ignores a tap before), then the second tap (attempt 2). An attempt ends
  * when the centre of the robot enters a goal cell or after `attemptTimeoutMs`. If the return does not arrive within
  * `returnTimeoutMs`, or attempt 1 ended without the goal, attempt 2 is reported as not started. The tracker reports exactly
  * one result per requested attempt.
  *
  * Metrics of an attempt, all from the ground truth, so independent of what the robot believes:
+ *  - speed run: whether the robot's map held a route to the goal at the tap (`speedRunFound`), i.e. whether HandleMaze
+ *    starts a speed run and not another exploration. It is the robot's belief, the only metric that is not ground truth.
  *  - reached goal: the robot centre is inside a goal cell before the timeout.
  *  - time: from the tap to the goal entry, or to the timeout.
  *  - wall contacts: entries into contact. The robot is in contact while the distance from its centre to the nearest wall
@@ -74,6 +77,7 @@ namespace Maze
     unsigned timeMs = 0;
     int wallContacts = 0;
     unsigned maxStallMs = 0;
+    bool speedRun = false; /**< The map held a route to the goal when the attempt was tapped. */
   };
 
   /** One frame of input. */
@@ -82,6 +86,8 @@ namespace Maze
     unsigned timeMs = 0;   /**< Simulated time of the frame. */
     bool playing = false;  /**< The game state is playing. */
     Pose2f pose;           /**< Ground truth robot pose in the maze frame. */
+    bool believedAtStart = false; /**< The robot believes it is in the start cell (MazePlan.atStart). */
+    bool speedRunFound = false;   /**< The robot's map holds a route to the goal (MazePlan.speedRun.found). */
   };
 
   /** What the tracker asks for after a frame. */
