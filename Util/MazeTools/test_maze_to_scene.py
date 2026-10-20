@@ -87,6 +87,30 @@ class ConvertTest(unittest.TestCase):
         self.assertEqual(surface_def(ms.GOAL_SURFACE_NAME), ms.GOAL_COLOR)
         self.assertEqual(len({ms.WALL_COLOR, ms.FLOOR_COLOR, ms.GOAL_COLOR}), 3)
 
+    def test_same_colour_floor_uses_the_wall_colour_and_keeps_the_goal(self):
+        scene = ms.convert(gm.generate(1), "m.maze", same_colour=True)
+
+        def colour(name):
+            return re.search(rf'<Surface name="{name}" diffuseColor="([^"]+)"', scene).group(1)
+
+        self.assertEqual(colour(ms.FLOOR_SURFACE_NAME), ms.WALL_COLOR)
+        self.assertEqual(colour(ms.WALL_SURFACE_NAME), ms.WALL_COLOR)
+        self.assertEqual(colour(ms.GOAL_SURFACE_NAME), ms.GOAL_COLOR)
+        floor = scene[scene.index('<Compound name="mazeFloor">'):scene.index('<Compound name="mazeRobots">')]
+        self.assertIn(f'<BoxGeometry depth="6m" width="6m" height="0.2m" color="{ms.WALL_COLOR}">', floor)
+        self.assertNotIn(ms.FLOOR_COLOR, scene)
+        # The default keeps the floor colour.
+        self.assertIn(ms.FLOOR_COLOR, ms.convert(gm.generate(1), "m.maze"))
+
+    def test_same_colour_option_on_the_command_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            maze = Path(directory) / "m.maze"
+            maze.write_text(gm.generate(1), encoding="utf-8")
+            out = Path(directory) / "current.rsi2"
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(ms.main([str(maze), "--out", str(out), "--same-colour-floor"]), 0)
+            self.assertNotIn(ms.FLOOR_COLOR, out.read_text(encoding="utf-8"))
+
     def test_known_walls(self):
         scene = ms.convert(gm.generate(1), "m.maze")
         found = boxes(scene)
