@@ -6,6 +6,7 @@
 
 #include "MazeWallScan.h"
 #include <algorithm>
+#include <cmath>
 
 namespace Maze
 {
@@ -83,39 +84,51 @@ namespace Maze
           sums[y + 1] = sums[y] + profile[y];
         const auto above = [&](int y) { return (sums[static_cast<std::size_t>(y)] - sums[static_cast<std::size_t>(y - k)]) / static_cast<float>(k); };
         const auto below = [&](int y) { return (sums[static_cast<std::size_t>(y + k + 1)] - sums[static_cast<std::size_t>(y + 1)]) / static_cast<float>(k); };
-        const float sign = params.wallBrighterThanFloor ? 1.f : -1.f; // brightness differences are measured in the direction of the wall
-        const auto step = [&](int y) { return sign * (above(y) - below(y)); };
+        const auto step = [&](int y) { return above(y) - below(y); };
 
         int y = image.height - 1 - k;
         while(y >= top)
         {
-          if(step(y) < params.minGradient)
+          if(std::abs(step(y)) < params.minGradient)
           {
             --y;
             continue;
           }
-          // Strongest row of the run of candidates, the lowest one on a tie.
+          // Strongest row of the run of candidates with the same sign, the lowest one on a tie.
+          const float sign = step(y) > 0.f ? 1.f : -1.f; // the direction in which the wall differs from the floor
           int best = y;
-          float bestStep = step(y);
+          float bestStep = sign * step(y);
           int next = y - 1;
-          for(; next >= top && step(next) >= params.minGradient; --next)
-            if(step(next) > bestStep)
+          for(; next >= top && sign * step(next) >= params.minGradient; --next)
+            if(sign * step(next) > bestStep)
             {
               best = next;
-              bestStep = step(next);
+              bestStep = sign * step(next);
             }
           y = next;
 
-          // The floor above has to be a wall: contrast to the floor reference, and wall up to the check height.
+          // The floor above has to be a wall: contrast to the floor reference in the direction of the step ...
           if(sign * (above(best) - floorBrightness) < params.minWallContrast)
             continue;
+          // ... and the column stays wall up to the check height: enough of the rows keep that contrast. Rows beyond the
+          // image are not checked, but a minimum number has to remain.
           int rowAtHeight = 0;
           if(!projection || !projection(result[i].column, best, params.minWallCheckHeightMm, rowAtHeight))
             continue;
-          bool wall = true;
-          for(int row = best - 1; row >= std::max(0, rowAtHeight) && wall; --row)
-            wall = sign * (profile[static_cast<std::size_t>(row)] - floorBrightness) >= params.minWallContrast / 2.f;
-          if(!wall)
+          const int topRow = std::clamp(rowAtHeight, 0, best);
+          const int rows = best - topRow;
+          if(rows < params.minCheckRows)
+            continue;
+          // Rows that do not look like floor count as wall, whatever their direction: a black tag on a light wall is no floor.
+          int wallRows = 0, floorRun = 0, longestFloorRun = 0;
+          for(int row = best - 1; row >= topRow; --row)
+          {
+            const bool floorLike = std::abs(profile[static_cast<std::size_t>(row)] - floorBrightness) < params.minWallContrast / 2.f;
+            wallRows += !floorLike;
+            floorRun = floorLike ? floorRun + 1 : 0;
+            longestFloorRun = std::max(longestFloorRun, floorRun);
+          }
+          if(static_cast<float>(wallRows) < params.minWallRowFraction * static_cast<float>(rows) || longestFloorRun > params.maxFloorRunRows)
             continue;
           result[i].row = best;
           result[i].strength = bestStep;
@@ -123,6 +136,44 @@ namespace Maze
         }
       }
       return result;
+    }
+
+    int horizonRow(int imageHeight, const std::function<bool(int row, float& distanceMm)>& floorDistance, float maxDistanceMm)
+    {
+      int top = -1;
+      for(int row = imageHeight - 1; row >= 0; --row)
+      {
+        float distance = 0.f;
+        if(!floorDistance(row, distance) || distance > maxDistanceMm)
+          break;
+        top = row;
+      }
+      return top;
+    }
+
+    void FloorModel::reset()
+    {
+      learned = false;
+    }
+
+    void FloorModel::observe(const std::vector<ColumnBoundary>& columns, float floorReference, unsigned timeMs)
+    {
+      const std::size_t found = static_cast<std::size_t>(std::count_if(columns.begin(), columns.end(), [](const ColumnBoundary& column) { return column.found(); }));
+      if(found == 0 || found * 2 < columns.size())
+        return;
+      floor = known(timeMs) ? floor + params.trackingRate * (floorReference - floor) : floorReference;
+      learned = true;
+      lastLessonMs = timeMs;
+    }
+
+    bool FloorModel::known(unsigned timeMs) const
+    {
+      return learned && timeMs - lastLessonMs <= params.maxAgeMs;
+    }
+
+    bool FloorModel::isFloor(float bottomBrightness, unsigned timeMs) const
+    {
+      return known(timeMs) && std::abs(bottomBrightness - floor) <= params.tolerance;
     }
   }
 }

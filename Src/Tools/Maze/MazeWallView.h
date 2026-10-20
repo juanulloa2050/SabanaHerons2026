@@ -87,5 +87,11 @@ namespace Maze
                                        const std::vector<Vector2f>& clearPointsInRobot, const Pose2f& robotInMaze,
                                        const Vector2f& cameraInRobot, float gazeYawInRobot, int range,
                                        const Params& params, Result& result);
+
+    /** The look-ahead range: the standing one while the robot stands, otherwise the walking one (the torso pitches while walking). */
+    [[nodiscard]] constexpr int lookAheadRange(bool standing, int rangeWalking, int rangeStanding)
+    {
+      return standing ? rangeStanding : rangeWalking;
+    }
   }
 }

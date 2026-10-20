@@ -4,32 +4,37 @@
  * Finds the floor-to-wall boundary in a grey image, column by column. Free of representations and modules
  * (a plain buffer and a projection callback) so that it can be unit tested.
  *
- * The rules give light walls and a matte uniform floor whose colour is not fixed, so the boundary is a
- * brightness step, not a colour: in a column that is scanned from the bottom row up to the horizon row, a
- * candidate boundary is a row where the mean of `smoothRows` rows above it is at least `minGradient` grey
- * levels brighter than the mean of `smoothRows` rows below it (a dark-to-bright step going up). Within a run
- * of such rows the strongest one is taken, the lowest one on a tie. The boundary is the last floor row.
+ * The rules give light walls and a matte uniform floor of unknown colour, and the simulator renders walls darker than
+ * the floor, so the boundary is a brightness step in either direction, not a colour and not a polarity: in a column that
+ * is scanned from the bottom row up to the horizon row, a candidate boundary is a row where the mean of `smoothRows`
+ * rows above it differs by at least `minGradient` grey levels from the mean of `smoothRows` rows below it. Within a run
+ * of such rows with the same sign the strongest one is taken, the lowest one on a tie. The boundary is the last floor
+ * row. The sign of the step is the direction in which the wall differs from the floor (polarity "auto").
  *
- * A candidate is accepted only if the floor above it is really a wall, which rejects floor markings. The
- * goal patch is darker than the floor, so its far edge is a dark-to-bright step like a wall boundary:
- *  1. Floor reference. The brightness of the floor is the median over the scanned columns of the mean of the
- *     bottom `floorReferenceRows` rows. The wall brightness (the mean of the rows right above the candidate)
- *     has to exceed it by at least `minWallContrast`. Beyond the far edge of the patch there is floor again,
- *     which has no contrast to the reference.
- *  2. Vertical extent. Above a true wall boundary the column stays wall up to a height of
- *     `minWallCheckHeightMm` (below the AprilTags, whose lower edge is at 220 mm or more): every row up to
- *     that height has to exceed the floor reference by `minWallContrast / 2`. A narrow bright marking on
- *     the floor ends after a few rows and fails.
- * Walls darker than the floor are only detected with `wallBrighterThanFloor` false, which turns the direction of all
- * brightness differences around (a bright-to-dark step going up); a darker goal patch is then no longer rejected by
- * its far edge, and its near edge needs the extent check to fail. The minimum supported contrast between wall and floor is
- * `minGradient` (default 12 grey levels). Limitation: the floor reference assumes that the floor is the
- * majority of the bottom rows, so a robot that stands on the goal patch and looks across it would take the
- * patch for the floor.
+ * A candidate is accepted only if what lies above it is a wall, which rejects floor markings. The blue goal patch (2x2
+ * cells, 1000 mm deep) has about the grey of a wall, so both of its edges look like boundaries:
+ *  1. Floor reference. The brightness of the floor is the median over the scanned columns of the mean of the bottom
+ *     `floorReferenceRows` rows. The region right above the candidate has to differ from it by at least
+ *     `minWallContrast`, in the direction of the step. Beyond the far edge of the patch there is floor again, which
+ *     has no contrast to the reference.
+ *  2. Vertical extent. Above a true wall boundary the column stays wall up to `minWallCheckHeightMm`, a height
+ *     near the camera but below the wall top (walls are 600 mm or higher). The rows up to that height must not look
+ *     like floor again: at least `minWallRowFraction` of them differ from the floor reference by half the contrast
+ *     or more, in either direction (so an AprilTag, black and white and 150 mm tall from 220 mm up, does not break
+ *     a wall), and no run of more than `maxFloorRunRows` floor-like rows occurs. A patch ends 1000 mm behind its
+ *     near edge, and the floor behind it shows as such a run, as does a narrow marking. Rows beyond the top of the
+ *     image are not checked, but `minCheckRows` have to remain.
+ * Limitations: a patch edge that is below the lowest visible floor row cannot be rejected, because the patch is then
+ * the floor reference; a patch that continues to the top of the image (its far edge is not in the picture) looks like a
+ * wall from its near edge; and a patch with a grey between floor and wall that touches a wall is indistinguishable
+ * from a wall that starts at the patch edge. The minimum supported contrast between wall and floor is
+ * `minGradient` (default 12 grey levels). The floor reference assumes that the floor is the majority of the bottom
+ * rows, so a robot that stands on the goal patch and looks across it would take the patch for the floor.
  */
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <vector>
 
@@ -49,10 +54,12 @@ namespace Maze
       int columnStep = 8;                  /**< Distance between the scanned columns in pixels. */
       int smoothRows = 3;                  /**< Rows averaged on each side of a candidate. */
       int columnHalfWidth = 1;             /**< Columns on each side of the scanned one that are averaged. */
-      bool wallBrighterThanFloor = true;   /**< The wall is brighter than the floor; false for a wall darker than the floor. */
       float minGradient = 12.f;            /**< Least brightness step of a boundary in grey levels. */
       float minWallContrast = 8.f;         /**< Least brightness of the wall above the floor reference in grey levels. */
-      float minWallCheckHeightMm = 150.f;  /**< Height up to which the column has to stay wall. */
+      float minWallCheckHeightMm = 550.f;  /**< Height up to which the column has to stay wall. */
+      float minWallRowFraction = 0.75f;    /**< Part of the rows up to that height that have to keep the wall contrast. */
+      int maxFloorRunRows = 4;             /**< Longest run of floor-like rows allowed above a boundary within the check height. */
+      int minCheckRows = 3;                /**< Rows that have to remain for the check after cutting at the image top. */
       int floorReferenceRows = 8;          /**< Bottom rows that give the floor reference. */
     };
 
@@ -61,7 +68,7 @@ namespace Maze
     {
       int column = 0;      /**< Scanned column. */
       int row = -1;        /**< Last floor row, -1 if the column has no accepted boundary. */
-      float strength = 0.f; /**< Brightness step of the boundary in grey levels. */
+      float strength = 0.f; /**< Size of the brightness step of the boundary in grey levels. */
       float bottom = 0.f;   /**< Mean brightness of the bottom `floorReferenceRows` rows of the column, the floor next to the robot. */
 
       [[nodiscard]] bool found() const
@@ -89,5 +96,55 @@ namespace Maze
     [[nodiscard]] std::vector<ColumnBoundary> scanColumns(const GreyImage& image, int horizonRow,
                                                           const HeightProjection& projection, const Params& params = Params(),
                                                           float* floorReference = nullptr);
+
+    /**
+     * The row of the topmost floor that is within `maxDistanceMm` of the camera, searched from the bottom row up.
+     * @param floorDistance Distance in mm from the camera to the floor point of a row of the middle column; false if the
+     *                      row is above the horizon.
+     * @return The row, -1 if not even the bottom row sees floor that near.
+     */
+    [[nodiscard]] int horizonRow(int imageHeight, const std::function<bool(int row, float& distanceMm)>& floorDistance, float maxDistanceMm);
+
+    /**
+     * What the perceptor knows about the brightness of the floor at the bottom of the image. A column without a
+     * boundary only counts as free floor if its bottom rows look like the floor: otherwise a wall closer than the
+     * lowest visible floor row fills the column and would be taken for free floor.
+     *
+     * Learning: a frame teaches the floor when at least half of the columns have a boundary (then the median of the
+     * bottoms is floor). The first lesson sets the brightness, later ones move it by `trackingRate` of the difference, so
+     * the model follows a change of the lighting. After `maxAgeMs` without a lesson the model is forgotten. Until
+     * a lesson, `isFloor` is false for every column (cold start: no clear points). `reset` forgets at once, for a
+     * new attempt, a pick-up or a penalty.
+     */
+    class FloorModel
+    {
+    public:
+      struct Params
+      {
+        float tolerance = 8.f;       /**< Largest difference in grey levels between a column bottom and the floor. */
+        float trackingRate = 0.1f;   /**< Part of the difference to a new floor reference that is followed per lesson. */
+        unsigned maxAgeMs = 10000;   /**< Time without a lesson after which the floor is forgotten. */
+      };
+
+      Params params; /**< May change between calls. */
+
+      void reset();
+
+      /** Learns from one scan; call once per image. */
+      void observe(const std::vector<ColumnBoundary>& columns, float floorReference, unsigned timeMs);
+
+      /** Whether the floor is known at `timeMs`. */
+      [[nodiscard]] bool known(unsigned timeMs) const;
+
+      /** Whether a column bottom of this brightness is floor. */
+      [[nodiscard]] bool isFloor(float bottomBrightness, unsigned timeMs) const;
+
+      [[nodiscard]] float brightness() const { return floor; }
+
+    private:
+      bool learned = false;
+      float floor = 0.f;
+      unsigned lastLessonMs = 0;
+    };
   }
 }

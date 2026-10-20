@@ -364,3 +364,9 @@ GTEST_TEST(MazeWallView, GazeInQuarterTurns)
   EXPECT_NEAR(result.segments[0].end.y(), 250.f, 0.1f);
   EXPECT_NEAR(std::abs(result.segments[0].start.x() - result.segments[0].end.x()), 500.f, 0.1f);
 }
+
+GTEST_TEST(MazeWallView, LookAheadRangeFollowsTheMotion)
+{
+  EXPECT_EQ(lookAheadRange(true, 2, 3), 3);
+  EXPECT_EQ(lookAheadRange(false, 2, 3), 2);
+}
