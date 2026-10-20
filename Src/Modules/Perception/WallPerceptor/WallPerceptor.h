@@ -15,10 +15,12 @@
  * so no conversion is needed. It is read across threads and may be one frame old, which is far below the snap
  * tolerance. The gaze yaw is the direction of the camera x-axis in the robot frame, as in the oracle.
  *
- * Clear columns. A column without a boundary only counts as free floor if its bottom rows look like the floor.
- * Otherwise a wall closer than the lowest visible floor row fills the column and would be taken for free floor, which
- * would open the edges of that wall. The floor brightness is learned from the frames in which at least half of the
- * columns have a boundary (`floorTolerance` around it); until then no column is clear.
+ * Clear columns. A column without a boundary only counts as free floor if its bottom rows look like the floor, see
+ * `Maze::WallScan::FloorModel` (learning, tracking, ageing). The model is reset exactly when the MazeLocalizer
+ * resets its pose: on the first frame and whenever the robot becomes active again (playing, not penalized, not
+ * picked up, `Maze::isActive`); until a lesson no column is clear.
+ *
+ * The boundary has no fixed polarity: a step in either direction counts, see Tools/Maze/MazeWallScan.h.
  *
  * The camera has to be valid (stable motion); otherwise the percept is empty. The look-ahead range is
  * `lookAheadRangeStanding` while the robot stands and `lookAheadRangeWalking` otherwise, because the torso
@@ -33,18 +35,24 @@
 #include "Framework/Module.h"
 #include "Representations/Infrastructure/CameraInfo.h"
 #include "Representations/Infrastructure/FrameInfo.h"
+#include "Representations/Infrastructure/GameState.h"
 #include "Representations/Modeling/RobotPose.h"
 #include "Representations/MotionControl/MotionInfo.h"
 #include "Representations/Perception/ImagePreprocessing/CameraMatrix.h"
 #include "Representations/Perception/ImagePreprocessing/ECImage.h"
 #include "Representations/Perception/MazePercepts/WallPercept.h"
+#include "Representations/Sensing/FallDownState.h"
+#include "Tools/Maze/MazeSession.h"
+#include "Tools/Maze/MazeWallScan.h"
 
 MODULE(WallPerceptor,
 {,
   REQUIRES(CameraInfo),
   REQUIRES(CameraMatrix),
   REQUIRES(ECImage),
+  REQUIRES(FallDownState),
   REQUIRES(FrameInfo),
+  REQUIRES(GameState),
   REQUIRES(MotionInfo),
   REQUIRES(RobotPose),
   PROVIDES(WallPercept),
@@ -52,15 +60,19 @@ MODULE(WallPerceptor,
   {,
     // Boundary scan, see Tools/Maze/MazeWallScan.h
     (int) columnStep,                 /**< Distance between the scanned columns in pixels. */
-    (bool) wallBrighterThanFloor,     /**< The wall is brighter than the floor; false for a darker wall. */
     (int) smoothRows,                 /**< Rows averaged on each side of a candidate boundary. */
     (int) columnHalfWidth,            /**< Columns on each side of the scanned one that are averaged. */
     (float) minGradient,              /**< Least brightness step of a boundary in grey levels. */
     (float) minWallContrast,          /**< Least brightness of the wall above the floor in grey levels. */
     (float) minWallCheckHeightMm,     /**< Height up to which the column has to stay wall. */
+    (float) minWallRowFraction,       /**< Part of the rows up to that height that keep the wall contrast. */
+    (int) maxFloorRunRows,            /**< Longest run of floor-like rows allowed above a boundary within the check height. */
+    (int) minCheckRows,               /**< Rows that have to remain for the check after cutting at the image top. */
     (int) floorReferenceRows,         /**< Bottom rows that give the floor reference. */
     (float) maxScanDistanceMm,        /**< Floor farther than this from the camera is not searched; sets the horizon row. */
     (float) floorTolerance,           /**< Largest difference in grey levels between the bottom of a clear column and the learned floor. */
+    (float) floorTrackingRate,        /**< Part of the difference to a new floor reference that the learned floor follows. */
+    (int) floorMaxAgeMs,              /**< Time without a lesson after which the learned floor is forgotten. */
     // Grid snap, see Tools/Maze/MazeWallView.h
     (float) snapToleranceMm,          /**< Largest distance of a point to the grid line it is snapped to. */
     (int) minSupportPoints,           /**< Points needed for a wall. */
@@ -82,5 +94,6 @@ class WallPerceptor : public WallPerceptorBase
   /** The topmost image row that sees floor within `maxScanDistanceMm` of the camera; -1 if the floor is not visible. */
   int horizonRow() const;
 
-  float learnedFloor = -1.f; /**< Brightness of the floor at the bottom of the image in grey levels; negative until learned. */
+  Maze::WallScan::FloorModel floorModel; /**< Learned floor brightness, see `Maze::WallScan::FloorModel`. */
+  Maze::PlayingTracker tracker;          /**< The same reset signal as the MazeLocalizer: becoming active again. */
 };

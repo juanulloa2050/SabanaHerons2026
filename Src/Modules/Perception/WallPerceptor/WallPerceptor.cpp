@@ -19,16 +19,14 @@ MAKE_MODULE(WallPerceptor);
 int WallPerceptor::horizonRow() const
 {
   const int column = theCameraInfo.width / 2;
-  int top = -1;
-  for(int row = theCameraInfo.height - 1; row >= 0; --row)
+  return Maze::WallScan::horizonRow(theCameraInfo.height, [&](int row, float& distanceMm)
   {
     Vector2f floorPoint;
-    if(!Transformation::imageToRobot(static_cast<float>(column), static_cast<float>(row), theCameraMatrix, theCameraInfo, floorPoint) ||
-       (floorPoint - theCameraMatrix.translation.head<2>()).norm() > maxScanDistanceMm)
-      break;
-    top = row;
-  }
-  return top;
+    if(!Transformation::imageToRobot(static_cast<float>(column), static_cast<float>(row), theCameraMatrix, theCameraInfo, floorPoint))
+      return false;
+    distanceMm = (floorPoint - theCameraMatrix.translation.head<2>()).norm();
+    return true;
+  }, maxScanDistanceMm);
 }
 
 void WallPerceptor::update(WallPercept& wallPercept)
@@ -38,6 +36,11 @@ void WallPerceptor::update(WallPercept& wallPercept)
 
   wallPercept = WallPercept();
   wallPercept.timestamp = theFrameInfo.time;
+
+  // Same signal as the MazeLocalizer pose reset: the first frame and every transition into active.
+  if(tracker.update(Maze::isActive(theGameState.isPlaying(), theGameState.isPenalized(), theFallDownState.state)).resetPose())
+    floorModel.reset();
+  floorModel.params = {floorTolerance, floorTrackingRate, static_cast<unsigned>(std::max(0, floorMaxAgeMs))};
 
   const Image<PixelTypes::GrayscaledPixel>& gray = theECImage.grayscaled;
   if(gray.width == 0 || gray.height == 0 || theECImage.timestamp <= 10 || theCameraInfo.focalLength <= 0.f || !theCameraMatrix.isValid ||
@@ -51,12 +54,14 @@ void WallPerceptor::update(WallPercept& wallPercept)
   {
     Maze::WallScan::Params scanParams;
     scanParams.columnStep = columnStep;
-    scanParams.wallBrighterThanFloor = wallBrighterThanFloor;
     scanParams.smoothRows = smoothRows;
     scanParams.columnHalfWidth = columnHalfWidth;
     scanParams.minGradient = minGradient;
     scanParams.minWallContrast = minWallContrast;
     scanParams.minWallCheckHeightMm = minWallCheckHeightMm;
+    scanParams.minWallRowFraction = minWallRowFraction;
+    scanParams.maxFloorRunRows = maxFloorRunRows;
+    scanParams.minCheckRows = minCheckRows;
     scanParams.floorReferenceRows = floorReferenceRows;
 
     // The point `heightMm` above a floor pixel, back in the image.
@@ -74,10 +79,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
     float floorReference = 0.f;
     const std::vector<Maze::WallScan::ColumnBoundary> boundaries = Maze::WallScan::scanColumns(image, horizon, projection, scanParams, &floorReference);
 
-    const std::size_t found = static_cast<std::size_t>(std::count_if(boundaries.begin(), boundaries.end(),
-                                                                     [](const Maze::WallScan::ColumnBoundary& boundary) { return boundary.found(); }));
-    if(found > 0 && found * 2 >= boundaries.size())
-      learnedFloor = floorReference;
+    floorModel.observe(boundaries, floorReference, theFrameInfo.time);
 
     std::vector<Vector2f> boundaryPoints, clearPoints;
     for(const Maze::WallScan::ColumnBoundary& boundary : boundaries)
@@ -88,7 +90,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
         if(Transformation::imageToRobot(static_cast<float>(boundary.column), static_cast<float>(boundary.row), theCameraMatrix, theCameraInfo, point))
           boundaryPoints.push_back(point);
       }
-      else if(learnedFloor >= 0.f && std::abs(boundary.bottom - learnedFloor) <= floorTolerance &&
+      else if(floorModel.isFloor(boundary.bottom, theFrameInfo.time) &&
               Transformation::imageToRobot(static_cast<float>(boundary.column), static_cast<float>(horizon), theCameraMatrix, theCameraInfo, point))
         clearPoints.push_back(point);
     }
@@ -100,7 +102,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
           CROSS("module:WallPerceptor:boundary", boundary.column, boundary.row, 4, 2, Drawings::solidPen, ColorRGBA::green);
         else
           CROSS("module:WallPerceptor:boundary", boundary.column, horizon, 4, 2, Drawings::solidPen,
-                learnedFloor >= 0.f && std::abs(boundary.bottom - learnedFloor) <= floorTolerance ? ColorRGBA::red : ColorRGBA::yellow);
+                floorModel.isFloor(boundary.bottom, theFrameInfo.time) ? ColorRGBA::red : ColorRGBA::yellow);
     }
     COMPLEX_DRAWING("module:WallPerceptor:points")
     {
@@ -117,7 +119,7 @@ void WallPerceptor::update(WallPercept& wallPercept)
     viewParams.vertexMarginMm = vertexMarginMm;
 
     const Vector3f gazeInRobot = theCameraMatrix.rotation * Vector3f(1.f, 0.f, 0.f);
-    const int range = theMotionInfo.executedPhase == MotionPhase::stand ? lookAheadRangeStanding : lookAheadRangeWalking;
+    const int range = Maze::WallView::lookAheadRange(theMotionInfo.executedPhase == MotionPhase::stand, lookAheadRangeWalking, lookAheadRangeStanding);
     Maze::WallView::Result result;
     if(!Maze::WallView::computeWallView(boundaryPoints, clearPoints, theRobotPose, theCameraMatrix.translation.head<2>(),
                                         std::atan2(gazeInRobot.y(), gazeInRobot.x()), range, viewParams, result))
