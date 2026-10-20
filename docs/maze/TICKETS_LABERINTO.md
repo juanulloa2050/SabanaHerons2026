@@ -90,7 +90,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
 | [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
 | [x] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
-| [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
+| [x] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
 | [x] | MZ-024 | HandleMaze state machine + skills + start-cell deduction | Bryam | 3 | 6 | no | MZ-011, MZ-020 |
 | [ ] | MZ-025 | Watchdog, safe mode, wall-follower | Bryam | 3 | 2.5 | no | MZ-024 |
@@ -701,7 +701,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Wilson |
 | Estimate | 3 h |
 | Depends on | MZ-010 |
@@ -733,8 +733,8 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 2. Put the CSV in the PR description.
 
 **Acceptance criteria**
-- [ ] `python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --attempts 1 --noise low --out /tmp/r.csv` runs 2 mazes without manual clicks.
-- [ ] The CSV has the 7 columns listed above.
+- [x] `python3 Util/MazeTools/run_sim_campaign.py --mazes Config/Mazes/generated --attempts 1 --noise low --out /tmp/r.csv` runs 2 mazes without manual clicks.
+- [x] The CSV has the 7 columns listed above.
 
 ### MZ-022 — Tag accuracy report ⚠️ TAG-DEP
 
