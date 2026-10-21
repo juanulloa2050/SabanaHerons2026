@@ -13,6 +13,7 @@ namespace Maze
   {
     samples.clear();
     hasTime = false;
+    hasWalked = false;
     gyroAlarm = false;
     bumperAlarm = false;
     deviation = 0.f;
@@ -48,7 +49,14 @@ namespace Maze
 
     const bool walking = input.walkCommanded && input.forwardSpeed >= parameters.minWalkSpeed;
 
-    const bool gyro = walking && deviation > parameters.gyroStdThreshold;
+    if(walking)
+    {
+      hasWalked = true;
+      lastWalking = input.timeMs;
+    }
+    const bool walkingOrDip = walking || (hasWalked && input.timeMs - lastWalking <= parameters.walkGapMs);
+
+    const bool gyro = walkingOrDip && deviation > parameters.gyroStdThreshold;
     if(gyro && !gyroAlarm)
       gyroSince = input.timeMs;
     gyroAlarm = gyro;

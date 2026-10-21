@@ -108,6 +108,41 @@ GTEST_TEST(MazeBlockedWalk, AGapInTheAlarmRestartsTheTimeout)
   EXPECT_NE(feed(detector, time, 600, [&] { return trace.rocking(); }), 0u);
 }
 
+GTEST_TEST(MazeBlockedWalk, ABriefDipOfTheCommandedSpeedDoesNotRestartTheAlarm)
+{
+  // SimRobot, maze_19: the commanded speed fell to 80..90 mm/s for a few frames while the robot pushed against a panel.
+  BlockedWalkDetector detector;
+  Trace trace;
+  unsigned time = 0;
+  unsigned blockedAt = 0;
+  for(; time < 3000 && !blockedAt; time += frameMs)
+  {
+    BlockedWalkInput input = walking(time, trace.rocking());
+    if(time >= 300 && time < 600)
+      input.forwardSpeed = detector.parameters.minWalkSpeed - 20.f;
+    if(detector.update(input))
+      blockedAt = time;
+  }
+  EXPECT_NE(blockedAt, 0u);
+  EXPECT_LE(blockedAt, detector.parameters.blockedTimeoutMs + 3 * frameMs) << "the dip did not delay the alarm";
+}
+
+GTEST_TEST(MazeBlockedWalk, ALongSlowSpellEndsTheAlarmAndAStoppedRobotIsNeverBlocked)
+{
+  BlockedWalkDetector detector;
+  Trace trace;
+  unsigned time = 0;
+  // The grace extends an alarm by at most `walkGapMs` after the walk ended, so 500 ms of rocking while walking cannot reach the timeout.
+  EXPECT_EQ(feed(detector, time, 500, [&] { return trace.rocking(); }), 0u);
+  for(unsigned end = time + 3000; time < end; time += frameMs)
+  {
+    BlockedWalkInput input = walking(time, trace.rocking());
+    input.walkCommanded = false; // The walk ended; the robot keeps rocking.
+    EXPECT_FALSE(detector.update(input)) << "the grace of " << detector.parameters.walkGapMs << " ms is shorter than the timeout";
+  }
+  EXPECT_FALSE(detector.blocked());
+}
+
 GTEST_TEST(MazeBlockedWalk, AStandingRobotIsNeverBlockedWhateverTheGyroSays)
 {
   BlockedWalkDetector detector;
