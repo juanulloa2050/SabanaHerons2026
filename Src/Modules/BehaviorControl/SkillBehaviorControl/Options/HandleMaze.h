@@ -38,6 +38,13 @@
  * Triple taps stay reserved for the diagnostics in SkillBehaviorControl.cpp and are not used here.
  * headRear and headMiddle x2 only work while the robot stands (waitingForStart, standby, finished).
  *
+ * A walk into a wall that the map did not know (the wall percept is blind below ~610 mm, unknown edges are planned as open) is
+ * stopped (MZ-046): while a forward walk runs, Maze::BlockedWalkDetector watches the gyroscope and the foot bumpers. When it reports
+ * the walk blocked, the drive becomes a step back to the centre of the cell the walk started in (not the cell of the pose: odometry
+ * keeps counting while the robot pushes, so the pose is past the wall), the edge is published as MazeBlockedEdge, MazeMapper makes it
+ * a wall that nothing opens again, and the robot says "blocked". While it steps back the pose cell is no arrival, so the robot cannot
+ * finish in a goal cell behind a wall. A walk or turn whose edge becomes a wall in the map before any contact is aborted as well.
+ *
  * Pressing any head button during a walk or turn of the motion test aborts it.
  * A step that does not finish within its time limit aborts the test as well.
  *
@@ -124,6 +131,8 @@ enum class DriveRoute
 DriveRoute driveRoute = DriveRoute::exploration; /**< The route that MazeDrive follows. */
 Maze::ReturnToStartConfig returnConfig; /**< `returnToStart` of handleMaze.cfg, read by the constructor. */
 Maze::DriveController drive; /**< The action that runs, its target and the scan bookkeeping. */
+Maze::BlockedWalkDetector blockedDetector; /**< Whether the running walk is blocked; `blockedWalk` of handleMaze.cfg, read by the constructor. */
+Maze::BlockedEdgeSender blockedSender; /**< The blocks published so far (`theMazeBlockedEdge`). */
 
 /** Queues something to say; nothing is said if the announcements are off. */
 void queueSpeech(const std::string& text)
@@ -161,14 +170,15 @@ Maze::BehaviorInput mazeInput() const
   input.penalized = theGameState.isPenalized();
   input.active = Maze::isActive(input.playing, input.penalized, theFallDownState.state);
   input.headFront = headFrontTapped() && !motionTestRunning && theFrameInfo.time >= ignoreTapsUntil;
-  input.atGoal = theMazePlan.valid && theMazePlan.atGoal;
+  // A blocked walk steps back from a wall that odometry already counted as passed: the pose cell is no arrival then.
+  input.atGoal = theMazePlan.valid && theMazePlan.atGoal && drive.arrivalAllowed();
   input.speedRunFound = theMazePlan.valid && theMazePlan.speedRun.found;
   input.attempt = theMazeMap.attempt;
   input.startKnown = theMazeStart.known;
   input.startGiven = theMazeStart.given;
   input.startCell = theMazeStart.cell;
   input.timeMs = theFrameInfo.time;
-  input.atStart = theMazePlan.valid && theMazePlan.atStart;
+  input.atStart = theMazePlan.valid && theMazePlan.atStart && drive.arrivalAllowed();
   input.returnToStart = returnConfig;
   return input;
 }
@@ -214,6 +224,7 @@ void enterPhase(Maze::Phase phase)
 {
   OUTPUT_TEXT("HandleMaze: " << Maze::phaseName(phase) << ".");
   drive.reset();
+  blockedDetector.reset();
   if(phase == Maze::Phase::speedRun)
     logSpeedRun();
   else if(phase == Maze::Phase::returnToStart)
@@ -257,10 +268,50 @@ bool driveActionOver() const
     case Maze::DriveKind::scan:
       skillDone = theMazeScanWallsSkill.isDone();
       break;
+    case Maze::DriveKind::stepBack:
+      skillDone = theMazeFollowCorridorSkill.isDone();
+      break;
     default:
       break;
   }
-  return drive.actionOver(skillDone, theFrameInfo.time);
+  // Also over when the map has a wall on the edge that the walk or turn needs (it may have learned it from a contact or from the percept).
+  return drive.actionOver(skillDone, theFrameInfo.time, theMazeMap.toGraph());
+}
+
+/**
+ * Feeds the blocked walk detector with this frame while a walk runs. When it reports the walk blocked, the walk becomes a step back,
+ * the edge is published for MazeMapper and announced.
+ * @return Whether the walk was blocked in this frame.
+ */
+bool updateBlockedWalk()
+{
+  if(drive.kind() != Maze::DriveKind::walk)
+    return false;
+  Maze::BlockedWalkInput input;
+  input.timeMs = theFrameInfo.time;
+  input.walkCommanded = theMotionInfo.executedPhase == MotionPhase::walk;
+  input.forwardSpeed = theMotionInfo.speed.translation.x(); // The speed of the executed steps (mm/s): the commanded one, not what the robot really covers.
+  input.gyroZ = theInertialData.gyro.z();
+  input.bumperContact = theFootBumperState.status[Legs::left].contact || theFootBumperState.status[Legs::right].contact;
+  if(!blockedDetector.update(input) || !drive.reportBlocked(theFrameInfo.time))
+    return false;
+  const Maze::BlockedEdge edge = *drive.blockedEdge();
+  blockedSender.send(edge, theMazeStart.revision, theFrameInfo.time);
+  theMazeBlockedEdge.counter = blockedSender.message.counter;
+  theMazeBlockedEdge.row = edge.row;
+  theMazeBlockedEdge.col = edge.col;
+  theMazeBlockedEdge.heading = static_cast<MazeCellPose::Heading>(static_cast<int>(edge.heading));
+  theMazeBlockedEdge.revision = blockedSender.message.revision;
+  theMazeBlockedEdge.time = theFrameInfo.time;
+  OUTPUT_TEXT("HandleMaze: blocked by the " << (blockedDetector.blockedBy() == Maze::BlockedCause::bumper ? "foot bumper" : "gyroscope") << " at cell ("
+              << edge.row << ", " << edge.col << ") " << TypeRegistry::getEnumName(theMazeBlockedEdge.heading) << ", pose cell (" << theMazeCellPose.row << ", "
+              << theMazeCellPose.col << "); stepping back.");
+  // Also on the error stream, so that a headless run can count the blocks (MZ-046): rg 'MazeBlocked:' run.log
+  std::fprintf(stderr, "MazeBlocked: t %u cause %s cell %d,%d heading %d pose cell %d,%d\n", theFrameInfo.time,
+               blockedDetector.blockedBy() == Maze::BlockedCause::bumper ? "bumper" : "gyro", edge.row, edge.col, static_cast<int>(edge.heading),
+               theMazeCellPose.row, theMazeCellPose.col);
+  queueSpeech("blocked");
+  return true;
 }
 
 /**
@@ -286,6 +337,8 @@ Maze::DriveNext chooseNextDriveAction(DriveRoute driveRoute)
   input.cell = theMazeCellPose.cell();
   input.unknownEdges = currentCellHasUnknownEdges();
   const Maze::DriveDecision decision = drive.choose(input, theFrameInfo.time);
+  if(decision.next != Maze::DriveNext::keep)
+    blockedDetector.reset(); // A new action begins (or nothing runs): the samples of the last one say nothing.
   if(decision.reportNoRoute)
     OUTPUT_TEXT("HandleMaze: no " << (speedRun ? "speed run" : driveRoute == DriveRoute::returnToStart ? "return" : "exploration") << " route from cell " << theMazeCellPose.cell() << ", standing.");
   return decision.next;
@@ -430,6 +483,8 @@ option(MazeDrive)
 {
   common_transition
   {
+    if(updateBlockedWalk())
+      goto stepBack;
     if(driveActionOver())
     {
       switch(chooseNextDriveAction(driveRoute))
@@ -442,7 +497,10 @@ option(MazeDrive)
           goto scan;
         case Maze::DriveNext::idle:
           goto idle;
-        default: // keep
+        default: // keep: the plan does not describe the pose yet
+          // A wall on the edge of the running action: it must not go on while the plan catches up with the map.
+          if(drive.mapBlocksAction(theMazeMap.toGraph()))
+            goto idle;
           break;
       }
     }
@@ -483,6 +541,18 @@ option(MazeDrive)
     {
       theStandSkill();
       theMazeScanWallsSkill();
+    }
+  }
+
+  /** Back to the centre of the cell where the blocked walk started, still facing the wall (the corridor skill walks backwards). */
+  state(stepBack)
+  {
+    action
+    {
+      theLookForwardSkill();
+      theMazeFollowCorridorSkill({.targetRow = drive.targetRow(),
+                                  .targetCol = drive.targetCol(),
+                                  .heading = lockedHeading()});
     }
   }
 }

@@ -40,6 +40,7 @@
 #include "Representations/Infrastructure/SensorData/JointSensorData.h"
 #include "Representations/Infrastructure/SensorData/KeyStates.h"
 #include "Representations/Modeling/BallModel.h"
+#include "Representations/Modeling/MazeBlockedEdge.h"
 #include "Representations/Modeling/MazeCellPose.h"
 #include "Representations/Modeling/MazeMap.h"
 #include "Representations/Modeling/MazeStart.h"
@@ -56,14 +57,18 @@
 #include "Representations/Perception/RefereePercept/OptionalImageRequest.h"
 #include "Representations/Perception/RefereePercept/RefereePercept.h"
 #include "Representations/Sensing/FallDownState.h"
+#include "Representations/Sensing/FootBumperState.h"
+#include "Representations/Sensing/InertialData.h"
 #include "Tools/BehaviorControl/Strategy/PositionRole.h"
 #include "Tools/Maze/MazeBehavior.h"
+#include "Tools/Maze/MazeBlockedEdgeChannel.h"
 #include "Tools/Maze/MazeDrive.h"
 #include "Tools/Maze/MazeSession.h"
 #include "Tools/BehaviorControl/Strategy/ActiveRole.h"
 #include "Debugging/Annotation.h"
 #include "Framework/Module.h"
 #include "Platform/SystemCall.h"
+#include <cstdio>
 #include <regex> // not needed in header, but would otherwise be broken by CABSL
 
 class SkillBehaviorControl;
@@ -95,10 +100,12 @@ MODULE(SkillBehaviorControl,
   REQUIRES(FallDownState),
   REQUIRES(FieldBall),
   REQUIRES(FieldDimensions),
+  REQUIRES(FootBumperState),
   REQUIRES(FrameInfo),
   REQUIRES(GameState),
   REQUIRES(GoaliePose),
   REQUIRES(IllegalAreas),
+  REQUIRES(InertialData),
   REQUIRES(JointSensorData),
   REQUIRES(KickInfo),
   REQUIRES(LibCheck),
@@ -122,6 +129,7 @@ MODULE(SkillBehaviorControl,
   PROVIDES(BehaviorStatus),
   PROVIDES(CalibrationRequest),
   PROVIDES(HeadMotionRequest),
+  PROVIDES(MazeBlockedEdge),
   PROVIDES(MotionRequest),
   PROVIDES(OptionalImageRequest),
   PROVIDES(RefereeSignal),
@@ -171,6 +179,12 @@ private:
   void update(CalibrationRequest& calibrationRequest) override { calibrationRequest = theCalibrationRequest; }
 
   /**
+   * Updates the blocked maze edge: the latest wall that stopped a walk, for MazeMapper.
+   * @param mazeBlockedEdge The provided blocked edge.
+   */
+  void update(MazeBlockedEdge& mazeBlockedEdge) override { mazeBlockedEdge = theMazeBlockedEdge; }
+
+  /**
    * Updates the head motion request.
    * @param headMotionRequest The provided head motion request.
    */
@@ -208,6 +222,7 @@ private:
   BehaviorStatus theBehaviorStatus; /**< The behavior status that is modified by the behavior. */
   CalibrationRequest theCalibrationRequest; /**< The camera calibration request that is modified by the behavior. */
   HeadMotionRequest theHeadMotionRequest; /**< The head motion request that is modified by the behavior. */
+  MazeBlockedEdge theMazeBlockedEdge; /**< The latest blocked maze edge that is published by the maze behavior. */
   MotionRequest theMotionRequest; /**< The motion request that is modified by the behavior. */
   OptionalImageRequest theOptionalImageRequest; /**< The request that decides whether an optional image should be send or not */
   RefereeSignal theRefereeSignal; /**< The referee signal that should be sent to the GameController. */

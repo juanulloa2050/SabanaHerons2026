@@ -22,6 +22,10 @@
  * which. When the working hypothesis changes the map is rebuilt from the logged observations and `changeCounter`
  * grows, so the planner replans.
  *
+ * Blocked walls: when the robot walked into a wall the map did not know, the behaviour publishes the edge (`MazeBlockedEdge`, in the frame of
+ * the working hypothesis) and the mapper makes it a wall that no open evidence can overturn (`StartAnchoredMap::observeBlocked`, logged
+ * like a tag). A block published under another hypothesis than the current one is dropped with a warning.
+ *
  * Wall percept: the look-ahead of `WallPercept` is relative to the gaze, which is `lookAheadTurns`
  * quarter turns counterclockwise from the robot's x-axis. The gaze heading is the robot's cell heading
  * turned that way (`Maze::gazeHeading`). Tags: the face a tag sits on is chosen like in the localizer
@@ -33,6 +37,7 @@
 #include "Framework/Module.h"
 #include "Representations/Infrastructure/FrameInfo.h"
 #include "Representations/Infrastructure/GameState.h"
+#include "Representations/Modeling/MazeBlockedEdge.h"
 #include "Representations/Modeling/MazeCellPose.h"
 #include "Representations/Modeling/MazeMap.h"
 #include "Representations/Modeling/MazeStart.h"
@@ -40,6 +45,7 @@
 #include "Representations/Perception/MazePercepts/AprilTagPercept.h"
 #include "Representations/Perception/MazePercepts/WallPercept.h"
 #include "Representations/Sensing/FallDownState.h"
+#include "Tools/Maze/MazeBlockedEdgeChannel.h"
 #include "Tools/Maze/MazeLocalization.h"
 #include "Tools/Maze/MazeSession.h"
 #include "Tools/Maze/MazeStartAnchoredMap.h"
@@ -48,6 +54,7 @@
 
 MODULE(MazeMapper,
 {,
+  USES(MazeBlockedEdge), // Provided by the behaviour, which runs after the mapper: the block of the previous frame.
   REQUIRES(AprilTagPercept),
   REQUIRES(FallDownState),
   REQUIRES(FrameInfo),
@@ -92,6 +99,9 @@ private:
   /** Adds the tags to the map. @return Number of edges that changed. */
   int observeTags();
 
+  /** Maps the edge that stopped a walk as a wall for good, once per block. @return Number of edges that changed. */
+  int observeBlocked();
+
   /** Reads `start` of handleMaze.cfg and gives the start to the map if it is set. */
   void loadStart();
 
@@ -100,6 +110,7 @@ private:
   unsigned lastStepTime = 0;
   Maze::TimestampFilter wallFilter;
   Maze::TimestampFilter tagFilter;
+  Maze::BlockedEdgeReceiver blockedReceiver; /**< Acts on each block of the behaviour once. */
   Maze::PlayingTracker session;     /**< Decides when a new attempt starts. */
   unsigned changeCounter = 0;
   unsigned lastChangeTime = 0;

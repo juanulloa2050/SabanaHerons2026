@@ -40,6 +40,7 @@
 
 #pragma once
 
+#include "MazeBlockedWalk.h"
 #include "Streaming/AutoStreamable.h"
 #include "Streaming/Enum.h"
 #include <string>
@@ -143,7 +144,7 @@ namespace Maze
     (bool)(true) enabled, /**< Whether the robot says what it is doing out loud. */
   });
 
-  /** The layout of `handleMaze.cfg` as far as the announcements and the return are concerned (the other entries are ignored). */
+  /** The layout of `handleMaze.cfg` as far as the announcements, the return and the blocked walk detector are concerned (the other entries are ignored). */
   STREAMABLE(AnnounceFile,
   {
     /**
@@ -154,5 +155,6 @@ namespace Maze
 
     (AnnounceConfig) announce,
     (ReturnToStartConfig) returnToStart,
+    (BlockedWalkParameters) blockedWalk,
   });
 }

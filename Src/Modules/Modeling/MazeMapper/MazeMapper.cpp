@@ -83,6 +83,28 @@ int MazeMapper::observeWalls()
   return anchored.observeCellsAhead(pose, gaze, cells, theWallPercept.timestamp);
 }
 
+int MazeMapper::observeBlocked()
+{
+  const Maze::BlockedEdgeMessage message = {theMazeBlockedEdge.counter,
+                                            {theMazeBlockedEdge.row, theMazeBlockedEdge.col, static_cast<Maze::Heading>(static_cast<int>(theMazeBlockedEdge.heading))},
+                                            theMazeBlockedEdge.revision, theMazeBlockedEdge.time};
+  switch(blockedReceiver.receive(message, anchored.status().revision))
+  {
+    case Maze::BlockedEdgeAction::apply:
+    {
+      const bool changed = anchored.observeBlocked(message.edge.row, message.edge.col, message.edge.heading);
+      OUTPUT_TEXT("MazeMapper: blocked at cell (" << message.edge.row << ", " << message.edge.col << ") "
+                  << TypeRegistry::getEnumName(theMazeBlockedEdge.heading) << ": " << (changed ? "now a wall." : "no change (a wall already or the border)."));
+      return changed ? 1 : 0;
+    }
+    case Maze::BlockedEdgeAction::dropped:
+      OUTPUT_WARNING("MazeMapper: a blocked edge of cell (" << message.edge.row << ", " << message.edge.col << ") was published under another start hypothesis and is dropped.");
+      return 0;
+    default:
+      return 0;
+  }
+}
+
 int MazeMapper::observeTags()
 {
   if(!tagFilter.accept(theAprilTagPercept.timestamp))
@@ -120,6 +142,8 @@ void MazeMapper::step()
   const Maze::MapActions actions = Maze::mapActions(active, Maze::qualityAccepted(static_cast<Maze::LocalizationQuality>(static_cast<int>(theMazeCellPose.quality)),
                                                                                      static_cast<Maze::LocalizationQuality>(static_cast<int>(worstAcceptedQuality))));
   int changes = 0;
+  if(active)
+    changes += observeBlocked(); // A contact is a fact of the body, whatever the quality of the localization is.
   if(actions.markVisited)
     anchored.markVisited(theRobotPose);
   if(actions.observe)

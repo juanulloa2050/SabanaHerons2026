@@ -121,6 +121,7 @@ SkillBehaviorControl::SkillBehaviorControl() :
   {
     announceEnabled = announce.announce.enabled;
     returnConfig = announce.returnToStart;
+    blockedDetector.parameters = announce.blockedWalk;
   }
 }
 
