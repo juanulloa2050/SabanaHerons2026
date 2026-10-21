@@ -109,6 +109,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 | MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
+| MZ-046 | Blocked-walk detection and no false goal arrival (proposed, from the MZ-019 closed-loop run) | Bryam | Proposed | 3 | yes (bumper check) | MZ-019, MZ-020, MZ-024 |
 | MZ-024.1 | Exploring return to start (subtask of MZ-024, done) | Bryam | Done | 3 | no | MZ-024 |
 
 These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 3.0 h, plus the 2 h of MZ-038 now inside MZ-020 (47.75 → 52.75 h), and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-042 → MZ-041 → MZ-039. MZ-045 (3 h, not in these numbers) is built only if the MZ-020 logs show the cell is lost between tag fixes.
@@ -1195,6 +1196,47 @@ proposed.
 - [ ] A percept of an edge the map holds as `open` or `unknown` never changes the pose (unit test).
 
 **Note (MZ-020).** Wall percepts snapped with the localizer pose must not be fed back as pose correction (circular). This ticket must use the raw distances (`frontDistance`, `leftDistance`, `rightDistance`).
+
+### MZ-046 — Blocked-walk detection and no false goal arrival
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | 3 h first guess |
+| Depends on | MZ-019, MZ-020, MZ-024 |
+| Lab / robot | no for the simulation part; **yes** to validate the foot bumpers |
+| Branch | `feat/MZ-046-blocked-walk` (may be delivered on `feat/MZ-019-wall-perceptor` if done together with MZ-019) |
+| Files | `Src/Tools/Maze/MazeDrive.cpp`, `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/MazeFollowCorridor.cpp`, `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` (modify); `Src/Tools/Maze/MazeMapFusion.*` (modify: wall from a blocked walk); `Config/Scenarios/Maze/` (parameters); tests in `Src/Apps/Tests/Maze/` |
+
+**Problem.** Found in the first closed-loop run of MZ-019 (scene `MazeVision`, 20 Oct): the walls
+come from the real `WallPerceptor`, so some walls are unknown when the robot plans. The upper
+camera sees the floor only from ≈610 mm ahead, so the walls of the robot's own cell (250 mm) are
+never seen.
+
+**Current behaviour, with code locations:**
+- Unknown edges count as open in the exploration plan (`MazeRoutes.cpp:52-53`).
+- A walk or turn is chosen at the cell centre and kept until its skill finishes or times out (`HandleMaze.h:431-449`, `MazeDrive.cpp:58-71`, walk timeout 20 s).
+- The walk finishes on odometry alone (`MazeFollowCorridor.cpp:46-50`).
+- Consequences:
+  - A robot pushing into a wall still "arrives" in the next cell.
+  - When that cell is a goal cell, `HandleMaze` goes to `finished` (`HandleMaze.h:164`) without having reached the goal.
+  - A wall the map learns during the walk does not stop it (seen with the 26–27 wall in maze_19).
+
+**Scope.**
+- **Detect a blocked walk.**
+  - Progress against the commanded walk: the pose or odometry advance is much smaller than expected over a time window.
+  - On the real robot, also the foot bumpers (`FootBumperState`).
+  - On a blocked walk, stop, step back to the cell centre, and record that edge as `wall` in `MazeMap` with a source the wall percept cannot overturn. The tag veto of MZ-019 is a model for this.
+- **Abort on a map change.** When the edge being driven through becomes `wall` in `MazeMap` during the walk or turn, abort the action and replan.
+- **No false arrival.** A walk aborted as blocked never counts as reaching the next cell, so `atGoal` cannot become true through a wall.
+- **Foot bumpers in simulation.** `KeyStates` is never set in simulation (`LogDataProvider` update is empty), and `NaoV6H25.rsi2` has no touch sensor. Wiring a SimRobot `CollisionSensor` to `KeyStates` is out of scope and a possible follow-up. The simulation part relies on progress detection.
+
+**Acceptance criteria**
+- [ ] In `MazeVision` with maze_19, the robot never reaches `finished` unless the true robot position is in a goal cell (check against the ground-truth pose).
+- [ ] A walk into an unknown wall is detected as blocked within a parameter time (`blockedTimeout`, set from the run). The edge becomes `wall`, and the robot replans without a second contact on that wall.
+- [ ] An edge that becomes `wall` during a walk aborts the walk before the contact (unit or scene test).
+- [ ] Unit tests: blocked detection on a synthetic progress trace, and a blocked-walk wall is not turned open by later wall-percept open observations.
+- [ ] Real robot (lab): a foot-bumper contact against a panel marks the edge, as a short log in the PR.
 
 ### MZ-024.1 — Exploring return to start (subtask of MZ-024)
 
