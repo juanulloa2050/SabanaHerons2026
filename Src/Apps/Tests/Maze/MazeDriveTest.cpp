@@ -2,7 +2,8 @@
  * @file MazeDriveTest.cpp
  *
  * Tests of the decisions that HandleMaze takes besides the phases (ticket MZ-024): the speech queue (phrase separation,
- * bound) and the drive controller (which action to run, locking while the plan is stale, one scan per cell, time limits).
+ * bound) and the drive controller (which action to run, locking while the plan is stale, one scan per cell, time limits,
+ * abort when the map puts a wall on the running action, blocked walk and step back; MZ-046).
  */
 
 #include "Tools/Maze/MazeDrive.h"
@@ -297,4 +298,138 @@ GTEST_TEST(MazeDrive, ActionsEndWhenTheSkillIsDoneOrTheTimeoutPasses)
   EXPECT_FALSE(drive.actionOver(false, 9000 + scanTimeoutMs));
   EXPECT_TRUE(drive.actionOver(false, 9000 + scanTimeoutMs + 1));
   EXPECT_TRUE(drive.actionOver(true, 9001));
+}
+
+GTEST_TEST(MazeDrive, AWalkIsAbortedWhenItsEdgeBecomesAWallBeforeTheSkillIsDone)
+{
+  DriveController drive;
+  ASSERT_EQ(drive.choose(walkInput(), 1000).next, DriveNext::walk); // From (1, 1) east to (1, 2).
+  MazeGraph map;
+  EXPECT_EQ(drive.originRow(), 1);
+  EXPECT_EQ(drive.originCol(), 1);
+  EXPECT_FALSE(drive.mapBlocksAction(map)) << "unknown edges do not stop a walk";
+  EXPECT_FALSE(drive.actionOver(false, 1100, map));
+
+  map.set(1, 1, Heading::east, EdgeState::wall);
+  EXPECT_TRUE(drive.mapBlocksAction(map));
+  EXPECT_TRUE(drive.actionOver(false, 1100, map)) << "aborted although the skill is not done and the timeout has not passed";
+  EXPECT_FALSE(drive.actionOver(false, 1100)) << "the overload without a map is unchanged";
+}
+
+GTEST_TEST(MazeDrive, AWallOnAnotherEdgeDoesNotAbortTheWalk)
+{
+  DriveController drive;
+  ASSERT_EQ(drive.choose(walkInput(), 0).next, DriveNext::walk);
+  MazeGraph map;
+  map.set(1, 1, Heading::north, EdgeState::wall);
+  map.set(1, 1, Heading::south, EdgeState::wall);
+  map.set(1, 2, Heading::east, EdgeState::wall);  // Beyond the target.
+  map.set(1, 0, Heading::east, EdgeState::wall);  // Behind the origin.
+  map.set(1, 2, Heading::north, EdgeState::wall);
+  EXPECT_FALSE(drive.mapBlocksAction(map));
+  EXPECT_FALSE(drive.actionOver(false, 10, map));
+  EXPECT_TRUE(drive.actionOver(true, 10, map)) << "the skill is still what ends a walk that nothing blocks";
+}
+
+GTEST_TEST(MazeDrive, AWalkOverSeveralCellsIsAbortedByAnEdgeFurtherAlong)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  input.cell = cellId(4, 1);
+  input.targetRow = 4;
+  input.targetCol = 4;
+  input.targetHeading = Heading::east;
+  ASSERT_EQ(drive.choose(input, 0).next, DriveNext::walk);
+  MazeGraph map;
+  map.set(4, 4, Heading::east, EdgeState::wall); // Behind the target: not part of the walk.
+  EXPECT_FALSE(drive.mapBlocksAction(map));
+  map.set(4, 3, Heading::east, EdgeState::wall); // Between the third and the target cell.
+  EXPECT_TRUE(drive.mapBlocksAction(map));
+
+  MazeGraph west;
+  input.cell = cellId(4, 6);
+  input.targetCol = 3;
+  input.targetHeading = Heading::west;
+  ASSERT_EQ(drive.choose(input, 0).next, DriveNext::walk);
+  west.set(4, 5, Heading::west, EdgeState::wall);
+  EXPECT_TRUE(drive.mapBlocksAction(west)) << "also against the compass order";
+}
+
+GTEST_TEST(MazeDrive, ATurnIsAbortedWhenItsTargetHeadingFacesAWall)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  input.nextAction = Action::turnLeft;
+  input.targetRow = 1;
+  input.targetCol = 1;
+  input.targetHeading = Heading::north;
+  ASSERT_EQ(drive.choose(input, 0).next, DriveNext::turn);
+  MazeGraph map;
+  map.set(1, 1, Heading::east, EdgeState::wall);
+  map.set(1, 1, Heading::west, EdgeState::wall);
+  EXPECT_FALSE(drive.actionOver(false, 10, map)) << "the other sides of the cell are not the turn's business";
+  map.set(1, 1, Heading::north, EdgeState::wall);
+  EXPECT_TRUE(drive.actionOver(false, 10, map));
+}
+
+GTEST_TEST(MazeDrive, ScansAndIdleAreNeverAbortedByTheMap)
+{
+  DriveController drive;
+  MazeGraph map;
+  for(int h = 0; h < headingCount; ++h)
+    map.set(1, 1, static_cast<Heading>(h), EdgeState::wall);
+  EXPECT_FALSE(drive.mapBlocksAction(map)) << "idle";
+  DriveInput input = walkInput();
+  input.unknownEdges = true;
+  ASSERT_EQ(drive.choose(input, 0).next, DriveNext::scan);
+  EXPECT_FALSE(drive.mapBlocksAction(map));
+}
+
+GTEST_TEST(MazeDrive, ABlockedWalkBecomesAStepBackToTheOriginAndCarriesTheEdge)
+{
+  DriveController drive;
+  EXPECT_FALSE(drive.reportBlocked(0)) << "nothing runs";
+  EXPECT_FALSE(drive.blockedEdge().has_value());
+
+  ASSERT_EQ(drive.choose(walkInput(), 1000).next, DriveNext::walk);
+  EXPECT_TRUE(drive.arrivalAllowed());
+  ASSERT_TRUE(drive.reportBlocked(2000));
+  EXPECT_EQ(drive.kind(), DriveKind::stepBack);
+  EXPECT_FALSE(drive.arrivalAllowed()) << "odometry is past the wall: the pose cell is not an arrival";
+  ASSERT_TRUE(drive.blockedEdge().has_value());
+  EXPECT_EQ(drive.blockedEdge()->row, 1);
+  EXPECT_EQ(drive.blockedEdge()->col, 1);
+  EXPECT_EQ(drive.blockedEdge()->heading, Heading::east) << "the wall is on the side of the origin cell, not of the target";
+  EXPECT_EQ(drive.targetRow(), 1) << "the step back goes to the origin cell";
+  EXPECT_EQ(drive.targetCol(), 1);
+  EXPECT_FALSE(drive.reportBlocked(2010)) << "a step back is not blocked again";
+
+  // The map learns the wall; the step back is not aborted by it, it ends with its skill or its timeout.
+  MazeGraph map;
+  map.set(1, 1, Heading::east, EdgeState::wall);
+  EXPECT_FALSE(drive.actionOver(false, 2000 + stepBackTimeoutMs, map));
+  EXPECT_TRUE(drive.actionOver(false, 2000 + stepBackTimeoutMs + 1, map));
+  EXPECT_TRUE(drive.actionOver(true, 2100, map));
+
+  // The next choice ends the step back and arrival counts again.
+  EXPECT_EQ(drive.choose(walkInput(), 3000).next, DriveNext::walk);
+  EXPECT_TRUE(drive.arrivalAllowed());
+  EXPECT_FALSE(drive.blockedEdge().has_value());
+}
+
+GTEST_TEST(MazeDrive, OnlyAWalkCanBeBlockedAndAResetEndsTheStepBack)
+{
+  DriveController drive;
+  DriveInput turn = walkInput();
+  turn.nextAction = Action::turnRight;
+  ASSERT_EQ(drive.choose(turn, 0).next, DriveNext::turn);
+  EXPECT_FALSE(drive.reportBlocked(10));
+  EXPECT_EQ(drive.kind(), DriveKind::turn);
+
+  ASSERT_EQ(drive.choose(walkInput(), 20).next, DriveNext::walk);
+  ASSERT_TRUE(drive.reportBlocked(30));
+  drive.reset();
+  EXPECT_EQ(drive.kind(), DriveKind::idle);
+  EXPECT_TRUE(drive.arrivalAllowed());
+  EXPECT_FALSE(drive.blockedEdge().has_value());
 }

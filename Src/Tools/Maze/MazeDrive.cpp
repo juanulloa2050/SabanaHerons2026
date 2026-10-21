@@ -53,6 +53,7 @@ namespace Maze
     scannedCell = -1;
     noRouteReported = false;
     scanRequested = false;
+    blocked.reset();
   }
 
   bool DriveController::actionOver(bool skillDone, unsigned now) const
@@ -65,9 +66,53 @@ namespace Maze
         return skillDone || now - startTime > turnTimeoutMs;
       case DriveKind::scan:
         return skillDone || now - startTime > scanTimeoutMs;
+      case DriveKind::stepBack:
+        return skillDone || now - startTime > stepBackTimeoutMs;
       default:
         return true;
     }
+  }
+
+  bool DriveController::mapBlocksAction(const MazeGraph& map) const
+  {
+    const std::size_t heading = static_cast<std::size_t>(lockedHeading);
+    switch(driveKind)
+    {
+      case DriveKind::turn:
+        return map.get(startRow, startCol, lockedHeading) == EdgeState::wall;
+      case DriveKind::walk:
+      {
+        // The walk goes straight along its heading from the cell it started in; every edge up to the target has to be passable.
+        int row = startRow, col = startCol;
+        for(int step = 0; step < size && inside(row, col) && (row != lockedRow || col != lockedCol); ++step)
+        {
+          if(map.get(row, col, lockedHeading) == EdgeState::wall)
+            return true;
+          row += rowDelta[heading];
+          col += colDelta[heading];
+        }
+        return false;
+      }
+      default:
+        return false;
+    }
+  }
+
+  bool DriveController::actionOver(bool skillDone, unsigned now, const MazeGraph& map) const
+  {
+    return actionOver(skillDone, now) || mapBlocksAction(map);
+  }
+
+  bool DriveController::reportBlocked(unsigned now)
+  {
+    if(driveKind != DriveKind::walk)
+      return false;
+    blocked = BlockedEdge{startRow, startCol, lockedHeading};
+    driveKind = DriveKind::stepBack;
+    startTime = now;
+    lockedRow = startRow; // The step back ends in the cell where the walk began, not in the cell of the pose.
+    lockedCol = startCol;
+    return true;
   }
 
   DriveDecision DriveController::choose(const DriveInput& input, unsigned now)
@@ -93,7 +138,10 @@ namespace Maze
       return decision;
     }
     noRouteReported = false;
+    blocked.reset();
     startTime = now;
+    startRow = cellRow(input.cell);
+    startCol = cellCol(input.cell);
     if(!input.speedRun && scannedCell != input.cell && (input.unknownEdges || scanRequested))
     {
       scanRequested = false;

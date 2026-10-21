@@ -31,6 +31,9 @@ namespace Maze
   /** The longest a wall scan may take before the plan is read again (ms). */
   constexpr unsigned scanTimeoutMs = 2500;
 
+  /** The longest the step back after a blocked walk may take before the plan is read again (ms). */
+  constexpr unsigned stepBackTimeoutMs = 6000;
+
   /**
    * The phrases that wait to be said. `update` returns the phrase to hand to `Say` in this frame. `Say` drops the same text
    * twice in a row until it was not called for a frame, so a frame without a phrase follows every finished phrase.
@@ -61,6 +64,7 @@ namespace Maze
     walk, /**< Walking to the neighbouring cell. */
     turn, /**< Turning to the next heading. */
     scan, /**< Scanning the walls of a cell with unknown edges. */
+    stepBack, /**< A walk was blocked by a wall: going back to the cell it started in. */
   };
 
   /** What to do next at a cell centre. */
@@ -96,6 +100,14 @@ namespace Maze
     bool reportNoRoute = false; /**< There is no route and this was not reported since the last route. */
   };
 
+  /** The edge that stopped a walk: the side `heading` of the cell (`row`, `col`) the walk started in. */
+  struct BlockedEdge
+  {
+    int row = 0;
+    int col = 0;
+    Heading heading = Heading::north;
+  };
+
   /**
    * Reads the plan at a cell centre and locks the next action until it is over. The exploration route changes whenever
    * the map learns an edge, so only its first action is binding; a stale plan keeps the locked action.
@@ -115,6 +127,36 @@ namespace Maze
      */
     void requestScan() { scanRequested = true; }
 
+    /**
+     * Like `actionOver`, and also over once the map says that the action cannot be finished: a walk whose edges (from the cell
+     * it started in to its target, along its heading) include a wall, or a turn whose target heading faces a wall from its
+     * cell. The robot is then still short of the wall, and the plan is read again. A step back is never aborted.
+     */
+    [[nodiscard]] bool actionOver(bool skillDone, unsigned now, const MazeGraph& map) const;
+
+    /** Whether the map has a wall on the edges that the running walk or turn needs, see the overload of `actionOver`. */
+    [[nodiscard]] bool mapBlocksAction(const MazeGraph& map) const;
+
+    /**
+     * The running walk was blocked (the caller's `BlockedWalkDetector` or a bumper said so): the action becomes a step back to
+     * the cell it started in, and `blockedEdge` names the wall. Nothing happens unless a walk is running.
+     * @return Whether the walk was turned into a step back.
+     */
+    bool reportBlocked(unsigned now);
+
+    /** The wall that stopped the walk, while the step back runs; empty otherwise (`choose` and `reset` end it). */
+    [[nodiscard]] std::optional<BlockedEdge> blockedEdge() const { return driveKind == DriveKind::stepBack ? blocked : std::nullopt; }
+
+    /**
+     * Whether the robot may count as arrived at the cell of its pose. It may not while a blocked walk steps back: odometry
+     * is ahead of the true position then, so the pose can be in the cell behind the wall (the goal, for instance).
+     */
+    [[nodiscard]] bool arrivalAllowed() const { return driveKind != DriveKind::stepBack; }
+
+    /** The cell where the running action started (the cell of the robot at `choose`); the step back returns to its centre. */
+    [[nodiscard]] int originRow() const { return startRow; }
+    [[nodiscard]] int originCol() const { return startCol; }
+
     /** Picks the next action and locks it. */
     DriveDecision choose(const DriveInput& input, unsigned now);
 
@@ -126,7 +168,10 @@ namespace Maze
   private:
     DriveKind driveKind = DriveKind::idle;
     unsigned startTime = 0;
-    int lockedRow = 0; /**< The target of the running walk, or the cell of the running turn. */
+    int startRow = 0; /**< The cell of the robot when the action was chosen. */
+    int startCol = 0;
+    std::optional<BlockedEdge> blocked; /**< Set while the step back of a blocked walk runs. */
+    int lockedRow = 0; /**< The target of the running walk, or the cell of the running turn; the origin cell during a step back. */
     int lockedCol = 0;
     Heading lockedHeading = Heading::north; /**< The heading to keep (walk) or to reach (turn). */
     int scannedCell = -1;                   /**< The cell where the walls were scanned last in this phase. */
