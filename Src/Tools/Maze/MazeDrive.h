@@ -148,10 +148,11 @@ namespace Maze
     [[nodiscard]] std::optional<BlockedEdge> blockedEdge() const { return driveKind == DriveKind::stepBack ? blocked : std::nullopt; }
 
     /**
-     * Whether the robot may count as arrived at the cell of its pose. It may not while a blocked walk steps back: odometry
-     * is ahead of the true position then, so the pose can be in the cell behind the wall (the goal, for instance).
+     * Whether the robot may count as arrived at the cell of its pose. It may not while a walk runs or a blocked walk steps back:
+     * odometry is ahead of the true position then, so the pose can already be in the cell behind a wall (the goal, for instance)
+     * before the blocked walk detector has held its timeout. The arrival counts once the walk is over and the drive has chosen again.
      */
-    [[nodiscard]] bool arrivalAllowed() const { return driveKind != DriveKind::stepBack; }
+    [[nodiscard]] bool arrivalAllowed() const { return driveKind != DriveKind::stepBack && driveKind != DriveKind::walk; }
 
     /** The cell where the running action started (the cell of the robot at `choose`); the step back returns to its centre. */
     [[nodiscard]] int originRow() const { return startRow; }

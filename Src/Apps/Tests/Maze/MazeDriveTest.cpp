@@ -392,7 +392,7 @@ GTEST_TEST(MazeDrive, ABlockedWalkBecomesAStepBackToTheOriginAndCarriesTheEdge)
   EXPECT_FALSE(drive.blockedEdge().has_value());
 
   ASSERT_EQ(drive.choose(walkInput(), 1000).next, DriveNext::walk);
-  EXPECT_TRUE(drive.arrivalAllowed());
+  EXPECT_FALSE(drive.arrivalAllowed()) << "a running walk is no arrival yet";
   ASSERT_TRUE(drive.reportBlocked(2000));
   EXPECT_EQ(drive.kind(), DriveKind::stepBack);
   EXPECT_FALSE(drive.arrivalAllowed()) << "odometry is past the wall: the pose cell is not an arrival";
@@ -413,8 +413,23 @@ GTEST_TEST(MazeDrive, ABlockedWalkBecomesAStepBackToTheOriginAndCarriesTheEdge)
 
   // The next choice ends the step back and arrival counts again.
   EXPECT_EQ(drive.choose(walkInput(), 3000).next, DriveNext::walk);
-  EXPECT_TRUE(drive.arrivalAllowed());
+  EXPECT_FALSE(drive.arrivalAllowed());
   EXPECT_FALSE(drive.blockedEdge().has_value());
+}
+
+GTEST_TEST(MazeDrive, APoseInTheNextCellIsNoArrivalWhileTheWalkRunsAndCountsOnceTheDriveChoosesAgain)
+{
+  // A contact with a wall is detected only after the hold of the blocked walk detector, while odometry keeps advancing and
+  // can put the pose in the goal cell behind the wall: the walk must be over before the pose cell counts as an arrival.
+  DriveController drive;
+  EXPECT_TRUE(drive.arrivalAllowed()) << "idle";
+  ASSERT_EQ(drive.choose(walkInput(), 0).next, DriveNext::walk);
+  EXPECT_FALSE(drive.arrivalAllowed());
+  EXPECT_TRUE(drive.actionOver(true, 500));
+  DriveInput noRoute = walkInput();
+  noRoute.hasAction = false;
+  ASSERT_EQ(drive.choose(noRoute, 500).next, DriveNext::idle);
+  EXPECT_TRUE(drive.arrivalAllowed());
 }
 
 GTEST_TEST(MazeDrive, OnlyAWalkCanBeBlockedAndAResetEndsTheStepBack)
