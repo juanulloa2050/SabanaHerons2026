@@ -1232,11 +1232,36 @@ never seen.
 - **Foot bumpers in simulation.** `KeyStates` is never set in simulation (`LogDataProvider` update is empty), and `NaoV6H25.rsi2` has no touch sensor. Wiring a SimRobot `CollisionSensor` to `KeyStates` is out of scope and a possible follow-up. The simulation part relies on progress detection.
 
 **Acceptance criteria**
-- [ ] In `MazeVision` with maze_19, the robot never reaches `finished` unless the true robot position is in a goal cell (check against the ground-truth pose).
-- [ ] A walk into an unknown wall is detected as blocked within a parameter time (`blockedTimeout`, set from the run). The edge becomes `wall`, and the robot replans without a second contact on that wall.
-- [ ] An edge that becomes `wall` during a walk aborts the walk before the contact (unit or scene test).
-- [ ] Unit tests: blocked detection on a synthetic progress trace, and a blocked-walk wall is not turned open by later wall-percept open observations.
-- [ ] Real robot (lab): a foot-bumper contact against a panel marks the edge, as a short log in the PR.
+- [x] In `MazeVision` with maze_19, the robot never reaches `finished` unless the true robot position is in a goal cell (check against the ground-truth pose). *(3 runs of 419 s: 6 `finished`, all with the true position in a goal cell; before the two fixes below, 3 runs showed a false `finished` with the robot pushing on the wall 27–19 from the north.)*
+- [x] A walk into an unknown wall is detected as blocked within a parameter time (`blockedTimeout`, set from the run). The edge becomes `wall`, and the robot replans without a second contact on that wall. *(6 of 6 contacts, 1.1–1.3 s after the contact; see the evidence.)*
+- [x] An edge that becomes `wall` during a walk aborts the walk before the contact (unit or scene test). *(Unit tests `MazeDrive.AWalkIsAbortedWhenItsEdgeBecomesAWallBeforeTheSkillIsDone` and `MazeBlockedEdgeChannel.*`; no scene case was observed, the contacts in the runs were all unknown walls.)*
+- [x] Unit tests: blocked detection on a synthetic progress trace, and a blocked-walk wall is not turned open by later wall-percept open observations.
+- [ ] Real robot (lab): a foot-bumper contact against a panel marks the edge, as a short log in the PR. *(Pending lab, T6.)*
+
+**Evidence (simulation, 21 Oct 2026).** `MazeVisionEval.ros2` (MazeVision + `WallPerceptEvaluator`), maze_19, headless (`QT_QPA_PLATFORM=offscreen`, 420 s), ground-truth pose in the maze frame logged with temporary instrumentation (never committed).
+
+- **Signal (T1, 2 runs, 8 contacts, ~10 000 free walking frames).** The pose and `OdometryData` follow the commanded walk (~91 mm/s) while the true robot stands (9 ± 9 mm/s), so progress cannot detect a blocked walk. The yaw rate (`InertialData.gyro.z`) can: standard deviation over 250 ms is 0.06 free (p99 ≤ 0.19) and 1.74 rad/s blocked (≥ 0.96), rising within ~120 ms of the contact. Joint errors, `ArmContactModel` and `FallDownState` do not separate; there is no sonar module.
+- **Rule and parameters** (`blockedWalk` in `handleMaze.cfg`, `PARAMETROS_LABERINTO.md` section 8): a walk is commanded (`MotionInfo` walking, forward speed ≥ `minWalkSpeed` 100 mm/s) and the deviation of the yaw rate over `gyroWindowMs` 250 exceeds `gyroStdThreshold` 0.5 rad/s for `blockedTimeoutMs` 1000 without a gap. The commanded speed dips under 100 mm/s for up to ~300 ms now and then (also while pushing), so the alarm survives a dip of `walkGapMs` 400. On the robot a `FootBumperState` contact for `bumperHoldMs` 100 during a forward walk blocks too (not in SimRobot).
+- **Results with the final code** (3 runs of 419 s; the same two walls are hit in each run: cell 2,3 facing south at ~60-72 s and cell 3,7 facing west at ~118-144 s):
+
+| Check | Result |
+|---|---|
+| Contacts (true position stalls < 30 mm/s for > 0.5 s while a walk is commanded) | 6 (2 per run) |
+| Detected as blocked | 6 of 6, 1.1–1.3 s after the contact (1 s hold + the 120 ms window rise) |
+| False detections (blocked while the true robot moved freely) / missed contacts | 0 / 0 |
+| Edge becomes `wall` in `MazeMap` (mapper line `MazeMapper: blocked at cell ... now a wall.`) | 6 of 6, in the next frame |
+| Step back walks backwards; true distance to the centre of the origin cell | 8, 18, 24, 46, 50, 56 mm when the backwards walk ends (15–69 mm 0.6 s later) |
+| Second contact on a blocked wall | 0 |
+| `finished` / "goal" with the true position outside a goal cell | 0 of 6 (the first `finished` of each run 1.1–1.2 s after the true robot entered the goal block) |
+
+- **False arrival before the fixes.** With the walk of T4 only, three runs finished with the true robot at (1.72 m, 2.61 m), 10 cm short of the wall between cells 19 and 27, in cell 19 (row 2, col 3): odometry was already in the goal cell. Two defects, each fixed with a regression test: (1) `arrivalAllowed()` was false only after the detection, so the pose cell counted as an arrival while the walk still ran during the 1 s hold (`fix(MZ-046): a pose in the next cell is no arrival while the walk still runs`); (2) the commanded speed fell to 81 and 87 mm/s during the contact and each dip restarted the 1 s alarm, so nothing was detected (`fix(MZ-046): a dip of the commanded walk speed does not restart the gyroscope alarm`, `walkGapMs`).
+- **Known limitations.**
+  - The gyro threshold is derived in simulation and the oscillation may be an artefact of the simulated contact; recalibrate `gyroStdThreshold` on the robot.
+  - The foot bumpers exist only on the robot (`KeyStates` is never set in SimRobot); the bumper path is covered by unit tests only (lab criterion pending).
+  - Odometry follows the commanded walk, so after a contact the pose is 130–190 mm ahead of the true position (and the step back ends 10–70 mm from the centre of the origin cell, not exactly on it).
+  - Only forward pushes and one maze were measured; both walls are hit head-on, not at an angle.
+  - A block published in the same frame as a rebuild of the map under another start hypothesis is dropped by the mapper (warning `MazeMapper: a blocked edge ... is dropped`); the second contact is detected again.
+  - Natural contacts are few (the wall percept sees most walls), so the 6 contacts are 2 distinct walls repeated.
 
 ### MZ-024.1 — Exploring return to start (subtask of MZ-024)
 

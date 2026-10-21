@@ -218,6 +218,21 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` (and `MazeSafe`, identical). Ticket
 
 A tag or wall that contradicts a given start is reported with a warning that names the kind of observation (`tag`, `boundary edge`, `position`); the given start does not change. The warning is limited to one per 2 s.
 
+### Blocked walk (`blockedWalk`)
+
+Ticket: MZ-046. Same files (`Maze` and `MazeSafe`). A forward walk into a wall the map did not know is detected, the robot steps back to the centre of the cell the walk started in, and the edge becomes a wall that no wall percept can open again. All values were measured in SimRobot (maze_19, `MazeVisionEval`); **recalibrate `gyroStdThreshold` and `bumperHoldMs` on the robot**: the real gait and panel give other levels, and the foot bumpers do not exist in SimRobot.
+
+| Key | Meaning | Default | Source |
+|---|---|---|---|
+| `blockedWalk.gyroWindowMs` | Window of the standard deviation of the yaw rate (`InertialData.gyro.z`), ms. | `250` | Walking free: 0.06 rad/s (p99 ≤ 0.19). Blocked: ≥ 0.96, mean 1.74. |
+| `blockedWalk.gyroStdThreshold` | Deviation (rad/s) above which a commanded forward walk looks blocked. | `0.5` | Between the free p99 and the blocked minimum. |
+| `blockedWalk.minWalkSpeed` | Commanded forward speed (mm/s) from which a walk can be blocked; a standing or turning robot never triggers. | `100` | Free walk 150 mm/s; the commanded speed while turning is 30–50. |
+| `blockedWalk.blockedTimeoutMs` | How long the gyroscope alarm must hold without a gap, ms. Detection takes about this + 0.1–0.3 s after the contact. | `1000` | The start and stop jolts of a walk last up to ~120 ms. |
+| `blockedWalk.walkGapMs` | How long the commanded speed may stay under `minWalkSpeed` without dropping the alarm, ms. | `400` | The speed dips to 80–90 mm/s for up to ~300 ms, also while pushing. |
+| `blockedWalk.bumperHoldMs` | How long a foot bumper contact during a forward walk must hold, ms (robot only). | `100` | Guess; to be measured in the lab (MZ-046 T6). |
+
+Odometry and `RobotPose` follow the commanded walk, so they cannot detect the block, and after the detection the pose is 130–190 mm ahead of the true position (the step back goes to the origin cell of the walk, not to the pose cell).
+
 ### Compile-time constants of the behaviour
 
 In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `Src/Tools/Maze/MazeDrive.h`. Status: **exists**; changing them needs a rebuild, not a config edit.

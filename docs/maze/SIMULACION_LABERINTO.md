@@ -253,6 +253,18 @@ Reopen the scene afterwards. The robot appears in the start cell of the maze fil
 
 Dragging the robot in the 3D view lifts it. The code treats `FallDownState` `pickedUp` as a pick-up (a fall is not one), so a drag that SimRobot reports as picked up ends the attempt (`standby`) and the pose is reset to the start when the robot is active again, wherever it was put down. The tags it then sees contradict that pose, which the mapper counts as conflicts and warns about (`MazeMapper: an observation contradicts ... Latest: tag`); the start does not change once it is known. Check `get representation:FallDownState` while dragging: whether SimRobot reports a drag as `pickedUp` has not been verified yet. `gc initial` then `gc playing` always works as a pick-up.
 
+### Seeing a blocked walk (MZ-046)
+
+When a walk pushes against a wall the map did not know, the robot says "blocked", walks backwards to the centre of the cell it started in, and the edge becomes a wall. In a headless run (step 7) look for these lines:
+
+```bash
+rg 'MazeBlocked:|blocked by the|MazeMapper: blocked' run.log
+```
+
+- `MazeBlocked: t <ms> cause gyro cell <row>,<col> heading <0..3> pose cell <row>,<col>` on the error stream: the wall is the side `heading` (0 north, 1 east, 2 south, 3 west) of the cell where the walk started; the pose cell is usually the next cell, because odometry follows the commanded walk.
+- `HandleMaze: blocked by the gyroscope at cell ...; stepping back.` and `MazeMapper: blocked at cell ... now a wall.` in the console.
+- To compare with the truth, log `GroundTruthRobotPose` in the maze frame (`Maze::Oracle::robotInMaze`, as `WallPerceptEvaluator` does): a contact is a stall under 30 mm/s for more than 0.5 s while a walk is commanded. In `maze_19` the first contacts are at cell 2,3 facing south and cell 3,7 facing west, about 60–145 s into the run. The foot bumpers do not exist in SimRobot, so the cause is always `gyro` there.
+
 ## 6. Real robot: see the AprilTags (RemoteRobot)
 
 The detector (`AprilTagDetector`) runs on the upper camera of the NAO, only in the `Maze` scenario.
