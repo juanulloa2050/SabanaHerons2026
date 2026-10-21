@@ -141,6 +141,12 @@ namespace Maze
      */
     int observePosition(GridCell cell);
 
+    /**
+     * Logs that the robot was blocked by the edge on side `side` of a start-relative cell, for the replay. It removes no
+     * hypothesis: a wall never does.
+     */
+    void observeBlocked(GridCell cell, Heading side);
+
     /** Notes that the robot has been in a start-relative cell, for the replay, without drawing any conclusion from it. */
     void markVisited(GridCell cell);
 
@@ -183,6 +189,7 @@ namespace Maze
     struct Entry
     {
       bool isTag = false;
+      bool isBlocked = false;    /**< Edge: the robot was blocked by it, a wall for good. */
       GridCell cell;             /**< Edge: the cell the edge is on. */
       Heading side = Heading::north; /**< Edge: the side of `cell`. */
       bool isWall = false;

@@ -12,6 +12,9 @@
  * then on (a perceptor that sees through a tagged face is wrong), for as long as the fusion lives, as its map does. Other
  * open evidence, such as the robot's own position, still counts.
  *
+ * An edge the robot walked into is a wall for good, harder than a tagged one: `observeBlocked` decides it at once and no open
+ * evidence of any source can open it again.
+ *
  * Independence: Cognition repeats the same scene at 60 Hz, so consecutive frames are not independent evidence.
  * Timed observations are rate-limited per edge: an edge takes at most one observation every
  * `minObservationInterval` ms, the others are dropped, not accumulated.
@@ -86,6 +89,13 @@ namespace Maze
     /** A decoded tag on `face` of `cell` means that this face is a wall; `observeCellsAhead` then ignores open for that edge. */
     bool observeTag(int cell, Heading face, unsigned time = untimed);
 
+    /**
+     * The robot was blocked by the edge on side `heading` of cell (`row`, `col`): it is a wall at once (no threshold, no rate
+     * limit) and no open observation of any source opens it again. The border is a wall already and is left alone.
+     * @return Whether the state of the edge changed (the planner has to replan).
+     */
+    bool observeBlocked(int row, int col, Heading heading);
+
     void markVisited(int row, int col);
     [[nodiscard]] bool visited(int row, int col) const;
 
@@ -108,6 +118,7 @@ namespace Maze
     std::array<unsigned, cellCount * headingCount> lastObservation = {}; /**< Per edge: time of the last accepted timed observation. */
     std::array<bool, cellCount * headingCount> hasObservation = {};
     std::array<bool, cellCount * headingCount> tagged = {}; /**< Per edge: a tag was seen on one of its faces. */
+    std::array<bool, cellCount * headingCount> blocked = {}; /**< Per edge: the robot was blocked by it, it never opens. */
     std::array<bool, cellCount> visitedCells = {};
   };
 }

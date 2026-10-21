@@ -38,6 +38,8 @@ namespace Maze
       return false; // The border is a wall and stays one.
 
     const std::size_t edge = index(row, col, heading);
+    if(!isWall && blocked[edge])
+      return false; // The robot was stopped by this edge: nothing opens it, whatever the source.
     if(time != untimed)
     {
       // An out-of-order observation (a tag percept older than the last wall percept, both on the Upper clock) is dropped and
@@ -94,8 +96,8 @@ namespace Maze
       {
         if(state == EdgeState::unknown)
           continue;
-        if(state == EdgeState::open && tagged[index(row, col, heading)])
-          continue; // A tag was seen on this face: a wall percept that sees through it is wrong.
+        if(state == EdgeState::open && (tagged[index(row, col, heading)] || blocked[index(row, col, heading)]))
+          continue; // A tag was seen on this face or the robot was blocked by it: a wall percept that sees through it is wrong.
         if(observe(row, col, heading, state == EdgeState::wall, weight, time))
           ++changes;
       }
@@ -109,6 +111,19 @@ namespace Maze
       return false;
     tagged[index(cellRow(cell), cellCol(cell), face)] = true; // Even if the observation is rate limited: the tag was seen.
     return observe(cellRow(cell), cellCol(cell), face, true, parameters.tagWeight, time);
+  }
+
+  bool MazeMapFusion::observeBlocked(int row, int col, Heading heading)
+  {
+    if(!inside(row, col) || !inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
+      return false;
+    const std::size_t edge = index(row, col, heading);
+    blocked[edge] = true;
+    evidence[edge] = 0.f; // Nothing can speak against the wall any more.
+    if(graph.get(row, col, heading) == EdgeState::wall)
+      return false;
+    graph.set(row, col, heading, EdgeState::wall);
+    return true;
   }
 
   void MazeMapFusion::markVisited(int row, int col)

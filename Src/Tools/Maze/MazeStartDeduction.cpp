@@ -269,6 +269,16 @@ namespace Maze
     return removed;
   }
 
+  void StartDeduction::observeBlocked(GridCell cell, Heading side)
+  {
+    Entry entry;
+    entry.isBlocked = true;
+    entry.cell = cell;
+    entry.side = side;
+    entry.isWall = true;
+    record(entry);
+  }
+
   void StartDeduction::markVisited(GridCell cell)
   {
     if(recording)
@@ -303,6 +313,11 @@ namespace Maze
         const FaceChoice choice = chooseFaceByNormal(entry.id, entry.normalAngle + angleOf(hypothesis.heading), layout);
         if(choice.found && choice.angleError <= parameters.maxFaceAngleError)
           fusion.observeTag(entry.id, choice.face, entry.time);
+      }
+      else if(entry.isBlocked)
+      {
+        const GridCell inMaze = toMaze(hypothesis, entry.cell);
+        fusion.observeBlocked(inMaze.row, inMaze.col, toMaze(hypothesis, entry.side));
       }
       else
       {

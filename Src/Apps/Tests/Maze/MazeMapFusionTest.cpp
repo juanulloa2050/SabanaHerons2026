@@ -2,7 +2,7 @@
  * @file MazeMapFusionTest.cpp
  *
  * Tests of the evidence based wall map: thresholds, hysteresis, distance weights, look-ahead mapping,
- * tags, attempts and the timestamp filter.
+ * tags, blocked edges, attempts and the timestamp filter.
  */
 
 #include "Tools/Maze/MazeLocalization.h"
@@ -163,6 +163,88 @@ GTEST_TEST(MazeMapFusion, TaggedFaceIgnoresOpenFromTheWallPercept)
   EXPECT_FALSE(observeTimes(walked, 2, 5, Heading::north, false, 3)); // the tag counted +1 for the wall
   EXPECT_TRUE(observeTimes(walked, 2, 5, Heading::north, false, 1));
   EXPECT_EQ(walked.graph.get(2, 5, Heading::north), EdgeState::open);
+}
+
+GTEST_TEST(MazeMapFusion, ABlockedEdgeIsAWallAtOnce)
+{
+  MazeMapFusion fusion;
+  EXPECT_TRUE(fusion.observeBlocked(3, 3, Heading::east));
+  EXPECT_EQ(fusion.graph.get(3, 3, Heading::east), EdgeState::wall);
+  EXPECT_EQ(fusion.graph.get(3, 4, Heading::west), EdgeState::wall) << "the neighbour reads the same edge";
+  EXPECT_FALSE(fusion.observeBlocked(3, 3, Heading::east)) << "nothing changes the second time";
+  EXPECT_FALSE(fusion.observeBlocked(3, 4, Heading::west));
+
+  // An edge that is a wall already stays one, and it is blocked from then on.
+  MazeMapFusion decided;
+  observeTimes(decided, 2, 2, Heading::north, true, 3);
+  EXPECT_FALSE(decided.observeBlocked(2, 2, Heading::north));
+  EXPECT_FALSE(observeTimes(decided, 2, 2, Heading::north, false, 10));
+  EXPECT_EQ(decided.graph.get(2, 2, Heading::north), EdgeState::wall);
+
+  // An edge that was open is a wall at once, without contrary evidence building up first.
+  MazeMapFusion open;
+  observeTimes(open, 5, 5, Heading::south, false, 3);
+  ASSERT_EQ(open.graph.get(5, 5, Heading::south), EdgeState::open);
+  EXPECT_TRUE(open.observeBlocked(6, 5, Heading::north));
+  EXPECT_EQ(open.graph.get(5, 5, Heading::south), EdgeState::wall);
+
+  // The border is a wall already and out-of-range cells are ignored.
+  MazeMapFusion border;
+  EXPECT_FALSE(border.observeBlocked(0, 0, Heading::north));
+  EXPECT_FALSE(border.observeBlocked(-1, 0, Heading::south));
+  EXPECT_FALSE(border.observeBlocked(0, size, Heading::west));
+}
+
+GTEST_TEST(MazeMapFusion, ABlockedEdgeIsNeverOpenedByThePerceptNorByOtherEvidence)
+{
+  // The north edge of (2, 5) is the left of the gaze east from (2, 5) and the south edge of (1, 5), the right of the same gaze from (1, 5).
+  const auto openFromBothCells = [](MazeMapFusion& fusion, int rounds)
+  {
+    CellObservation fromBelow, fromAbove;
+    fromBelow.left = EdgeState::open;
+    fromBelow.distance = 100.f;
+    fromAbove.right = EdgeState::open;
+    fromAbove.distance = 100.f;
+    int changes = 0;
+    for(int i = 0; i < rounds; ++i)
+    {
+      changes += fusion.observeCellsAhead(2, 5, Heading::east, {fromBelow}, 1000u + 600u * static_cast<unsigned>(i));
+      changes += fusion.observeCellsAhead(1, 5, Heading::east, {fromAbove}, 1300u + 600u * static_cast<unsigned>(i));
+    }
+    return changes;
+  };
+
+  MazeMapFusion fusion;
+  ASSERT_TRUE(fusion.observeBlocked(2, 5, Heading::north));
+  EXPECT_EQ(openFromBothCells(fusion, 30), 0) << "from both cells of the shared edge, over a long time";
+  EXPECT_EQ(fusion.graph.get(2, 5, Heading::north), EdgeState::wall);
+  EXPECT_EQ(fusion.graph.get(1, 5, Heading::south), EdgeState::wall);
+
+  // Without the block the same percepts open the edge.
+  MazeMapFusion plain;
+  EXPECT_GT(openFromBothCells(plain, 30), 0);
+  EXPECT_EQ(plain.graph.get(2, 5, Heading::north), EdgeState::open);
+
+  // Open evidence that is not the percept (untimed, like the position) does not open it either, from either side.
+  EXPECT_FALSE(observeTimes(fusion, 2, 5, Heading::north, false, 20));
+  EXPECT_FALSE(observeTimes(fusion, 1, 5, Heading::south, false, 20));
+  EXPECT_EQ(fusion.graph.get(2, 5, Heading::north), EdgeState::wall);
+
+  // Only that edge is vetoed: the other edges of the cell still take open evidence, and walls keep counting.
+  EXPECT_TRUE(observeTimes(fusion, 2, 5, Heading::south, false, 3));
+  EXPECT_FALSE(fusion.observe(2, 5, Heading::north, true, 1.f));
+}
+
+GTEST_TEST(MazeMapFusion, ABlockedEdgeIsBlockedEvenIfTheWallWasNotKnownWhenOpenEvidenceCame)
+{
+  // Open evidence came first and decided the edge; blocking it afterwards overrules that.
+  MazeMapFusion fusion;
+  observeTimes(fusion, 4, 4, Heading::west, false, 5);
+  ASSERT_EQ(fusion.graph.get(4, 4, Heading::west), EdgeState::open);
+  EXPECT_TRUE(fusion.observeBlocked(4, 4, Heading::west));
+  EXPECT_EQ(fusion.graph.get(4, 4, Heading::west), EdgeState::wall);
+  EXPECT_FALSE(observeTimes(fusion, 4, 4, Heading::west, false, 10));
+  EXPECT_EQ(fusion.graph.get(4, 3, Heading::east), EdgeState::wall);
 }
 
 GTEST_TEST(MazeMapFusion, CellsAheadAreMappedForEveryGaze)

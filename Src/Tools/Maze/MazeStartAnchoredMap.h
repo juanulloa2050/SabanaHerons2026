@@ -83,6 +83,13 @@ namespace Maze
     int observeCellsAhead(const Pose2f& pose, Heading gaze, const std::vector<CellObservation>& cells, unsigned time);
 
     /**
+     * The robot was blocked by the edge on side `heading` of cell (`row`, `col`), in the frame of the anchor: a wall for good (see
+     * `MazeMapFusion::observeBlocked`). It is logged like a tag, so a rebuild under another hypothesis keeps it.
+     * @return Whether an edge of the map changed.
+     */
+    bool observeBlocked(int row, int col, Heading heading);
+
+    /**
      * Adds a decoded tag seen from `pose`. The deduction takes every detection; the map only those whose face the
      * working hypothesis explains, and only while the pose is inside the maze.
      * @return The number of edges that changed.

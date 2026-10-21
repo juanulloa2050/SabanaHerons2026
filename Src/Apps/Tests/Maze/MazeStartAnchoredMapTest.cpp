@@ -122,6 +122,57 @@ GTEST_TEST(MazeStartAnchoredMap, ATagMovesTheMapIntoTheFrameOfTheDeducedStartAnd
   EXPECT_FALSE(map.endFrame()) << "one rebuild per change";
 }
 
+GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeIsAWallAndSurvivesTheRebuildUnderAnotherHypothesis)
+{
+  const Hypothesis truthStart = {63, Heading::north};
+  const Pose2f truth = startPose(truthStart);
+  StartAnchoredMap map; // The working hypothesis is (0, east), which is wrong.
+  map.newAttempt();
+  const Pose2f estimate = believed(truth, truthStart, map.anchor());
+  map.markVisited(estimate);
+  map.endFrame();
+
+  // The robot is blocked by the edge in front of the start cell, in the frame of the working hypothesis.
+  EXPECT_TRUE(map.observeBlocked(0, 0, Heading::east));
+  EXPECT_EQ(map.map().graph.get(0, 0, Heading::east), EdgeState::wall);
+  EXPECT_FALSE(map.observeBlocked(0, 0, Heading::east));
+  EXPECT_FALSE(map.observeBlocked(-1, 0, Heading::east)) << "outside the maze";
+  EXPECT_EQ(map.status().aliveCount, 8) << "a wall removes no hypothesis";
+
+  // A tag shows the true start: the map is rebuilt and the blocked edge is in front of cell 63, facing north.
+  EXPECT_EQ(map.observeTag(estimate, 55, tagSeenFrom(truth, 55, Heading::north), 2000), 0);
+  ASSERT_TRUE(map.endFrame());
+  ASSERT_EQ(map.anchor(), truthStart);
+  EXPECT_EQ(map.map().graph.get(7, 7, Heading::north), EdgeState::wall);
+  EXPECT_EQ(map.map().graph.get(0, 0, Heading::east), EdgeState::unknown) << "nothing is left of the wrong frame";
+
+  // The wall percept sees through it, many times: it stays a wall.
+  CellObservation ahead;
+  ahead.front = EdgeState::open;
+  ahead.distance = 100.f;
+  const Pose2f startNow = startPose(truthStart);
+  ASSERT_TRUE(map.lookAheadUsable(startNow));
+  for(unsigned i = 0; i < 30; ++i)
+    map.observeCellsAhead(startNow, Heading::north, {ahead}, 3000 + 300 * i);
+  EXPECT_EQ(map.map().graph.get(7, 7, Heading::north), EdgeState::wall);
+}
+
+GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeOfAGivenStartIsKeptAndNeverOpened)
+{
+  StartAnchoredMap map;
+  ASSERT_TRUE(map.setGiven(56, Heading::north));
+  EXPECT_TRUE(map.observeBlocked(6, 0, Heading::north));
+  CellObservation ahead;
+  ahead.front = EdgeState::open;
+  ahead.distance = 100.f;
+  const Pose2f start = startPose(map.anchor());
+  const Pose2f here(start.rotation, start * Vector2f(500.f, 0.f)); // The cell ahead of the start, (6, 0).
+  ASSERT_TRUE(map.lookAheadUsable(here));
+  for(unsigned i = 0; i < 30; ++i)
+    map.observeCellsAhead(here, Heading::north, {ahead}, 1000 + 300 * i);
+  EXPECT_EQ(map.map().graph.get(6, 0, Heading::north), EdgeState::wall);
+}
+
 GTEST_TEST(MazeStartAnchoredMap, ATagThatTheLayoutCannotExplainChangesNothingButIsCounted)
 {
   // Only the east faces carry tags, so a tag on a south face fits no hypothesis: the map ignores it and the deduction counts a conflict.

@@ -83,6 +83,14 @@ namespace Maze
     return fusion.observeCellsAhead(inMaze.row, inMaze.col, gaze, cells, time);
   }
 
+  bool StartAnchoredMap::observeBlocked(int row, int col, Heading heading)
+  {
+    if(!inside(row, col))
+      return false;
+    startDeduction.observeBlocked(StartDeduction::toStart(anchored, GridCell{row, col}), StartDeduction::toStart(anchored, heading));
+    return fusion.observeBlocked(row, col, heading);
+  }
+
   int StartAnchoredMap::observeTag(const Pose2f& pose, int id, const Pose3f& tagInRobot, unsigned time)
   {
     if(id < 0 || id >= cellCount || !tagInRobot.translation.allFinite() || !tagInRobot.rotation.allFinite() || !pose.translation.allFinite() ||
