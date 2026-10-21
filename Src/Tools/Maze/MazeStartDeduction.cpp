@@ -271,6 +271,8 @@ namespace Maze
 
   void StartDeduction::observeBlocked(GridCell cell, Heading side)
   {
+    if(edgeOnBoundary(working(), cell, side))
+      return; // Not an edge of the maze under the working hypothesis: a replay under another one could turn it into a wall that was never touched.
     Entry entry;
     entry.isBlocked = true;
     entry.cell = cell;

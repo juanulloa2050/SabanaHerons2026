@@ -85,7 +85,8 @@ namespace Maze
 
   bool StartAnchoredMap::observeBlocked(int row, int col, Heading heading)
   {
-    if(!inside(row, col))
+    // The border cannot be blocked: logged, a replay under another hypothesis could map it to an edge the robot never touched.
+    if(!inside(row, col) || !inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
       return false;
     startDeduction.observeBlocked(StartDeduction::toStart(anchored, GridCell{row, col}), StartDeduction::toStart(anchored, heading));
     return fusion.observeBlocked(row, col, heading);

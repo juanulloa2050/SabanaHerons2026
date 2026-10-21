@@ -157,6 +157,32 @@ GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeIsAWallAndSurvivesTheRebuildUnderAn
   EXPECT_EQ(map.map().graph.get(7, 7, Heading::north), EdgeState::wall);
 }
 
+GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeWhoseNeighbourIsOutsideTheMazeIsNeitherMappedNorLogged)
+{
+  const Hypothesis truthStart = {63, Heading::north};
+  const Pose2f truth = startPose(truthStart);
+  StartAnchoredMap map; // The working hypothesis is (0, east).
+  const Pose2f estimate = believed(truth, truthStart, map.anchor());
+  map.markVisited(estimate);
+
+  // In-range origins whose neighbour is outside the maze: the north border of cell 0 and the south border of cell 56.
+  EXPECT_FALSE(map.observeBlocked(0, 0, Heading::north));
+  EXPECT_FALSE(map.observeBlocked(7, 3, Heading::south));
+  EXPECT_FALSE(map.observeBlocked(3, 7, Heading::east));
+
+  // A rebuild under another hypothesis shows that nothing was logged: no inner edge is a wall.
+  EXPECT_EQ(map.observeTag(estimate, 55, tagSeenFrom(truth, 55, Heading::north), 2000), 0);
+  ASSERT_TRUE(map.endFrame());
+  for(int row = 0; row < size; ++row)
+    for(int col = 0; col < size; ++col)
+      for(int h = 0; h < headingCount; ++h)
+      {
+        const Heading heading = static_cast<Heading>(h);
+        if(inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
+          EXPECT_NE(map.map().graph.get(row, col, heading), EdgeState::wall) << row << "," << col << "," << h;
+      }
+}
+
 GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeOfAGivenStartIsKeptAndNeverOpened)
 {
   StartAnchoredMap map;
