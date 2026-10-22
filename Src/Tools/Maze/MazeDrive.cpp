@@ -53,6 +53,7 @@ namespace Maze
     scannedCell = -1;
     noRouteReported = false;
     scanRequested = false;
+    wide = false;
     blocked.reset();
   }
 
@@ -144,6 +145,7 @@ namespace Maze
     startCol = cellCol(input.cell);
     if(!input.speedRun && scannedCell != input.cell && (input.unknownEdges || scanRequested))
     {
+      wide = scanRequested;
       scanRequested = false;
       scannedCell = input.cell;
       driveKind = DriveKind::scan;

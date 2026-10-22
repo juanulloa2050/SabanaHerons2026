@@ -207,6 +207,7 @@ GTEST_TEST(MazeDrive, ACellWithUnknownEdgesIsScannedOnceAndOnlyWhenExploring)
   input.unknownEdges = true;
   EXPECT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   EXPECT_EQ(drive.kind(), DriveKind::scan);
+  EXPECT_FALSE(drive.wideScan()) << "the scan of a cell with unknown edges is the held one";
   EXPECT_EQ(drive.choose(input, 3000).next, DriveNext::walk) << "the same cell is not scanned a second time";
 
   input.cell = 10; // Another cell with unknown edges is scanned.
@@ -230,6 +231,7 @@ GTEST_TEST(MazeDrive, TheGoalLookScansOnceEvenWithoutUnknownEdgesThenFollowsTheR
   drive.requestScan();
   EXPECT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   EXPECT_EQ(drive.kind(), DriveKind::scan);
+  EXPECT_TRUE(drive.wideScan()) << "the goal look is the wide scan";
   EXPECT_EQ(drive.choose(input, 3000).next, DriveNext::walk) << "the look counts as the scan of this cell";
   input.cell = 10;
   EXPECT_EQ(drive.choose(input, 6000).next, DriveNext::walk) << "only the cell where the look was requested is forced";

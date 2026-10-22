@@ -28,8 +28,8 @@ namespace Maze
   /** The longest a turn may take before the plan is read again (ms). */
   constexpr unsigned turnTimeoutMs = 12000;
 
-  /** The longest a wall scan may take before the plan is read again (ms). */
-  constexpr unsigned scanTimeoutMs = 2500;
+  /** The longest a wall scan may take before the plan is read again (ms). The held scan of `MazeScanWalls` takes about 3.6 s (three holds of 1 s plus the head travel); the wide goal look under 2 s. */
+  constexpr unsigned scanTimeoutMs = 5000;
 
   /** The longest the step back after a blocked walk may take before the plan is read again (ms). */
   constexpr unsigned stepBackTimeoutMs = 6000;
@@ -162,6 +162,9 @@ namespace Maze
     DriveDecision choose(const DriveInput& input, unsigned now);
 
     [[nodiscard]] DriveKind kind() const { return driveKind; }
+
+    /** Whether the running scan is the wide goal look of `requestScan` (otherwise it is the held scan of a cell). */
+    [[nodiscard]] bool wideScan() const { return wide; }
     [[nodiscard]] int targetRow() const { return lockedRow; }
     [[nodiscard]] int targetCol() const { return lockedCol; }
     [[nodiscard]] Heading targetHeading() const { return lockedHeading; }
@@ -177,6 +180,7 @@ namespace Maze
     Heading lockedHeading = Heading::north; /**< The heading to keep (walk) or to reach (turn). */
     int scannedCell = -1;                   /**< The cell where the walls were scanned last in this phase. */
     bool noRouteReported = false;
+    bool wide = false; /**< The scan that runs (or ran last) was the forced goal look. */
     bool scanRequested = false; /**< `requestScan` was called and the forced scan has not happened yet. */
   };
 }

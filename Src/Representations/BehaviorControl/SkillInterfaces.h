@@ -483,6 +483,8 @@ SKILL_INTERFACE(MazeFollowCorridor, (int) targetRow, (int) targetCol, (MazeCellP
 SKILL_INTERFACE(MazeTurn, (MazeCellPose::Heading) heading);
 
 /**
- * Pans the head left, right and forward (under 2 s) so that the wall perceptor sees the sides of a cell. Done at the end.
+ * Pans the head left, right and forward so that the wall perceptor sees walls around the robot. Done at the end.
+ * @param wide true: +60 deg, -60 deg, 0 (under 2 s), the side corridors of the cell (the goal look of the return);
+ *             false: holds +30 deg, -30 deg and 0 for about a second each, the walls of the next cell seen from this one
  */
-SKILL_INTERFACE(MazeScanWalls);
+SKILL_INTERFACE(MazeScanWalls, (bool) wide);

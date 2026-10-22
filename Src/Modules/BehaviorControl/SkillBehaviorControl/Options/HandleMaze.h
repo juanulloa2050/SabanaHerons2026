@@ -540,7 +540,7 @@ option(MazeDrive)
     action
     {
       theStandSkill();
-      theMazeScanWallsSkill();
+      theMazeScanWallsSkill({.wide = drive.wideScan()});
     }
   }
 
