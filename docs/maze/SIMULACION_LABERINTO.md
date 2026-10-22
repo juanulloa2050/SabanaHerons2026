@@ -202,7 +202,7 @@ map when the robot crosses a cell boundary. The offline results are in `GYRO_HEA
 | Step | Console | Expected |
 |---|---|---|
 | 1. Ready | `gc playing` (already set by `Maze.con`) | Says "ready". |
-| 2. Attempt 1 | `dr option:HandleMaze:headFront on` | Says "exploring"; the robot scans unknown walls and walks cell by cell. With `start.cell = -1` it says "start <id>" once the corner is deduced. |
+| 2. Attempt 1 | `dr option:HandleMaze:headFront on` | Says "exploring"; the robot turns toward the next cell, holds the head at +30°, −30° and 0° (about 3.6 s) when that cell has an unknown left, right or front edge, then walks cell by cell. It does not scan on arrival (MZ-047). With `start.cell = -1` it says "start <id>" once the corner is deduced. |
 | 3. Goal | (wait) | In a central cell: says "goal", then "finished", and stands. |
 | 4. Pick-up | `gc initial`, drag the robot back to the start cell facing its open side, `gc playing` | Says "standby" after `gc initial`, then "ready" after `gc playing`. The pose is reset to the start and `MazeMap` keeps its edges with `attempt` one higher. A chest-button penalty does not reach `HandleMaze` (`HandlePlayerState` acts while penalized): `pr manual` makes B-Human say "Penalized" and the robot stands; `pr none` makes it say "Not penalized", then `HandleMaze` goes to `standby` and says "ready" (no "standby" is said). The robot stays standing until `dr option:HandleMaze:headFront on`. |
 | 5. Attempt 2 | `dr option:HandleMaze:headFront on` | Says "speed run" if the known-open edges reach the goal (the console prints the route: cells, actions, estimated time, and "all edges known to be open"), otherwise "exploring" again. |
@@ -229,7 +229,7 @@ To change the settings, edit `returnToStart` in `handleMaze.cfg` and reopen the 
 
 1. `enabled = false` makes the robot stand at the goal, as in step 3 of *Running the full flow*. `trigger = timer` starts the return `delayMs` after the goal instead of the tap.
 2. Run attempt 1 as above. At the goal the robot says "goal" only (no "finished"). Only a goal reached by the exploration (attempt 1) arms the return; a speed-run goal still says "goal", "finished" and stays.
-3. `trigger = timer`: after `delayMs` it says "returning" and walks back, trying unknown edges. `trigger = button`: it stands until `dr option:HandleMaze:headFront on` (the tap is free at the goal), then says "returning". Before the first move the robot makes one wall scan (the "goal look", even if the goal cell has no unknown edges): its look-ahead shows the edges of the neighbouring goal cells, so the first return plan already knows them.
+3. `trigger = timer`: after `delayMs` it says "returning" and walks back, trying unknown edges. `trigger = button`: it stands until `dr option:HandleMaze:headFront on` (the tap is free at the goal), then says "returning". Before the first move the robot makes one wide ±60° wall scan (the "goal look", even if the next cell has no unknown edges): its look-ahead shows the edges of the neighbouring goal cells, so the first return plan already knows them.
 4. The return ends at the start cell, or after `maxDurationMs` (also if no route is found), or when the robot is picked up (`gc initial`): it says "standby" and stands. `dr option:HandleMaze:headFront on` then starts the speed run with the edges found on the way (console: `HandleMaze: speed run over ...`).
 
 Watch `get representation:MazePlan` (`returnToStart` route, `atStart`, `startCell`) and `vfd worldState representation:MazePlan` (the green dotted line is the return route). The unit test `MazeRoutes.TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop` checks the `maze_19.maze` example offline.
@@ -323,6 +323,8 @@ Evaluator settings: `Config/Scenarios/Maze/wallPerceptEvaluator.cfg` (and `MazeS
 2. Open the scene (step 4) with `Build/Linux/SimRobot/Develop/SimRobot Config/Scenes/MazeEval.ros2`. The robot starts by itself after about 3 s.
 3. Read the summary: in the console as text, and on the standard error stream as lines that start with `WallPerceptEvaluator:`. Each summary is **cumulative** from the start of the run, so the last one is the result. One is also printed when the module is destroyed. If the maze file cannot be read, the evaluator says so on the error stream (`nothing is scored; trying again`) and tries again every summary interval.
 4. Let it run for several minutes: the matrix of MZ-019 used 420 s per run (about 11600 scored frames). The robot may get stuck or lost at the start; check that the frame count grows and the run explores, and repeat the run if not.
+
+Run `MazeVisionEval` comparisons one SimRobot at a time. Two instances running together lost the pose in the MZ-047 baseline and their runs were discarded.
 
 Same-colour floor (gradient check): regenerate the scene with the floor painted in the wall colour (the goal patch keeps its own) and run `MazeEval` again.
 

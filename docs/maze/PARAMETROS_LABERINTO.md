@@ -95,6 +95,8 @@ File: `Config/Scenarios/Maze/wallPerceptor.cfg` (and `MazeSafe`, same values). M
 | `vertexMarginMm` | Points closer than this to a grid vertex are ignored, in mm; 50 mm of noise there credited a neighbour edge. | `60` | — |
 | `noGoalBlockWalls` | By the rules the four cells of the goal block have no walls between them: those edges are never reported as walls. | `true` | — |
 
+The scan of MZ-047 relies on `lookAheadRangeStanding`: the robot stands at a cell centre with the head at ±30° or 0°, the gaze snaps to the robot heading, and the near side walls of the next cell are reported (see section 8, `MazeScanWalls`).
+
 The percept carries the range it used (`WallPercept.lookAheadRange`), because the Upper and Cognition copies of `MotionInfo` can differ for a few frames around a start or a stop; the evaluator checks the reported cells against that range.
 
 ### Boundary scan
@@ -247,7 +249,7 @@ In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `
 | `tagMemoryTime` | A tag last seen longer ago than this is announced as "no tag", in ms. | `2000` |
 | `Maze::walkTimeoutMs` | A walk to a neighbouring cell that takes longer is dropped and the plan is read again, in ms. | `20000` |
 | `Maze::turnTimeoutMs` | Same for a turn, in ms. | `12000` |
-| `Maze::scanTimeoutMs` | Same for a wall scan, in ms. | `2500` |
+| `Maze::scanTimeoutMs` | Same for a wall scan, in ms. Above the held scan of MZ-047 (about 3.62 s); the wide goal look takes under 2 s. | `5000` (was `2500`) |
 | `motionTestWalkTimeout` | Time limit of the walking step before the test aborts, in ms. | `30000` |
 | `motionTestTurnTimeout` | Time limit of a turning step before the test aborts, in ms. | `15000` |
 | `motionTestNumOfSteps` | Steps of the motion test (walk, left, right, around). | `4` |
@@ -264,10 +266,14 @@ In `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` and `
 | `MazeFollowCorridor` | `walkSpeed`, `turnSpeed` | Walking and rotation speed as ratio of the maximum, in [0, 1]. | `1`, `1` |
 | `MazeTurn` | `margin` | Done when the remaining angle is smaller than this. | `6deg` |
 | `MazeTurn` | `turnSpeed` | Rotation speed as ratio of the maximum, in [0, 1]. | `1` |
-| `MazeScanWalls` | `panAngle` | How far the head turns to each side. | `60deg` |
-| `MazeScanWalls` | `tilt` | Head tilt during the scan (as `LookForward`). | `0.38` rad |
-| `MazeScanWalls` | `headSpeed` | Head speed. | `200deg/s` |
-| `MazeScanWalls` | `leftTime`, `rightTime`, `frontTime` | Time to look left, cross and look right, and come back to the front, in ms (about 1.8 s in total, within the 2 s limit of the ticket). | `550`, `800`, `450` |
+| `MazeScanWalls` | `wide` (skill argument) | `true`: the wide goal look of MZ-024.1 with the `panAngle` sequence below. `false`: the held scan of the next cell (MZ-047) with the `hold*` values. `HandleMaze` passes `DriveController::wideScan()`. | – |
+| `MazeScanWalls` | `panAngle` | Wide: how far the head turns to each side. | `60deg` |
+| `MazeScanWalls` | `tilt` | Wide: head tilt during the scan (as `LookForward`). | `0.38` rad |
+| `MazeScanWalls` | `headSpeed` | Head speed, both sequences. | `200deg/s` |
+| `MazeScanWalls` | `leftTime`, `rightTime`, `frontTime` | Wide: time to look left, cross and look right, and come back to the front, in ms (about 1.8 s in total). | `550`, `800`, `450` |
+| `MazeScanWalls` | `holdPan` | Held scan: how far the head turns to each side and holds. At ±30° the gaze snaps to the robot heading. | `30deg` |
+| `MazeScanWalls` | `holdTilt` | Held scan: head tilt (the next cell's wall is seen at 0.38 and ±30°). | `0.38` rad |
+| `MazeScanWalls` | `holdTime` | Held scan: how long the head holds each of +30°, −30° and 0°, in ms, counted after the head travel at `headSpeed`. The mapper needs about 3 observations at one per 250 ms. The whole scan takes about 3.62 s (measured). | `1000` |
 
 ## 9. Return to start
 
@@ -280,7 +286,7 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` and `Config/Scenarios/MazeSafe/hand
 | `returnToStart.delayMs` | Wait after the goal is confirmed, for `trigger = timer`. | `5000` | Q9 |
 | `returnToStart.maxDurationMs` | Return time limit (rules: ≤2 min), counted from "returning". The return also ends at the start cell or on a pick-up; it always goes to `Standby` and says "standby". | `120000` | Q3 |
 
-The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning cells with unknown edges, so what it sees is in the map for attempt 2. Only a goal reached by the exploration (attempt 1) arms the return, and it starts with one wall scan at the goal cell (the "goal look", forced even without unknown edges) so that the look-ahead shows the edges of the neighbouring goal cells. It does not change the attempt counter.
+The return plans to the start cell of `MazeMap` with unknown edges open and keeps scanning the next cell before each walk (held scan, like the exploration), so what it sees is in the map for attempt 2. Only a goal reached by the exploration (attempt 1) arms the return, and it starts with one wall scan at the goal cell (the "goal look": the wide ±60° sequence, forced even without unknown edges) so that the look-ahead shows the edges of the neighbouring goal cells. It does not change the attempt counter.
 
 ## 10. Start scan
 
@@ -303,7 +309,7 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` ("watchdog parameters"). Ticket: MZ
 | Safe-mode speed (unnamed) | Reduced speed for cell-by-cell walking with a tag re-fix at every cell. | not set yet (MZ-025) | — |
 | Pose-quality threshold (unnamed) | Localizer quality below which safe mode starts. | not set yet (MZ-025) | — |
 
-Head scans are limited to ≤2 s (`MazeScanWalls`, MZ-024; roadmap 6): the three times in section 8 add up to 1.8 s.
+Head scans were limited to ≤2 s (`MazeScanWalls`, MZ-024; roadmap 6): the wide sequence in section 8 adds up to 1.8 s. The held scan of MZ-047 takes about 3.62 s, beyond that earlier limit (roadmap 6 still says ≤2 s; MZ-047 trades the time for the walls it sees).
 
 ## 12. Wall pose correction
 
@@ -319,7 +325,7 @@ File: `Config/Scenarios/Maze/` head-scan parameters. Ticket: MZ-037 (backlog). S
 
 | Parameter | Meaning | Default | Depends on question |
 |---|---|---|---|
-| Head strategy of `MazeScanWalls` (unnamed) | Chooses H0 fixed head, H1 stop and scan, H2 scan while walking, or H3 look-ahead and information-driven gaze. | H1 until the comparison is done | — |
+| Head strategy of `MazeScanWalls` (unnamed) | Chooses H0 fixed head, H1 stop and scan, H2 scan while walking, or H3 look-ahead and information-driven gaze. | H1 until the comparison is done (since MZ-047, H1 scans the next cell with the held ±30° look, see section 8) | — |
 
 ## 14. Maze tools (command-line flags)
 

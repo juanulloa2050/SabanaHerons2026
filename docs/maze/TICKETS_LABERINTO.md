@@ -631,7 +631,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 **Scope.** Upper thread.
 - **Near walls.** Column scan for the floor-to-wall boundary on the grey `ECImage`, projected to the floor with `Transformation::imageToRobot` (uses `CameraMatrix`). Output: `WallPercept` with the distance to the wall in front, left and right when the head points that way.
 - **Boundary by gradient, not colour.** The rules fix light walls and a matte uniform floor, but not the floor colour (Q13). The boundary is found as the brightness step between the floor and the wall: the floor is horizontal and the wall vertical, so they get different light even with the same paint. A colour threshold may be added only once Q13 is answered and shows a clear contrast. Tags (MZ-018) confirm walls without needing contrast.
-- **Look-ahead.** Along the gaze line, the percept also reports, for each cell ahead, whether its side walls are present or open. A front wall at distance *d* means the edges before *d* are open and the edge at *d* is a wall. The range depends on motion: `lookAheadRangeWalking` (default 2 cells), because the torso pitches while walking, and `lookAheadRangeStanding` (default 3 cells, up to 4 if the measurements allow it) while the robot stands and scans. Beyond a corner nothing is visible: walls are ≥60 cm high, above the camera.
+- **Look-ahead.** Along the gaze line, the percept also reports, for each cell ahead, whether its side walls are present or open. A front wall at distance *d* means the edges before *d* are open and the edge at *d* is a wall. The range depends on motion: `lookAheadRangeWalking` (1 cell, set from the measurements; the ticket default was 2), because the torso pitches while walking, and `lookAheadRangeStanding` (default 3 cells, up to 4 if the measurements allow it) while the robot stands and scans. Beyond a corner nothing is visible: walls are ≥60 cm high, above the camera.
 - **Grid snap.** Walls can only sit on the 500 mm grid. Each measurement is snapped to the nearest edge and kept only if it lies within `snapToleranceMm` (default 150 mm) of that edge; otherwise it is dropped. Every observation carries its distance, so the mapper can weight it (MZ-020).
 - **Why the range is limited.** Pixel resolution is not the limit (about 2 cm per pixel at 4 cells). The camera angle error is: with the camera about 0.5 m above the floor, a pitch error of 1° moves a floor point by about 6 cm at 1.25 m, 11 cm at 1.75 m and 19 cm at 2.25 m, and twice that with 2° (first estimate, measured in this ticket). A measurement is useful while this error stays inside `snapToleranceMm`. Far edges are confirmed by tags instead (MZ-018): the tag id names the cell, so a far tag cannot be put on the wrong edge.
 
@@ -819,7 +819,7 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 **Scope.**
 - **States and transitions** of roadmap 4.7: `WaitingForStart`, `MazeExploration`, `ReturnToStart` (MZ-024.1), `Standby`, `SpeedRun`, `Finished`. The states `Unpositioned`, `StartScan` and `Sitting` come with MZ-041 and MZ-042.
 - **`MazePlannerProvider`** wraps the MZ-011 library and provides `MazePlan` (cell path, action list, estimated time). It reads the motion costs from `mazePlanner.cfg`, created here with the `MazeCosts` defaults (`t_fwd` 2.5 s, `t_start` 0.8 s, `t_turn90` 2.0 s, `t_turn180` 3.5 s). MZ-028 replaces them with the Lab 2 means.
-- **Skills**, built on `WalkToPose` (empty obstacle avoidance) and `LookAtAngles`: `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centres only), `MazeScanWalls` (head pan ≤2 s, only on unknown edges).
+- **Skills**, built on `WalkToPose` (empty obstacle avoidance) and `LookAtAngles`: `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centres only), `MazeScanWalls` (two sequences, MZ-047: `wide: false` holds the head at +30°, −30° and 0° for about 3.6 s to scan the **next** cell from the current one, after the turn toward it; `wide: true` is the ±60° goal look of MZ-024.1, under 2 s).
 - **State announcements** (roadmap 4.7): every state change and button gesture is spoken with the `Say` skill, behind `announce.enabled` in `handleMaze.cfg`.
 - **Start cell, given or deduced.** The organisers may not say which corner the robot starts in. `start.cell` in `handleMaze.cfg` is `0`, `7`, `56` or `63` when it is known, and `-1` (default) to deduce it:
   - The start is a corner with walls on 3 sides and the robot faces the open side (rules; Q6). That leaves 8 hypotheses: 4 corners × 2 possible open sides.
@@ -845,7 +845,7 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 
 | Criterion | Offline evidence | SimRobot (18 Oct 2026) |
 |---|---|---|
-| Full flow on 3 mazes | `MazeBehavior` tests (every transition and phrase), `MazeDrive` tests (action locking, scan once per cell, timeouts), pick-up tests of the localizer and mapper. | Done: waitingForStart → exploration → finished → standby → speedRun → finished on the fixtures and generated mazes. |
+| Full flow on 3 mazes | `MazeBehavior` tests (every transition and phrase), `MazeDrive` tests (action locking, scan of the next cell once per cell and heading, timeouts), pick-up tests of the localizer and mapper. | Done: waitingForStart → exploration → finished → standby → speedRun → finished on the fixtures and generated mazes. |
 | Deduction on 4 corners | `MazeStartAcceptance`: all-faces tags deduce 8 of 8 starts within 1 cell; north/west-only tags without a tag in the start cell: worst 4 cells, always correct. | Done on `start_0_south`, `start_7_west`, `start_56_north`, `start_63_west`: "start hypothesis … (revision 1, 1 left, known)" and "start <id>" spoken. |
 | No tag at the start, map equals given-start map | `MazeStartAcceptance`: deduced and given-start maps equal for 4 corners with exact sensors, pose error < 1 mm. | Not compared in SimRobot: every fixture shows a tag from the start cell, so the start was known at revision 1. |
 | Given start, contradicting tag | `MazeStartAcceptance`: 80 conflicts, start unchanged; a carried robot put down elsewhere counts conflicts and never changes a known start. | Done: `start.cell = 7` on a cell-0 maze warns ("Latest: tag" / "boundary edge"), `MazeStart` stays 7. A wrong given start corrupts the map, so attempt 2 found no route (the watchdog is MZ-025). |
@@ -853,6 +853,19 @@ Goal of the sprint: the full competition state machine, a watchdog that never le
 | Announcements, second run | `MazeBehavior`: every phrase of the table, "exploring" again in attempt 2, "ready" after a pick-up or penalty; `SpeechQueue` tests. | Done: ready, tag, motion test, exploring (twice), goal, finished, standby, speed run, start <id>; `pr manual` / `pr none` → "Penalized", "Not penalized", "ready", no walking without a tap. |
 | `announce.enabled = false` | `MazeBehavior`: no phrases, phases unchanged. | Done: silent. |
 | `t_turn90` changes the plan | `MazeRoutes`: default `turn90Ms` gives a 6-cell staircase with 5 turns, 5000 gives an 11-cell detour with 2 turns; a runtime cost change invalidates the cached plan. | Done: `set parameters:MazePlannerProvider` changed the speed-run route. |
+
+**MZ-047 changed the scan tests of `MazeDriveTest`** (409 tests pass). The scan moved from the arrival at a cell to the point after the turn toward the next cell:
+
+| Test | What it checks |
+|---|---|
+| `TheNextCellWithUnknownEdgesIsScannedOnceBeforeTheWalkAndOnlyWhenExploring` | One scan before the walk, none in a speed run. |
+| `ANewPhaseMayScanTheNextCellAgain` | A new phase may scan the same cell and heading again. |
+| `TheTurnComesFirstThenTheScan...` | Turn, then scan, then walk. |
+| `ANewCellIsNotScannedOnArrivalWhenItsNextCellIsKnown` | No scan on arrival. |
+| `AReplanToAnotherHeadingScansAgainButTheSameHeadingOnlyOnce` | Scans are keyed by cell and heading. |
+| `ASpeedRunNeverScansTheNextCell` | The speed run never scans. |
+
+The goal look (wide, not counted as the scan of a cell) and `MazeRoutesTest` expectations are unchanged: the walk model there is now a forward gaze toward the next step, and the return is still 36 → 35 → 43 → 42 → 34.
 
 Open after MZ-024: whether dragging the robot in the SimRobot 3D view reports `FallDownState` `pickedUp` was not tried (`gc initial` / `gc playing` and `pr` were used); the robot checks belong to Lab 3 (MZ-027).
 
@@ -1296,7 +1309,7 @@ In maze_19 (scene `MazeVision`) this happens at two walls:
 
 The head pitch limit falls with pan: 0.515 rad at 0°, 0.42 at ±28°, 0.31 at ±60°. A tilt of 0.38 rad still fits at ±30°.
 
-**Current behaviour, with code locations:**
+**Behaviour before this ticket, with code locations:**
 - **When.** A scan runs once per cell and phase, on arrival, before any turn. It runs only when the robot's **own** cell has an unknown edge (`MazeDrive.cpp:145`, `scannedCell` at `MazeDrive.h:178`). Both exploration and return to start scan. The speed run never does.
 - **How.** `MazeScanWalls` pans +60° for 550 ms, −60° for 800 ms and 0° for 450 ms, at tilt 0.38 and 200°/s. Its parameters are `DEFINES_PARAMETERS` in the skill and have no cfg. The head only crosses ±30° on its way to ±60°, so it never holds a near side wall of the next cell in view.
 - **Timeout.** `scanTimeoutMs` is 2500 (`MazeDrive.h:32`).
@@ -1363,18 +1376,38 @@ The head pitch limit falls with pan: 0.515 rad at 0°, 0.42 at ±28°, 0.31 at �
 - The header comments of `HandleMaze.h` and `MazeDrive.h`.
 
 **Acceptance criteria**
-- [ ] Unit tests:
+- [x] Unit tests:
   - the drive scans after the turn toward a next cell with unknown edges, and before the walk;
   - it never scans on arrival;
   - it scans again after a replan to another heading;
   - the goal look and the speed run behave as before.
-- [ ] `MazeScanWalls` holds each side for its hold parameter. The scan finishes before `scanTimeoutMs`.
-- [ ] In `MazeVisionEval` with maze_19 (3 runs), the robot never walks into the wall 19|27 or 32|33. Each wall is in `MazeMap` before the robot would walk through it. Check this against the ground-truth pose.
-- [ ] Over the step 1 runs:
+- [x] `MazeScanWalls` holds each side for its hold parameter. The scan finishes before `scanTimeoutMs`.
+- [ ] In `MazeVisionEval` with maze_19 (3 runs), the robot never walks into the wall 19|27 or 32|33. Each wall is in `MazeMap` before the robot would walk through it. Check this against the ground-truth pose. *(Open: the robot never walks into them, but the second sentence is not demonstrated, see *Evidence*.)*
+- [x] Over the step 1 runs:
   - contacts per run are not higher than the baseline;
   - the time to the first `finished` and the `WallPerceptEvaluator` accuracy are reported against the baseline;
   - a slower run is acceptable only if this ticket states it and the reason.
-- [ ] No `finished` with the true robot outside a goal cell (MZ-046 criterion, still true).
+- [x] No `finished` with the true robot outside a goal cell (MZ-046 criterion, still true).
+
+**Evidence (21 Oct 2026, simulation).** Unit tests: `Build/Linux/Tests/Develop/Tests`, 409 passed. `SimRobot` and `Nao` build. Commits: `565460fb` (skill and timeout), `91f9e595` (drive and `HandleMaze`). Runs: headless `MazeVisionEval.ros2`, 420 s each, one SimRobot at a time, with the ground-truth instrumentation of MZ-046 applied for the run only. Times are simulation seconds.
+
+| Run | Contacts | First `finished` | Held / wide scans (baseline scans) | Per-frame accuracy |
+|---|---|---|---|---|
+| maze_19 r1 | 2 → **0** | 136.3 s → **60.4 s** | 6 / 1 (n/a) | 0.9358 → 0.9127 |
+| maze_19 r2 | 2 → **0** | 142.8 s → **60.3 s** | 6 / 1 (9) | 0.9357 → 0.9156 |
+| maze_19 r3 | 3 → **0** | 175.8 s → **60.2 s** | 6 / 1 (10) | 0.9331 → 0.9058 |
+| maze_1 | 1 → 1 (`0\|1`, start) | 46.9 s → **71.9 s** | 6 / 1 (2) | 0.9464 → 0.9258 |
+| maze_7 | 1 → 1 (`0\|8`, start) | 52.5 s → **89.9 s** | 8 / 1 (3) | 0.9425 → 0.9131 |
+
+`WallPerceptEvaluator` (a) accuracy / coverage, baseline → after: maze_19 0.9667 / 0.9783 → 0.983 / 0.967, 0.9611 / 0.9783 → 0.983 / 0.975, 0.9659 / 0.9856 → 0.966 / 0.975; maze_1 0.9909 / 0.9821 → 0.973 / 0.982; maze_7 0.9590 / 0.9839 → 0.939 / 0.992. (b) accuracy / coverage: maze_19 0.9564 / 0.2012 → 0.939 / 0.141, 0.9547 / 0.2179 → 0.936 / 0.142, 0.9620 / 0.2593 → 0.927 / 0.141; maze_1 0.9684 / 0.1079 → 0.939 / 0.148; maze_7 0.9752 / 0.1383 → 0.943 / 0.192.
+
+- **Contacts.** maze_19 goes from 2, 2, 3 to 0, 0, 0. maze_1 and maze_7 keep their 1 each: the start cell's own edge (start walls are not seeded, MZ-041 scope). Every contact matches a `MazeBlocked` line. No `finished` with the true robot outside a goal cell.
+- **Scan timing.** A held scan takes about 3.62 s (the old one about 1.82 s). `holdTime` is 1000 ms per gaze, counted after the head travel at 200°/s; `scanTimeoutMs` is 5000 (was 2500). The head reaches ±30° (30.0–30.3°) and stays within ±5 % of it for 804–936 ms per side (baseline: about 170–230 ms, never holding).
+- **Slower runs, stated with the reason.** maze_1 is 25 s slower and maze_7 37 s slower. Each held scan lasts about 3.62 s instead of about 1.82 s, and the drive now scans before every walk to a next cell with unknown edges (6 and 8 held scans against 2 and 3 scans before). The scans take about 30–36 % of the exploration time. This is the trade-off the ticket named: the new scan looks only forward, so side corridors are seen after the turn into them. maze_19 is faster to the first `finished`; the route changed (see below) and the robot had no contacts, but the cause of the time gain was not isolated.
+- **Accuracy caveat.** The evaluator covers the whole 420 s of each run (exploration, return and speed run). The routes differ between baseline and after, so the accuracy and coverage numbers are not like-for-like. The per-frame accuracy is lower in every run (0.906–0.926 against 0.933–0.946); the cause was not isolated.
+- **maze_19 walls: not demonstrated.** In all three runs the route changed to 0, 8, 16, 24, 25, 33, 34, 42, 43, 35. The robot never approached 19|27, 30|31 or 32|33 and had 0 contacts. That each wall was in `MazeMap` before the robot would walk through it is not shown: the log has no map or plan lines, and the robot never came near those walls. The criterion stays unticked. Closing it needs a run where the route passes the wall, or a log of the map and plan at each cell.
+- **Gap.** `HandleMaze::nextCellHasUnknownEdges` has no unit test; the drive tests cover only the boolean it feeds (`DriveInput::nextCellUnknownEdges`).
+- **Not done.** The ticket is not complete: the maze_19 wall criterion is open and the head angles and dwell are not checked on real images (the lab part). `Done` stays unset.
 
 **Delivery (chained PRs).**
 - **PR order.**
@@ -1860,7 +1893,7 @@ Facts this ticket builds on:
 | ID | Strategy | Description |
 |---|---|---|
 | H0 | Fixed head | Head always forward. Side walls are only seen after turning the body. |
-| H1 | Stop and scan | Current MZ-024 behaviour: stop at cells with unknown walls and pan the head (≤2 s). |
+| H1 | Stop and scan | Original MZ-024 behaviour: stop at cells with unknown walls and pan the head (≤2 s). Since MZ-047 the head holds ±30° and 0° for about 3.6 s, scanning the next cell before the walk. |
 | H2 | Scan while walking | Sweep the head left and right during corridor walks, without stopping. |
 | H3 | Look-ahead and information-driven gaze | Look down corridors to map several cells at once (the perception and mapping side is scheduled in MZ-019 and MZ-020), and point the head at the unknown wall that would change the plan the most. |
 

@@ -228,7 +228,7 @@ flowchart LR
 | Module | Thread | Provides | Notes |
 |---|---|---|---|
 | `AprilTagDetector` | Upper | `AprilTagPercept` | Wraps `ECImage.grayscaled` as `image_u8` without copying. `tag36h11`, `quad_decimate = 2`, `nthreads = 1`. `estimate_tag_pose` uses `CameraInfo` intrinsics, and the result goes to the robot frame through `CameraMatrix`. |
-| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on the grey `ECImage`, found by brightness gradient rather than colour (the floor colour is not in the rules, Q13), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (2 cells while walking, 3 when standing, set from measurements), snapped to the 500 mm grid (MZ-019). |
+| `WallPerceptor` | Upper | `WallPercept` | Column scan for the floor→wall boundary on the grey `ECImage`, found by brightness gradient rather than colour (the floor colour is not in the rules, Q13), projected with `Transformation::imageToRobot`. Also reports the side walls of the cells ahead along the gaze (1 cell while walking, 3 when standing, set from measurements), snapped to the 500 mm grid (MZ-019). |
 | `PerceptionAprilTagPerceptProvider`, `PerceptionWallPerceptProvider` | Cognition | aliases | `ALIAS(AprilTagPercept)`, `ALIAS(WallPercept)` in `PerceptionProviders.cpp` |
 | `MazeLocalizer` | Cognition | `RobotPose`, `MazeCellPose` | Replaces `SelfLocator` in the Maze `threads.cfg`. Odometry prediction plus a tag "fix" (complementary filter). The heading comes from the gyro (maze-north, section 4.5). EKF is a stretch goal. |
 | `MazeMapper` | Cognition | `MazeMap` | Fuses wall evidence with hysteresis, for any edge in view (not only the current cell), weighted by distance; a decoded tag names its cell, so it counts at any readable distance (MZ-020). State is a module member, so it **persists for the life of the process** across both attempts. It is cleared only by the sit gesture (section 4.7, MZ-042). |
@@ -310,8 +310,8 @@ stateDiagram-v2
 | `Unpositioned` | Stand, head forward. The map starts collecting only after the operator has placed the robot and tapped `headMiddle` (*positioned at start*). |
 | `StartScan` | Optional (switch `startScan.enabled`, MZ-041). Pan the head left and right for `startScan.durationMs` (default 5 s) to read the tags and walls already visible from the start cell, then look ahead. A `headFront` tap during the scan starts the run at once. |
 | `WaitingForStart` | Stand and look ahead. Identify the start corner from the tag (0/7/56/63) and the open side. A single `headRear` tap says the last seen tag id (self-test). |
-| `MazeExploration` | Execute `MazePlan` actions with skills `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centre) and `MazeScanWalls` (head pan ≤2 s, only on unknown edges) |
-| `ReturnToStart` | Optional (`returnToStart.enabled`, MZ-024.1). The same plan-walk-replan loop as `MazeExploration` with the start cell as the target (unknown edges open, scans on unknown edges). Starts from `Finished` after `delayMs` (`trigger = timer`) or on a `headFront` tap (`trigger = button`); ends at the start cell, after `maxDurationMs` or when picked up, and always goes to `Standby`. With `enabled = false` the robot stands in `Finished`. |
+| `MazeExploration` | Execute `MazePlan` actions with skills `MazeFollowCorridor` (centre the corridor, heading lock), `MazeTurn` (in place, at cell centre) and `MazeScanWalls` (MZ-047: after the turn toward the next cell and before the walk, when that cell has an unknown left, right or front edge, the head holds +30°, −30° and 0° for about 3.6 s; no scan on arrival) |
+| `ReturnToStart` | Optional (`returnToStart.enabled`, MZ-024.1). The same plan-walk-replan loop as `MazeExploration` with the start cell as the target (unknown edges open, scans the next cell before each walk like the exploration; it starts with one wide ±60° goal look, under 2 s). Starts from `Finished` after `delayMs` (`trigger = timer`) or on a `headFront` tap (`trigger = button`); ends at the start cell, after `maxDurationMs` or when picked up, and always goes to `Standby`. With `enabled = false` the robot stands in `Finished`. |
 | `Standby` | Entered when ground contact is lost (picked up). Keep the map, reset the pose to the stored start cell, wait for the tap. |
 | `SpeedRun` | Execute the known-only plan. No wall scans. |
 | `Finished` | Stand, say "goal". |
@@ -516,7 +516,7 @@ maze file. See MZ-040.
 - Corridor centring gain is moderate. Lateral target is the centre ±3 cm.
 - `quad_decimate = 2`. A tag is accepted only with decision margin ≥ threshold and size consistent with distance.
 - Wall-state hysteresis: 3 consistent observations before switching `unknown → wall/open`.
-- Watchdog at 3 s. Head scans ≤2 s.
+- Watchdog at 3 s. Head scans ≤2 s (MZ-024); the held scan of MZ-047 takes about 3.6 s.
 
 ---
 
