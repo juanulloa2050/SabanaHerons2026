@@ -1271,7 +1271,7 @@ never seen.
 | Estimate | ~4 h first guess (≈1 h baseline runs, ≈2 h code and tests, ≈1 h runs and docs) |
 | Depends on | MZ-019, MZ-024, MZ-046 (the blocked-walk detector stays as the safety net) |
 | Lab / robot | no for the simulation part; yes later, to confirm the head angles and dwell on real images |
-| Branch | `feat/MZ-019-wall-perceptor` (delivered with MZ-019 and MZ-046 in the same PR) |
+| Branch | `feat/MZ-047-scan-next-cell`, created from the tip of `feat/MZ-019-wall-perceptor` (chained PR, see *Delivery*) |
 | Files | `Src/Modules/BehaviorControl/SkillBehaviorControl/Skills/Maze/MazeScanWalls.cpp` (modify); `Src/Tools/Maze/MazeDrive.{h,cpp}` (modify: when to scan, `scanTimeoutMs`); `Src/Modules/BehaviorControl/SkillBehaviorControl/Options/HandleMaze.h` (modify: drive input); tests in `Src/Apps/Tests/Maze/MazeDriveTest.cpp`, `MazeRoutesTest.cpp`; docs listed below |
 
 This ticket is a scheduled slice of MZ-037: it changes the H1 "stop and scan" strategy and leaves the comparison of other gaze strategies to MZ-037.
@@ -1373,8 +1373,25 @@ The head pitch limit falls with pan: 0.515 rad at 0°, 0.42 at ±28°, 0.31 at �
   - a slower run is acceptable only if this ticket states it and the reason.
 - [ ] No `finished` with the true robot outside a goal cell (MZ-046 criterion, still true).
 
-**Handoff for a new session.** Continue on `feat/MZ-019-wall-perceptor`.
-- **State.** MZ-046 is committed and reviewed up to `73769703`, the reviewed boundary for the next RDD assess. MZ-046 T6 (bumper in the lab) is still open and independent of this ticket.
+**Delivery (chained PRs).**
+- **PR order.**
+  1. The MZ-019 PR, `feat/MZ-019-wall-perceptor` → `Maze-Challenge`, carries MZ-019 and MZ-046 and is reviewed on its own.
+  2. The MZ-047 PR, `feat/MZ-047-scan-next-cell` → `feat/MZ-019-wall-perceptor`, then shows only the MZ-047 commits.
+- **Create the branch:** `git switch feat/MZ-019-wall-perceptor && git switch -c feat/MZ-047-scan-next-cell`.
+- **If the MZ-019 branch moves.** When `feat/MZ-019-wall-perceptor` gets new commits, for example review fixes, rebase MZ-047 onto it so the PR diff stays only MZ-047.
+- **After MZ-019 merges.** Retarget the MZ-047 PR to `Maze-Challenge` and rebase it onto `Maze-Challenge` if the diff shows MZ-019 commits.
+- **PR body.** It states the dependency on the MZ-019 PR, with this diagram:
+
+```
+Maze-Challenge
+ └─ feat/MZ-019-wall-perceptor   (MZ-019 + MZ-046)
+     └─ feat/MZ-047-scan-next-cell 📍 (this PR)
+```
+
+- **Size.** Keep the PR within about 400 changed lines (additions plus deletions) with its tests and docs. If it grows past that, split it into the skill and timeout change and then the drive trigger, each with its tests.
+
+**Handoff for a new session.** Create `feat/MZ-047-scan-next-cell` from `feat/MZ-019-wall-perceptor` (see *Delivery*) and work there.
+- **State.** MZ-046 is committed and reviewed on the MZ-019 branch; this ticket is the passive `713f0ce7`. On the new branch, the first RDD assess uses the branch point (the MZ-019 tip) as its base. MZ-046 T6 (bumper in the lab) is still open on the MZ-019 branch and is independent of this ticket.
 - **Ground truth.** `git stash@{0}` ("MZ-046 T5 temporary instrumentation") logs the ground-truth pose for the contact count. Apply it only for runs and never commit it.
 - **How to run.** Follow `SIMULACION_LABERINTO.md`: step 3 generates the maze scene, "Seeing a blocked walk" says how to read a blocked walk, and section 7 covers `MazeVisionEval` runs.
 - **Tag caveat.** In simulation the AprilTags come from the oracle, which ignores the vertical field of view. It reports tags on the walls of the robot's own cell that the real camera cannot see, so a tag can mark a wall in simulation that the robot would miss on real images.
