@@ -296,7 +296,7 @@ namespace
     }
   }
 
-  /** The wall scan of `MazeScanWalls` (+60 deg, -60 deg, 0): the gazes left of, right of and along `heading`. */
+  /** The wide wall scan of `MazeScanWalls` (+60 deg, -60 deg, 0), the goal look: the gazes left of, right of and along `heading`. */
   void scan(const MazeGraph& truth, MazeGraph& map, int cell, Heading heading)
   {
     look(truth, map, cell, turned(heading, -1));
@@ -318,9 +318,10 @@ namespace
 /**
  * maze_19 as the robot knows it after attempt 1 reached cell 36 by the long eastern loop (the shortest walk to 36 that
  * enters the goal block only at 36: a breadth-first search over the true maze with the goal cells 27, 28 and 35 banned).
- * The map is what the scans of the walk reveal: at every walked cell but the goal, the three gazes of the wall scan
- * (left, right, along the heading it arrived with), each with the look-ahead of the oracle. The real robot scans only
- * cells that still have unknown edges, so this is an upper bound of its knowledge, and it is still short of the shortcut.
+ * The map is what the scans of the walk reveal (MZ-047): at every walked cell but the goal, the gaze along the heading of
+ * the next step (the held +-30 deg scan snaps to the robot heading, so it sees the cells straight ahead), with the
+ * look-ahead of the oracle. The real robot scans only when the next cell has unknown edges, so this is an upper bound of
+ * its knowledge, and it is still short of the shortcut.
  */
 GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
 {
@@ -331,7 +332,7 @@ GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
   const std::vector<int> walked = {0, 8, 16, 24, 25, 33, 34, 26, 18, 19, 20, 21, 13, 12, 4, 5, 6, 14, 22, 23, 31, 39, 38, 30, 29, 37, 36};
   MazeGraph map;
   for(std::size_t i = 0; i + 1 < walked.size(); ++i)
-    scan(maze.graph, map, walked[i], headingBetween(walked[i], walked[i + 1]));
+    look(maze.graph, map, walked[i], headingBetween(walked[i], walked[i + 1]));
   const Heading arrival = headingBetween(walked[walked.size() - 2], walked.back());
   ASSERT_EQ(arrival, Heading::west) << "the robot stands in 36 after coming from 37";
   const MazeState atGoal = stateAt(4, 4, arrival);
@@ -353,7 +354,7 @@ GTEST_TEST(MazeRoutes, TheReturnTriesTheUnknownShortcutInsteadOfTheWalkedLoop)
   EXPECT_EQ(map.get(4, 3, Heading::south), EdgeState::open) << "35-43 was seen from 37";
   EXPECT_EQ(map.get(5, 4, Heading::west), EdgeState::unknown) << "44-43 is not known before the goal look";
 
-  // The goal look: one wall scan at 36. The gaze left of the heading (south) sees 44 and its west edge, the wall 44-43,
+  // The goal look: one wide wall scan at 36. The gaze left of the heading (south) sees 44 and its west edge, the wall 44-43,
   // so the optimistic way through 44 is gone and 36 -> 35 -> 43 remains.
   scan(maze.graph, map, 36, arrival);
   EXPECT_EQ(map.get(5, 4, Heading::west), EdgeState::wall);

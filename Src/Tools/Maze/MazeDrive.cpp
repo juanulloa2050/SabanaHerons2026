@@ -50,7 +50,7 @@ namespace Maze
   void DriveController::reset()
   {
     driveKind = DriveKind::idle;
-    scannedCell = -1;
+    scanned.clear();
     noRouteReported = false;
     scanRequested = false;
     wide = false;
@@ -143,14 +143,21 @@ namespace Maze
     startTime = now;
     startRow = cellRow(input.cell);
     startCol = cellCol(input.cell);
-    if(!input.speedRun && scannedCell != input.cell && (input.unknownEdges || scanRequested))
+    if(!input.speedRun)
     {
-      wide = scanRequested;
-      scanRequested = false;
-      scannedCell = input.cell;
-      driveKind = DriveKind::scan;
-      decision.next = DriveNext::scan;
-      return decision;
+      // The scan branches leave the locked target alone: a blocked walk reads it (`reportBlocked`).
+      const int key = input.cell * headingCount + static_cast<int>(input.targetHeading);
+      const bool goalLook = scanRequested;
+      if(goalLook || (input.nextAction == Action::forward && input.nextCellUnknownEdges && !scanned.contains(key)))
+      {
+        wide = goalLook;
+        scanRequested = false;
+        if(!goalLook)
+          scanned.insert(key); // The next cell in this heading is looked at; the walk may go on. The goal look (wide) does not count.
+        driveKind = DriveKind::scan;
+        decision.next = DriveNext::scan;
+        return decision;
+      }
     }
     lockedRow = input.targetRow;
     lockedCol = input.targetCol;

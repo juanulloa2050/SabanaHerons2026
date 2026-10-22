@@ -12,8 +12,8 @@
  *   standby          stand (picked up, penalized, or the game stopped playing; also after skipped frames); the map is kept ("standby", and "ready"
  *                    once when the robot is active again: put down, unpenalized, or gc playing)
  *   finished         stand, a goal cell is reached ("goal", "finished"; after the exploration with returnToStart.enabled only "goal", then the trigger below)
- *   returnToStart    walk the optimistic route to the start cell of the MazePlan (unknown edges open), scanning cells with unknown
- *                    edges like the exploration ("returning"); it begins with one wall scan at the goal cell (goal look) even if that cell has no
+ *   returnToStart    walk the optimistic route to the start cell of the MazePlan (unknown edges open), scanning the next cell before
+ *                    each walk like the exploration ("returning"); it begins with one wide wall scan at the goal cell (goal look) even if the next cell has no
  *                    unknown edges, because the scan's look-ahead sees the edges of the neighbouring goal cells; ends at the start cell or after returnToStart.maxDurationMs, then
  *                    standby ("standby"). Optional, see `returnToStart` in handleMaze.cfg: trigger = timer starts it delayMs after
  *                    "goal", trigger = button on a headFront tap.
@@ -244,11 +244,16 @@ bool planCurrent() const
          theMazePlan.heading == theMazeCellPose.heading;
 }
 
-/** @return Whether any edge of the cell the robot stands in is unknown. */
-bool currentCellHasUnknownEdges() const
+/**
+ * @return Whether the left, right or front edge of the cell (`row`, `col`) is unknown for a robot that enters it with `heading`
+ * (the edge it crosses is known by then). These are the edges that a scan from the previous cell centre may see.
+ */
+bool nextCellHasUnknownEdges(int row, int col, Maze::Heading heading) const
 {
-  for(int heading = 0; heading < Maze::headingCount; ++heading)
-    if(theMazeMap.get(theMazeCellPose.row, theMazeCellPose.col, static_cast<Maze::Heading>(heading)) == MazeMap::unknown)
+  if(!Maze::inside(row, col))
+    return false;
+  for(const Maze::Heading edge : {Maze::turned(heading, -1), Maze::turned(heading, 1), heading})
+    if(theMazeMap.get(row, col, edge) == MazeMap::unknown)
       return true;
   return false;
 }
@@ -318,7 +323,7 @@ bool updateBlockedWalk()
  * Reads the plan at a cell centre and locks the next action until its skill is done. The exploration route changes
  * whenever the map learns an edge, so only its first action is binding; the speed run takes the first action of the
  * route as well, which is the same list because the map no longer changes along known-open edges. The return to the start
- * explores like the exploration (the drive still scans cells with unknown edges), so it is no speed run for the drive.
+ * explores like the exploration (the drive still scans the next cell), so it is no speed run for the drive.
  */
 Maze::DriveNext chooseNextDriveAction(DriveRoute driveRoute)
 {
@@ -335,7 +340,7 @@ Maze::DriveNext chooseNextDriveAction(DriveRoute driveRoute)
   input.targetCol = route.targetCol;
   input.targetHeading = static_cast<Maze::Heading>(static_cast<int>(route.targetHeading));
   input.cell = theMazeCellPose.cell();
-  input.unknownEdges = currentCellHasUnknownEdges();
+  input.nextCellUnknownEdges = input.nextAction == Maze::Action::forward && nextCellHasUnknownEdges(input.targetRow, input.targetCol, input.targetHeading);
   const Maze::DriveDecision decision = drive.choose(input, theFrameInfo.time);
   if(decision.next != Maze::DriveNext::keep)
     blockedDetector.reset(); // A new action begins (or nothing runs): the samples of the last one say nothing.
@@ -475,7 +480,8 @@ option(HandleMaze)
 
 /**
  * Walks the route of the plan, one action at a time: the plan is read at a cell centre, its first action is locked until
- * its skill is done, then the plan is read again. In the exploration, a cell with unknown edges is scanned first.
+ * its skill is done, then the plan is read again. In the exploration, the walk to a cell with an unknown left, right or front edge is
+ * preceded by a scan from the current cell, after the turn toward that cell (MZ-047).
  * The member `driveRoute` tells which route to follow: the speed-run route (known-open edges only, no scans), the
  * exploration route or the optimistic route back to the start cell.
  */

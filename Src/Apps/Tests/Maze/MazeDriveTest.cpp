@@ -2,7 +2,7 @@
  * @file MazeDriveTest.cpp
  *
  * Tests of the decisions that HandleMaze takes besides the phases (ticket MZ-024): the speech queue (phrase separation,
- * bound) and the drive controller (which action to run, locking while the plan is stale, one scan per cell, time limits,
+ * bound) and the drive controller (which action to run, locking while the plan is stale, one scan per cell and heading, time limits,
  * abort when the map puts a wall on the running action, blocked walk and step back; MZ-046).
  */
 
@@ -39,6 +39,14 @@ namespace
     input.targetCol = 2;
     input.targetHeading = Heading::east;
     input.cell = 9;
+    return input;
+  }
+
+  /** Like `walkInput`, and the cell it walks to has an unknown edge to look at from here. */
+  DriveInput scanInput()
+  {
+    DriveInput input = walkInput();
+    input.nextCellUnknownEdges = true;
     return input;
   }
 }
@@ -200,34 +208,88 @@ GTEST_TEST(MazeDrive, NoRouteStandsAndIsReportedOnce)
   EXPECT_EQ(drive.choose(input, 40).next, DriveNext::idle);
 }
 
-GTEST_TEST(MazeDrive, ACellWithUnknownEdgesIsScannedOnceAndOnlyWhenExploring)
+GTEST_TEST(MazeDrive, TheNextCellWithUnknownEdgesIsScannedOnceBeforeTheWalkAndOnlyWhenExploring)
 {
   DriveController drive;
-  DriveInput input = walkInput();
-  input.unknownEdges = true;
+  DriveInput input = scanInput();
   EXPECT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   EXPECT_EQ(drive.kind(), DriveKind::scan);
-  EXPECT_FALSE(drive.wideScan()) << "the scan of a cell with unknown edges is the held one";
-  EXPECT_EQ(drive.choose(input, 3000).next, DriveNext::walk) << "the same cell is not scanned a second time";
+  EXPECT_FALSE(drive.wideScan()) << "the scan of the next cell is the held one";
+  EXPECT_EQ(drive.choose(input, 4000).next, DriveNext::walk) << "the same cell and heading are not scanned a second time";
 
-  input.cell = 10; // Another cell with unknown edges is scanned.
+  input.cell = 10; // Another cell with an unknown next cell is scanned.
   EXPECT_EQ(drive.choose(input, 6000).next, DriveNext::scan);
   input.cell = 11;
-  input.unknownEdges = false; // No unknown edge: nothing to scan.
+  input.nextCellUnknownEdges = false; // Nothing to see in the next cell.
   EXPECT_EQ(drive.choose(input, 9000).next, DriveNext::walk);
 
   DriveController speedRun;
+  input = scanInput();
   input.speedRun = true;
-  input.cell = 12;
-  input.unknownEdges = true;
   EXPECT_EQ(speedRun.choose(input, 0).next, DriveNext::walk) << "a speed run never scans";
+}
+
+GTEST_TEST(MazeDrive, TheTurnComesFirstThenTheScanOnceTheNextActionIsForwardThenTheWalk)
+{
+  DriveController drive;
+  DriveInput input = scanInput();
+  input.nextAction = Action::turnLeft;
+  input.targetRow = 1;
+  input.targetCol = 1;
+  input.targetHeading = Heading::north;
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::turn) << "the next cell is scanned after the turn toward it";
+  EXPECT_EQ(drive.targetHeading(), Heading::north);
+
+  input = scanInput(); // The robot now faces east: the plan walks forward.
+  input.targetHeading = Heading::north;
+  ASSERT_EQ(drive.choose(input, 2000).next, DriveNext::scan);
+  EXPECT_EQ(drive.targetHeading(), Heading::north) << "the scan leaves the locked target alone";
+  EXPECT_EQ(drive.choose(input, 6000).next, DriveNext::walk);
+  EXPECT_EQ(drive.kind(), DriveKind::walk);
+}
+
+GTEST_TEST(MazeDrive, ANewCellIsNotScannedOnArrivalWhenItsNextCellIsKnown)
+{
+  DriveController drive;
+  DriveInput input = walkInput();
+  input.cell = 10; // The robot has just arrived; the cell it stands in may have unknown edges, but the next one has none.
+  input.nextCellUnknownEdges = false;
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::walk);
+  input.nextAction = Action::turnRight;
+  EXPECT_EQ(drive.choose(input, 10).next, DriveNext::turn);
+}
+
+GTEST_TEST(MazeDrive, AReplanToAnotherHeadingScansAgainButTheSameHeadingOnlyOnce)
+{
+  DriveController drive;
+  DriveInput east = scanInput();
+  east.targetHeading = Heading::east;
+  ASSERT_EQ(drive.choose(east, 0).next, DriveNext::scan);
+  ASSERT_EQ(drive.choose(east, 10).next, DriveNext::walk);
+
+  DriveInput south = scanInput(); // The scan found a wall: the plan turns and walks another way from the same cell.
+  south.targetHeading = Heading::south;
+  south.targetRow = 2;
+  south.targetCol = 1;
+  EXPECT_EQ(drive.choose(south, 20).next, DriveNext::scan);
+  EXPECT_EQ(drive.choose(south, 30).next, DriveNext::walk);
+  EXPECT_EQ(drive.choose(east, 40).next, DriveNext::walk) << "a heading that was scanned is not scanned again";
+}
+
+GTEST_TEST(MazeDrive, ASpeedRunNeverScansTheNextCell)
+{
+  DriveController drive;
+  DriveInput input = scanInput();
+  input.speedRun = true;
+  EXPECT_EQ(drive.choose(input, 0).next, DriveNext::walk);
+  EXPECT_EQ(drive.choose(input, 10).next, DriveNext::walk);
 }
 
 GTEST_TEST(MazeDrive, TheGoalLookScansOnceEvenWithoutUnknownEdgesThenFollowsTheRoute)
 {
   DriveController drive;
   DriveInput input = walkInput();
-  input.unknownEdges = false;
+  input.nextCellUnknownEdges = false;
   drive.requestScan();
   EXPECT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   EXPECT_EQ(drive.kind(), DriveKind::scan);
@@ -264,11 +326,10 @@ GTEST_TEST(MazeDrive, ASpeedRunIsNeverForcedToLook)
   EXPECT_EQ(drive.choose(input, 0).next, DriveNext::walk);
 }
 
-GTEST_TEST(MazeDrive, ANewPhaseMayScanTheCellAgain)
+GTEST_TEST(MazeDrive, ANewPhaseMayScanTheNextCellAgain)
 {
   DriveController drive;
-  DriveInput input = walkInput();
-  input.unknownEdges = true;
+  DriveInput input = scanInput();
   ASSERT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   ASSERT_EQ(drive.choose(input, 10).next, DriveNext::walk);
   drive.reset();
@@ -293,8 +354,7 @@ GTEST_TEST(MazeDrive, ActionsEndWhenTheSkillIsDoneOrTheTimeoutPasses)
   EXPECT_TRUE(drive.actionOver(false, 5000 + turnTimeoutMs + 1));
   EXPECT_TRUE(drive.actionOver(true, 5001));
 
-  DriveInput scan = walkInput();
-  scan.unknownEdges = true;
+  DriveInput scan = scanInput();
   scan.cell = 33;
   ASSERT_EQ(drive.choose(scan, 9000).next, DriveNext::scan);
   EXPECT_FALSE(drive.actionOver(false, 9000 + scanTimeoutMs));
@@ -381,8 +441,7 @@ GTEST_TEST(MazeDrive, ScansAndIdleAreNeverAbortedByTheMap)
   for(int h = 0; h < headingCount; ++h)
     map.set(1, 1, static_cast<Heading>(h), EdgeState::wall);
   EXPECT_FALSE(drive.mapBlocksAction(map)) << "idle";
-  DriveInput input = walkInput();
-  input.unknownEdges = true;
+  DriveInput input = scanInput();
   ASSERT_EQ(drive.choose(input, 0).next, DriveNext::scan);
   EXPECT_FALSE(drive.mapBlocksAction(map));
 }

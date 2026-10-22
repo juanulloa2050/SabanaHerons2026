@@ -2,7 +2,7 @@
  * @file Tools/Maze/MazeDrive.h
  *
  * The decisions of the maze behaviour that are not a phase: what to say next (a bounded speech queue), and which action of
- * the plan to run next (drive locking, one scan per cell, time limits). Free of modules and skills so that it can be
+ * the plan to run next (drive locking, one scan per cell and heading, time limits). Free of modules and skills so that it can be
  * unit tested; `HandleMaze` feeds it with the facts of the frame and runs the skill it chooses.
  */
 
@@ -12,6 +12,7 @@
 #include "MazePlanner.h"
 #include <deque>
 #include <optional>
+#include <set>
 #include <string>
 
 namespace Maze
@@ -63,7 +64,7 @@ namespace Maze
     idle, /**< Standing: there is no route (or no pose) to follow. */
     walk, /**< Walking to the neighbouring cell. */
     turn, /**< Turning to the next heading. */
-    scan, /**< Scanning the walls of a cell with unknown edges. */
+    scan, /**< Scanning the walls: the next cell from this one, or the goal look. */
     stepBack, /**< A walk was blocked by a wall: going back to the cell it started in. */
   };
 
@@ -90,7 +91,8 @@ namespace Maze
     int targetCol = 0;
     Heading targetHeading = Heading::north;
     int cell = 0;                  /**< The cell of the robot. */
-    bool unknownEdges = false;     /**< Any edge of that cell is unknown in the map. */
+    /** The left, right or front edge of the target cell (relative to `targetHeading`) is unknown in the map, so a scan from here may decide it. */
+    bool nextCellUnknownEdges = false;
   };
 
   /** What `DriveController::choose` decided. */
@@ -122,8 +124,8 @@ namespace Maze
     [[nodiscard]] bool actionOver(bool skillDone, unsigned now) const;
 
     /**
-     * The next cell centre is scanned even if the cell has no unknown edges (the goal look of the return: the look-ahead of
-     * the scan sees the edges of the neighbouring cells). Never in a speed run; counts as the scan of that cell. Call it after `reset`.
+     * The next cell centre gets a wide scan, once, even if the next cell has no unknown edges (the goal look of the return: the
+     * look-ahead of the scan sees the edges of the neighbouring goal cells). Never in a speed run. Call it after `reset`.
      */
     void requestScan() { scanRequested = true; }
 
@@ -158,7 +160,11 @@ namespace Maze
     [[nodiscard]] int originRow() const { return startRow; }
     [[nodiscard]] int originCol() const { return startCol; }
 
-    /** Picks the next action and locks it. */
+    /**
+     * Picks the next action and locks it. In the exploration (and the return), a walk to a cell with an unknown left, right or
+     * front edge is preceded by a scan from the cell centre, after the turn toward it (the walls 250 mm away from the robot are
+     * never in view, the ones of the next cell are): once per cell and heading in a phase. There is no scan on arrival.
+     */
     DriveDecision choose(const DriveInput& input, unsigned now);
 
     [[nodiscard]] DriveKind kind() const { return driveKind; }
@@ -178,7 +184,7 @@ namespace Maze
     int lockedRow = 0; /**< The target of the running walk, or the cell of the running turn; the origin cell during a step back. */
     int lockedCol = 0;
     Heading lockedHeading = Heading::north; /**< The heading to keep (walk) or to reach (turn). */
-    int scannedCell = -1;                   /**< The cell where the walls were scanned last in this phase. */
+    std::set<int> scanned;                  /**< The (cell, heading) pairs scanned in this phase (`cell * headingCount + heading`). */
     bool noRouteReported = false;
     bool wide = false; /**< The scan that runs (or ran last) was the forced goal look. */
     bool scanRequested = false; /**< `requestScan` was called and the forced scan has not happened yet. */
