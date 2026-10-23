@@ -110,6 +110,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 | MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
 | MZ-046 | Blocked-walk detection and no false goal arrival (proposed, from the MZ-019 closed-loop run) | Bryam | Done | 3 | yes (bumper check) | MZ-019, MZ-020, MZ-024 |
+| MZ-048 | Scan only the sides of the next cell that the route may leave through (proposed, from the `maze_21` runs) | Bryam | Proposed | ~4 (first guess) | no | MZ-047, MZ-011 |
 | MZ-024.1 | Exploring return to start (subtask of MZ-024, done) | Bryam | Done | 3 | no | MZ-024 |
 
 These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 3.0 h, plus the 2 h of MZ-038 now inside MZ-020 (47.75 → 52.75 h), and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-042 → MZ-041 → MZ-039. MZ-045 (3 h, not in these numbers) is built only if the MZ-020 logs show the cell is lost between tag fixes.
@@ -1446,6 +1447,68 @@ Maze-Challenge
 - **How to run.** Follow `SIMULACION_LABERINTO.md`: step 3 generates the maze scene, "Seeing a blocked walk" says how to read a blocked walk, and section 7 covers `MazeVisionEval` runs.
 - **Tag caveat.** In simulation the AprilTags come from the oracle, which ignores the vertical field of view. It reports tags on the walls of the robot's own cell that the real camera cannot see, so a tag can mark a wall in simulation that the robot would miss on real images.
 - **GPU hang.** One 21 Oct session saw the Intel GPU hang while SimRobot ran, which took the desktop down. If it repeats, run SimRobot with `prime-run`.
+
+### MZ-048 — Scan only the sides of the next cell that the route may leave through
+
+| Field | Value |
+|---|---|
+| Owner | Bryam |
+| Estimate | ~4 h first guess (≈1 h baseline runs, ≈2 h code and tests, ≈1 h runs and docs) |
+| Depends on | MZ-047 (held next-cell scan), MZ-011 (planner cost-to-go) |
+| Lab / robot | no |
+| Branch | `feat/MZ-048-scan-exit-sides`, created from the tip of `feat/MZ-047-scan-next-cell` (chained PR onto it) |
+| Files | `Src/Tools/Maze/MazeDrive.{h,cpp}` or a new pure helper in `Src/Tools/Maze/` (which gazes to hold); `Src/Representations/BehaviorControl/SkillInterfaces.h` and `Skills/Maze/MazeScanWalls.cpp` (hold only the requested gazes); `Options/HandleMaze.h` (drive input); tests in `Src/Apps/Tests/Maze/`; docs listed below |
+
+**Goal.** The held scan of MZ-047 looks at +30°, −30° and 0° (about 3.6 s) whenever the next cell has any unknown left, right or front edge. Hold only the gazes that can change where the robot goes after the next cell. Each skipped gaze saves about 1.2 s; scans take about 30–36 % of the exploration time (MZ-047 evidence).
+
+**Rule (the exits of the next cell, in route order).**
+1. Rank the exits of the next cell (left, right and front, relative to the walk heading; never the edge just crossed) by the planner's optimistic cost-to-go through them (unknown edges open, the same tie-break as the route). Skip exits that are known walls.
+2. Walk down that ranking. Add each **unknown** exit to the scan. Stop at the first exit that is **known open**: the robot can always leave that way, so lower-ranked exits cannot change the route.
+3. Hold +30° for the left exit, −30° for the right exit and 0° for the front exit, in that order. No gaze left: no scan, walk at once.
+
+Why the fallback exits count: once the robot stands in the next cell, its own side walls are 250 mm away and the upper camera never sees them (MZ-047 measurement). If the preferred exit turns out to be a wall, the next exit must already be known, or the robot plans through it blind. An exit ranked below a known open exit is never needed.
+
+**Examples on `maze_21`** (`maze_19` with a wall 35|43 and no wall 32|33; headings as walked):
+
+| Scan from → next cell (heading) | Exits of the next cell | Gazes held |
+|---|---|---|
+| 25 → 33 (south) | left 33\|34 unknown, right 32\|33 unknown, front 33\|41 wall | left and right: both sides are possible exits and neither is known |
+| 33 → 34 (east) | left 26\|34 unknown, right 34\|42 unknown, front 34\|35 wall | left and right |
+| 34 → 42 (south) | left 42\|43 known open and preferred (toward 43 and the goal), right 41\|42 lower | none: the preferred exit is known open, 41\|42 cannot change the route |
+| 42 → 43 (east) | left 35\|43 unknown and preferred (goal), right 43\|51 known wall, front 43\|44 | left only, if 43\|44 is known by then; otherwise left and front |
+
+The map states in this table are the expected ones; step 1 checks them in a map log. Note that knowing 43|51 says nothing about 42|43: the third row needs 42|43 itself in `MazeMap` before the scan at 34.
+
+**Current behaviour.** `MazeDrive::choose` scans when the next action is a forward walk and `DriveInput::nextCellUnknownEdges` is true (any of left, right, front unknown), keyed by (cell, heading). `MazeScanWalls` with `wide = false` always holds all three gazes (`holdPan` 30°, `holdTilt` 0.38, `holdTime` 1000 ms after the head travel). `HandleMaze::nextCellHasUnknownEdges` computes the input.
+
+**Scope.**
+- A pure function (testable, in `Src/Tools/Maze/`) that returns the gazes to hold from the map, the next cell, the walk heading and the planner's cost-to-go, by the rule above.
+- `DriveInput` carries that gaze set instead of the boolean; the drive scans when the set is not empty, still keyed by (cell, heading), and passes the set to the skill.
+- `MazeScanWalls` takes the gazes to hold (`wide` stays for the goal look); it holds the requested gazes in the order left, right, front, with the travel allowance between them.
+- Unchanged: the goal look (wide ±60°), no scan in the speed run, the walking look-ahead, the start walls seeded by MZ-047.
+- Out of scope: scanning while walking (MZ-037 H2), the lower-camera wall perceptor, changing `holdTime`.
+
+**Steps**
+1. **Baseline.** With the MZ-047 code, run `MazeVisionEval.ros2` headless on `maze_21` (3 runs) and on `maze_19`, `maze_1`, `maze_7` (1 run each), one SimRobot at a time. Record contacts (ground truth), time to the first `finished`, the number of scans and gazes, and a map log at each scan (as in the MZ-047 map-log runs) to confirm the example table.
+   - From the same logs, find which edges each gaze decides (left, right, front edges of which cells) and adjust the gaze-to-exit mapping if a side or the front needs a different gaze.
+2. **The rule.** The pure function and its tests.
+3. **Drive and skill.** `DriveInput`, `MazeDrive`, `HandleMaze` and `MazeScanWalls` with the gaze set.
+4. **Runs and docs.** Repeat step 1 and compare.
+
+**Tests**
+- The four rows of the example table, built on `maze_21` map states (new tests next to `MazeDriveTest` or in a new file).
+- A known open preferred exit gives no gaze; an all-wall next cell (dead end) gives no gaze; a front exit gives the 0° gaze.
+- The drive does not scan when the set is empty, scans once per (cell, heading) otherwise, and the goal look and the speed run behave as before (update the MZ-047 tests that use `nextCellUnknownEdges`).
+
+**Docs to update:** this ticket (evidence), the MZ-024 skills line and test table, `PARAMETROS_LABERINTO.md` section 8 (`MazeScanWalls`), `ROADMAP_LABERINTO.md` (MazeExploration row), the header comments of `HandleMaze.h` and `MazeDrive.h`.
+
+**Acceptance criteria**
+- [ ] Unit tests: the four example rows and the cases above pass.
+- [ ] In simulation (the step 1 set), the number of held gazes per run is lower than the baseline, and the time to the first `finished` is not higher on any maze, or the ticket states why.
+- [ ] Contacts per run are not higher than the baseline; on `maze_21` the robot never walks into 35|43 (check against the ground-truth pose).
+- [ ] No `finished` with the true robot outside a goal cell.
+
+**Delivery.** PR `feat/MZ-048-scan-exit-sides` → `feat/MZ-047-scan-next-cell`, after the MZ-019 and MZ-047 PRs; when a base branch moves, rebase this one so the diff shows only MZ-048. Keep it within about 400 changed lines with tests and docs.
 
 ### MZ-024.1 — Exploring return to start (subtask of MZ-024)
 
