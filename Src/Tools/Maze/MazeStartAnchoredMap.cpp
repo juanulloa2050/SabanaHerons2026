@@ -14,6 +14,7 @@ namespace Maze
   StartAnchoredMap::StartAnchoredMap(const AnchoredMapParameters& parameters) : fusion(parameters.fusion), anchored(startDeduction.working())
   {
     setParameters(parameters);
+    seedStartWalls(fusion, anchored); // The map of a start that never changes hypothesis is never rebuilt: seed it here.
   }
 
   void StartAnchoredMap::setParameters(const AnchoredMapParameters& newParameters)
@@ -37,9 +38,20 @@ namespace Maze
   {
     MazeMapFusion fresh(fusion.parameters);
     fresh.attempt = fusion.attempt;
+    seedStartWalls(fresh, startDeduction.working()); // Before the replay, so that no percept of the log can open them.
     startDeduction.replay(startDeduction.working(), fresh, layout);
     fusion = fresh;
     anchored = startDeduction.working();
+  }
+
+  void StartAnchoredMap::seedStartWalls(MazeMapFusion& target, const Hypothesis& start)
+  {
+    // Rule: the start cell is a corner walled on three sides and the robot is placed facing the open side, so `start.heading` is
+    // the open side. Relative to the robot the walls are always behind, left and right, whatever hypothesis is the true one. The
+    // border edges are ignored by `observeBlocked`; the one inner edge becomes a hard wall. Not logged: every rebuild derives it
+    // again from the working hypothesis, and a fresh map drops the seeds of the old frame.
+    for(const int quarterTurns : {2, 1, -1})
+      target.observeBlocked(cellRow(start.cell), cellCol(start.cell), turned(start.heading, quarterTurns));
   }
 
   GridCell StartAnchoredMap::startCellOf(const Pose2f& pose) const

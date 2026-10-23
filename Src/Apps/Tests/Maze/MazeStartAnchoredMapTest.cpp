@@ -170,7 +170,8 @@ GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeWhoseNeighbourIsOutsideTheMazeIsNei
   EXPECT_FALSE(map.observeBlocked(7, 3, Heading::south));
   EXPECT_FALSE(map.observeBlocked(3, 7, Heading::east));
 
-  // A rebuild under another hypothesis shows that nothing was logged: no inner edge is a wall.
+  // A rebuild under another hypothesis shows that nothing was logged: the only inner wall is the seeded one of the start cell
+  // (63, north): its left edge, west. The blocked edges above would otherwise have shown up here.
   EXPECT_EQ(map.observeTag(estimate, 55, tagSeenFrom(truth, 55, Heading::north), 2000), 0);
   ASSERT_TRUE(map.endFrame());
   for(int row = 0; row < size; ++row)
@@ -178,9 +179,97 @@ GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeWhoseNeighbourIsOutsideTheMazeIsNei
       for(int h = 0; h < headingCount; ++h)
       {
         const Heading heading = static_cast<Heading>(h);
-        if(inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
-          EXPECT_NE(map.map().graph.get(row, col, heading), EdgeState::wall) << row << "," << col << "," << h;
+        if(!inside(row + rowDelta[static_cast<std::size_t>(heading)], col + colDelta[static_cast<std::size_t>(heading)]))
+          continue;
+        const bool seeded = (row == 7 && col == 7 && heading == Heading::west) || (row == 7 && col == 6 && heading == Heading::east); // Both sides of the edge.
+        EXPECT_EQ(map.map().graph.get(row, col, heading) == EdgeState::wall, seeded) << row << "," << col << "," << h;
       }
+}
+
+/** The inner edges of the start cell of `start` that the rule makes walls, and its open side. */
+static void expectStartWalls(const MazeMapFusion& fusion, const Hypothesis& start)
+{
+  const int row = cellRow(start.cell);
+  const int col = cellCol(start.cell);
+  for(const int quarterTurns : {2, 1, -1})
+  {
+    const Heading side = turned(start.heading, quarterTurns);
+    if(inside(row + rowDelta[static_cast<std::size_t>(side)], col + colDelta[static_cast<std::size_t>(side)]))
+      EXPECT_EQ(fusion.graph.get(row, col, side), EdgeState::wall) << start.cell << " side " << static_cast<int>(side);
+  }
+  EXPECT_NE(fusion.graph.get(row, col, start.heading), EdgeState::wall) << start.cell << " front";
+}
+
+GTEST_TEST(MazeStartAnchoredMap, AGivenStartHasItsInnerWallAndItsOpenSideInEveryHypothesis)
+{
+  // Note: MazeMapFusion::operator== ignores the hard walls (`blocked`), but these checks read the graph, which has them.
+  for(const Hypothesis& start : StartDeduction::hypotheses())
+  {
+    StartAnchoredMap map;
+    ASSERT_TRUE(map.setGiven(start.cell, start.heading)) << start.cell;
+    expectStartWalls(map.map(), start);
+    // Exactly one inner edge of the corner is a wall, the one between the start cell and its neighbour behind or beside it.
+    int innerWalls = 0;
+    for(int h = 0; h < headingCount; ++h)
+    {
+      const Heading side = static_cast<Heading>(h);
+      const int row = cellRow(start.cell) + rowDelta[static_cast<std::size_t>(side)];
+      const int col = cellCol(start.cell) + colDelta[static_cast<std::size_t>(side)];
+      if(inside(row, col) && map.map().graph.get(cellRow(start.cell), cellCol(start.cell), side) == EdgeState::wall)
+        ++innerWalls;
+    }
+    EXPECT_EQ(innerWalls, 1) << start.cell;
+  }
+}
+
+GTEST_TEST(MazeStartAnchoredMap, OpenObservationsNeverOpenTheSeededStartWall)
+{
+  for(const Hypothesis& start : StartDeduction::hypotheses())
+  {
+    StartAnchoredMap map;
+    ASSERT_TRUE(map.setGiven(start.cell, start.heading));
+    CellObservation ahead;
+    ahead.left = EdgeState::open;
+    ahead.right = EdgeState::open;
+    ahead.front = EdgeState::open;
+    ahead.distance = 100.f;
+    const Pose2f pose = startPose(start);
+    ASSERT_TRUE(map.lookAheadUsable(pose));
+    for(unsigned i = 0; i < 30; ++i)
+      map.observeCellsAhead(pose, start.heading, {ahead}, 1000 + 300 * i);
+    expectStartWalls(map.map(), start);
+  }
+}
+
+GTEST_TEST(MazeStartAnchoredMap, AMapThatIsNeverRebuiltIsSeededFromTheStart)
+{
+  StartAnchoredMap map; // Working hypothesis 0 and no rebuild: the constructor seeds it.
+  const Hypothesis working = StartDeduction::hypotheses()[0];
+  ASSERT_EQ(map.anchor(), working);
+  expectStartWalls(map.map(), working);
+  EXPECT_EQ(map.map().graph.get(cellRow(working.cell), cellCol(working.cell), turned(working.heading, 1)), EdgeState::wall);
+  EXPECT_FALSE(map.endFrame());
+  expectStartWalls(map.map(), working);
+}
+
+GTEST_TEST(MazeStartAnchoredMap, ADeducedStartSeedsTheWorkingHypothesisAndMovesTheWallsWithTheRebuild)
+{
+  const Hypothesis truthStart = {63, Heading::north};
+  const Pose2f truth = startPose(truthStart);
+  StartAnchoredMap map;
+  const Hypothesis first = map.anchor();
+  ASSERT_FALSE(map.status().known);
+  expectStartWalls(map.map(), first); // Seeded before the start is known: (0, east) walls 0|8 (south side).
+  EXPECT_EQ(map.map().graph.get(0, 0, Heading::south), EdgeState::wall);
+
+  const Pose2f estimate = believed(truth, truthStart, first);
+  map.markVisited(estimate);
+  EXPECT_EQ(map.observeTag(estimate, 55, tagSeenFrom(truth, 55, Heading::north), 2000), 0);
+  ASSERT_TRUE(map.endFrame());
+  ASSERT_EQ(map.anchor(), truthStart);
+  expectStartWalls(map.map(), truthStart); // The wall west of cell 63.
+  EXPECT_EQ(map.map().graph.get(7, 7, Heading::west), EdgeState::wall);
+  EXPECT_EQ(map.map().graph.get(0, 0, Heading::south), EdgeState::unknown) << "the seed of the old frame is gone";
 }
 
 GTEST_TEST(MazeStartAnchoredMap, ABlockedEdgeOfAGivenStartIsKeptAndNeverOpened)

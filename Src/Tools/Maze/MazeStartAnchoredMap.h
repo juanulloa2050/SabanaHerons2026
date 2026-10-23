@@ -14,6 +14,9 @@
  * deduction also sees the frames in which the pose is outside the maze of the working hypothesis (which proves that
  * hypothesis wrong, and whose observations belong to another hypothesis); the map only learns from the others.
  *
+ * The map always has the three walls of the start cell: the start is a corner and the robot is placed facing its open side, so
+ * the edges behind, left and right of the working hypothesis are hard walls from the beginning, also before the start is known.
+ *
  * Once the start is known only one hypothesis is left, the log is freed and nothing is logged again. A given start never logs.
  */
 
@@ -118,8 +121,14 @@ namespace Maze
     MazeTagLayout layout;
 
   private:
-    /** Replaces the map by the replay of the log under the working hypothesis. */
+    /** Replaces the map by the replay of the log under the working hypothesis, with the start walls seeded. */
     void rebuild();
+
+    /**
+     * Marks the back, left and right edges of the start cell of `start` as hard walls in `target`. The rule says that the start is a
+     * corner walled on three sides and that the robot is placed facing the open side, which `start.heading` is.
+     */
+    static void seedStartWalls(MazeMapFusion& target, const Hypothesis& start);
 
     /** The start-relative cell of a pose in the frame of the anchor. */
     [[nodiscard]] GridCell startCellOf(const Pose2f& pose) const;
