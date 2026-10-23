@@ -110,6 +110,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 | MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
 | MZ-046 | Blocked-walk detection and no false goal arrival (proposed, from the MZ-019 closed-loop run) | Bryam | Done | 3 | yes (bumper check) | MZ-019, MZ-020, MZ-024 |
+| MZ-047 | Scan the next cell from the current one, with a held ±30° look (proposed, from the MZ-046 runs) | Bryam | Done | ~4 | no (lab check later) | MZ-019, MZ-024, MZ-046 |
 | MZ-048 | Scan only the sides of the next cell that the route may leave through (proposed, from the `maze_21` runs) | Bryam | Proposed | ~4 (first guess) | no | MZ-047, MZ-011 |
 | MZ-024.1 | Exploring return to start (subtask of MZ-024, done) | Bryam | Done | 3 | no | MZ-024 |
 
@@ -1284,6 +1285,7 @@ never seen.
 
 | Field | Value |
 |---|---|
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | ~4 h first guess (≈1 h baseline runs, ≈2 h code and tests, ≈1 h runs and docs) |
 | Depends on | MZ-019, MZ-024, MZ-046 (the blocked-walk detector stays as the safety net) |
@@ -1412,7 +1414,7 @@ The head pitch limit falls with pan: 0.515 rad at 0°, 0.42 at ±28°, 0.31 at �
   - Held scans, all 5 runs: 31 scans; 47 of the 49 walls among the next cells' left, right and front edges were in `MazeMap` right after the scan. The 3 wrong marks all come from the first scan at the start cell of the forced runs, where the target cell lies behind a start wall the map did not know (see *Addendum: start walls*). Some later wrong `open` marks on true walls appear in the log (26|27 in all maze_19 runs, corrected about 11 s later; a few others stayed); they come from the wall perceptor, not from the scan trigger.
   - Contacts: 0 in maze_19 and from start 7; 1 from start 56, into its then unseeded start wall (see *Addendum: start walls*). Every `finished` has the true robot in a goal cell.
 - **Gap.** `HandleMaze::nextCellHasUnknownEdges` has no unit test; the drive tests cover only the boolean it feeds (`DriveInput::nextCellUnknownEdges`).
-- **Not done.** The ticket is not complete: the head angles and dwell are not checked on real images (the lab part). `Done` stays unset.
+- **Closed (22 Oct 2026)** for the simulation part. The head angles and dwell are not checked on real images yet (the lab part).
 - **Addendum: start walls (22 Oct 2026).** *Problem:* the map knew only the outer border, so the one inner wall of the start cell (`0|1` for start 0 facing south, `0|8` facing east) stayed unknown and the planner treated it as open; the robot deviated into it (the contacts of maze_1 and maze_7). *Rule:* the start is a corner cell walled on three sides and the robot is placed facing the open side (Q6). *Design:* `StartAnchoredMap::seedStartWalls` marks the edges behind, left and right of the working hypothesis' start cell as hard walls (`MazeMapFusion::observeBlocked`: border ignored, no percept or tag reopens them). They are not logged: the constructor seeds the first hypothesis and every `rebuild()` seeds the new one on the fresh map before the replay, so a hypothesis change moves the walls to the new frame and drops the old ones. They are seeded before the start is known too, because relative to the robot they are always behind, left and right. A rebuild is counted as a map change, so the planner replans; the seed of the constructor or of `setGiven` at load is in the map before the first frame. *Tests:* `MazeStartAnchoredMapTest` covers the 8 hypotheses (inner wall is a wall, open side is not), 30 open observations that do not open the wall, a never-rebuilt map, and a deduced start whose walls move with the rebuild; the old "no inner wall after a rebuild" test now expects exactly the seeded start wall. `MazeMapFusion::operator==` ignores the hard walls, so the tests read the graph. *Simulation (22 Oct 2026, same runs as above, one SimRobot at a time, ground truth applied for the run only):* 0 contacts and 0 `MazeBlocked` lines in all six runs; the seeded inner wall is in `MazeMap` from the first exploration frame and the open side stays open.
 
 | Run | Contacts before → after | First `finished` before → after |
