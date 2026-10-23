@@ -218,6 +218,8 @@ File: `Config/Scenarios/Maze/handleMaze.cfg` (and `MazeSafe`, identical). Ticket
 | `start.heading` | Maze heading the robot faces at the start: `north`, `east`, `south` or `west`. A corner has two open sides, so it is used when `start.cell` is given and ignored when it is `-1`. It must point into the maze: cell 0 `east`/`south`, 7 `south`/`west`, 56 `north`/`east`, 63 `north`/`west`. Otherwise: error at load, `start.cell` treated as `-1`. | `south` | Q6 |
 | `announce.enabled` | Speak every state change and button gesture; `false` silences all speech (the behaviour does not change). | `true` | — |
 
+The mapper seeds the back, left and right edges of the start cell as hard walls (no wall percept or tag opens them; MZ-047, *Addendum: start walls*), also while `start.cell` is `-1`, for the working hypothesis. So `start.heading` must be the open side of the corner: the rule says the robot is placed facing it (Q6). With a wrong heading the map holds a false wall in front of the robot.
+
 A tag or wall that contradicts a given start is reported with a warning that names the kind of observation (`tag`, `boundary edge`, `position`); the given start does not change. The warning is limited to one per 2 s.
 
 ### Blocked walk (`blockedWalk`)
