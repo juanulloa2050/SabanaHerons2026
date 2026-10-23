@@ -88,7 +88,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | [x] | MZ-013 | Oracle maze percepts for simulation ⚠️ | Bryam | 1 | 2 | no | MZ-010, MZ-011 |
 | [x] | MZ-016 | Corridor walk profile in simulation | Wilson | 1 | 3 | no | MZ-007, MZ-010 |
 | [x] | MZ-018 | AprilTag detector ⚠️ | Bryam | 2 | 5 | no | MZ-008, MZ-017* |
-| [ ] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
+| [x] | MZ-019 | Wall perceptor + corridor look-ahead | Bryam | 2 | 5 | no | MZ-010, MZ-017* |
 | [x] | MZ-020 | Localizer + mapper + gyro heading ⚠️ | Bryam | 2 | 7.5 | no | MZ-011, MZ-013, MZ-017* |
 | [ ] | MZ-021 | Headless simulation campaign runner | Wilson | 2 | 3 | no | MZ-010 |
 | [ ] | MZ-022 | Tag accuracy report ⚠️ | Wilson | 2 | 2.5 | no | MZ-017*, MZ-018 |
@@ -109,7 +109,7 @@ have a Done column here; physical, proposed and backlog tickets use their own ac
 | MZ-041 | "Positioned at start" button and start head-scan (proposed) | Bryam | Proposed | 2 | no (checked in Lab 3) | MZ-018, MZ-024 |
 | MZ-042 | Maze memory reset by the sit gesture (proposed) | Bryam | Proposed | 1 | no | MZ-020, MZ-024 |
 | MZ-045 | Pose correction from wall distances (proposed, only if the logs need it) | Bryam | Proposed | 3 | no (uses Lab 1 logs) | MZ-019, MZ-020, MZ-017* |
-| MZ-046 | Blocked-walk detection and no false goal arrival (proposed, from the MZ-019 closed-loop run) | Bryam | Proposed | 3 | yes (bumper check) | MZ-019, MZ-020, MZ-024 |
+| MZ-046 | Blocked-walk detection and no false goal arrival (proposed, from the MZ-019 closed-loop run) | Bryam | Done | 3 | yes (bumper check) | MZ-019, MZ-020, MZ-024 |
 | MZ-024.1 | Exploring return to start (subtask of MZ-024, done) | Bryam | Done | 3 | no | MZ-024 |
 
 These come from the corrections review. They are small. With review time gone, the plan has room for most of them: Bryam's add 3.0 h, plus the 2 h of MZ-038 now inside MZ-020 (47.75 → 52.75 h), and Wilson's add 2.0 h (MZ-039). MZ-040, also proposed, is in the physical table. Suggested order, by value for the run: MZ-042 → MZ-041 → MZ-039. MZ-045 (3 h, not in these numbers) is built only if the MZ-020 logs show the cell is lost between tag fixes.
@@ -618,7 +618,7 @@ Goal of the sprint: real tags and walls detected, a pose that stays inside the c
 
 | Field | Value |
 |---|---|
-| Done | [ ] |
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 5 h (4 h perceptor + 1 h look-ahead) |
 | Depends on | MZ-010, MZ-017 (soft: Lab 1 logs) |
@@ -674,6 +674,8 @@ Before `b87f8eac` (T3.1) maze_19 had (a) 95.6 % (173/181) and (b) 97.1 % (77 % c
 - The real wall polarity is unknown (Q13): the simulator renders the walls darker than the floor, the rules say lighter. The boundary accepts either sign, but the colour and brightness thresholds (`minGradient`, `minWallContrast`, `maxWallSaturation`) were set on simulated images only.
 - One run per maze, no variance estimate; the cause of the maze_7 loitering and of the occasional bad simulator starts is not investigated.
 - The tag flag of the mapper never clears, so a misdecoded tag would block the open evidence of that edge for good.
+
+**Closed (22 Oct 2026).** Done in simulation and delivered together with MZ-046. Criterion 1 (maze_7 at 90.1 %) and criterion 2 (Lab 1 logs) stay open as listed above; the distance table of criterion 4 is in `PARAMETROS_LABERINTO.md`, section 5.
 
 The ticket stays open until criterion 2 is measured on the Lab 1 logs and criterion 1 is met or accepted by the team.
 
@@ -1201,6 +1203,7 @@ proposed.
 
 | Field | Value |
 |---|---|
+| Done | [x] |
 | Owner | Bryam |
 | Estimate | 3 h first guess |
 | Depends on | MZ-019, MZ-020, MZ-024 |
@@ -1236,7 +1239,7 @@ never seen.
 - [x] A walk into an unknown wall is detected as blocked within a parameter time (`blockedTimeout`, set from the run). The edge becomes `wall`, and the robot replans without a second contact on that wall. *(6 of 6 contacts, 1.1–1.3 s after the contact; see the evidence.)*
 - [x] An edge that becomes `wall` during a walk aborts the walk before the contact (unit or scene test). *(Unit tests `MazeDrive.AWalkIsAbortedWhenItsEdgeBecomesAWallBeforeTheSkillIsDone` and `MazeBlockedEdgeChannel.*`; no scene case was observed, the contacts in the runs were all unknown walls.)*
 - [x] Unit tests: blocked detection on a synthetic progress trace, and a blocked-walk wall is not turned open by later wall-percept open observations.
-- [ ] Real robot (lab): a foot-bumper contact against a panel marks the edge, as a short log in the PR. *(Pending lab, T6.)*
+- [ ] Real robot (lab): a foot-bumper contact against a panel marks the edge, as a short log in the PR. *(Pending lab, T6; the ticket is closed for the simulation part on 22 Oct 2026.)*
 
 **Evidence (simulation, 21 Oct 2026).** `MazeVisionEval.ros2` (MazeVision + `WallPerceptEvaluator`), maze_19, headless (`QT_QPA_PLATFORM=offscreen`, 420 s), ground-truth pose in the maze frame logged with temporary instrumentation (never committed).
 
