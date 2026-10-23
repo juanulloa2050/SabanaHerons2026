@@ -207,7 +207,7 @@ class ExpectedCsvTests(unittest.TestCase):
             self.assertEqual(reader.fieldnames, sm.CSV_HEADER)
             rows = list(reader)
         files = sorted(p.name for p in MAZE_DIR.glob("maze_*.maze"))
-        self.assertEqual(len(files), 20)
+        self.assertEqual(len(files), 21)
         self.assertEqual(sorted(r["file"] for r in rows), files)
         for row in rows:
             with self.subTest(maze=row["file"]):

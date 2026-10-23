@@ -18,7 +18,7 @@ CLion:
 
 ## 2. Generate a maze (optional)
 
-Twenty ready-made mazes live in `Config/Mazes/generated/maze_1.maze` … `maze_20.maze`. To make a new one:
+Ready-made mazes live in `Config/Mazes/generated/`: `maze_1.maze` … `maze_20.maze` come from seeds 1–20, and `maze_21.maze` is `maze_19` edited by hand (a wall between 35 and 43, no wall between 32 and 33), so it is not regenerated from a seed. To make a new one:
 
 ```bash
 python3 Util/MazeTools/generate_maze.py --seed 42 --start 0 --loops 2 --out /tmp/my.maze

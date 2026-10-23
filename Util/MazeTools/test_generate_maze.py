@@ -235,7 +235,7 @@ class CommittedMazesTests(unittest.TestCase):
     def test_generated_fixtures_validate(self):
         root = Path(__file__).resolve().parents[2]
         files = sorted((root / "Config" / "Mazes" / "generated").glob("*.maze"))
-        self.assertEqual(len(files), 20)
+        self.assertEqual(len(files), 21)
         for path in files:
             self.assertIsNone(gm.validate(path.read_text(encoding="utf-8")), path.name)
 

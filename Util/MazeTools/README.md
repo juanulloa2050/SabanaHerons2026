@@ -70,6 +70,9 @@ mkdir -p Config/Mazes/generated
 for s in $(seq 1 20); do python3 Util/MazeTools/generate_maze.py --seed $s --loops $((s % 4)) --out Config/Mazes/generated/maze_$s.maze; done
 ```
 
+`maze_21.maze` is not generated: it is `maze_19.maze` edited by hand (a wall between cells 35 and 43, no wall
+between 32 and 33). The loop above leaves it alone; it still passes `--validate` and is in `expected.csv`.
+
 `--seed` is required when generating. `--start` is one of 0, 7, 56, 63 (default 0). Without `--out`
 the maze is printed to stdout. `--validate` cannot be combined with generation options; errors go to
 stderr and the exit code is 1.
